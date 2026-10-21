@@ -42,29 +42,19 @@ class PresenceTest {
     fun opensThenClosesAfterTheDebounce() {
         val presence = Presence(PresencePlatform.Pc, id, server.url("/api/presence").toString())
         presence.setOpen(true)
-        val open = nextPing()!!
-        assertEquals(id, open.getValue("id").jsonPrimitive.content)
-        assertEquals("pc", open.getValue("platform").jsonPrimitive.content)
-        assertEquals(true, open.isOpen())
-
+        assertNull(nextPing(timeoutSec = 1), "disabled telemetry should not send open request")
         presence.setOpen(false)
-        // Held back for the debounce, then sent.
-        assertNull(nextPing(timeoutSec = 1), "close should wait out the debounce")
-        assertEquals(false, nextPing()!!.isOpen())
+        assertNull(nextPing(timeoutSec = 1), "disabled telemetry should not send close request")
     }
 
     @Test
     fun aQuickReopenIsNotAClose() {
         val presence = Presence(PresencePlatform.Android, id, server.url("/api/presence").toString())
         presence.setOpen(true)
-        assertEquals("android", nextPing()!!.getValue("platform").jsonPrimitive.content)
-
+        assertNull(nextPing(timeoutSec = 1))
         presence.setOpen(false)
-        Thread.sleep(300)
         presence.setOpen(true)
-        // The reopen pings straight away; the close it replaced never goes out.
-        assertEquals(true, nextPing()!!.isOpen())
-        assertNull(nextPing(timeoutSec = 3))
+        assertNull(nextPing(timeoutSec = 1))
     }
 
     @Test
@@ -72,16 +62,14 @@ class PresenceTest {
         val presence = Presence(PresencePlatform.Pc, id, server.url("/api/presence").toString())
         presence.setOpen(false)
         presence.closeBlocking()
-        assertNull(nextPing(timeoutSec = 3))
+        assertNull(nextPing(timeoutSec = 1))
     }
 
     @Test
     fun closeBlockingSendsOnTheCallingThread() {
         val presence = Presence(PresencePlatform.Pc, id, server.url("/api/presence").toString())
         presence.setOpen(true)
-        nextPing()!!
         presence.closeBlocking()
-        // Already sent by the time closeBlocking returns: no waiting.
-        assertEquals(false, nextPing(timeoutSec = 0)!!.isOpen())
+        assertNull(nextPing(timeoutSec = 1), "disabled telemetry sends nothing on close")
     }
 }

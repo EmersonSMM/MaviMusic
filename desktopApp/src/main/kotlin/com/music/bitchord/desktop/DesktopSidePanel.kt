@@ -35,6 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import com.music.bitchord.ui.player.FullArtworkBlurBackdrop
+import com.music.bitchord.ui.player.rememberFullArtworkBlurImage
+
 /** What the column beside the page is showing. */
 internal enum class DesktopSidePanel { LYRICS, QUEUE }
 
@@ -67,10 +70,18 @@ internal fun DesktopSidePanelColumn(
                 label = "sidePanel",
             ) { which ->
                 Box(Modifier.fillMaxSize()) {
-                    // The lyrics stand on the window itself, as in Apple Music; the queue is a list
-                    // and takes the sidebar's glass.
+                    // Apple Music aesthetic: blurred cover behind the lyrics side panel!
                     if (which == DesktopSidePanel.QUEUE) {
                         Box(Modifier.fillMaxSize().desktopChromeGlass())
+                    } else if (which == DesktopSidePanel.LYRICS) {
+                        val currentSong = LocalNowPlaying.current
+                        val artworkUrl = currentSong?.thumbnailUrl
+                        if (artworkUrl != null) {
+                            val blurImage = rememberFullArtworkBlurImage(imageUrl = artworkUrl)
+                            FullArtworkBlurBackdrop(image = blurImage, modifier = Modifier.fillMaxSize())
+                        } else {
+                            Box(Modifier.fillMaxSize().desktopChromeGlass())
+                        }
                     }
                     Column(Modifier.fillMaxSize()) {
                         Row(

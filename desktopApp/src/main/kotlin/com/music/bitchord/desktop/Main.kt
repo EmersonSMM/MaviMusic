@@ -19,6 +19,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import bitchord.desktopapp.generated.resources.Res
+import bitchord.desktopapp.generated.resources.app_logo
 import bitchord.desktopapp.generated.resources.logo
 import java.awt.Dimension
 import java.awt.Rectangle
@@ -96,7 +97,7 @@ private fun desktopMain() = application {
         onCloseRequest = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
         visible = visible,
         title = "BitChord",
-        icon = painterResource(Res.drawable.logo),
+        icon = painterResource(Res.drawable.app_logo),
         state = state,
         // No system title bar on Windows, where the application draws its own instead — see
         // [DesktopWindowChrome].

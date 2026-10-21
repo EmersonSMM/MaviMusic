@@ -264,6 +264,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import bitchord.desktopapp.generated.resources.Res
+import bitchord.desktopapp.generated.resources.app_logo
 import bitchord.desktopapp.generated.resources.logo
 import bitchord.desktopapp.generated.resources.logo_mark
 import bitchord.desktopapp.generated.resources.sf_pro_display_bold
@@ -431,18 +432,18 @@ private const val PARTY_AUTOPLAY_ECHO_TIMEOUT_MS = 5_000L
 /** The phone gives one empty station response a delayed second chance. */
 private const val AUTOPLAY_EMPTY_REFRESH_DELAY_MS = 2_000L
 
-/** The phone's dark scheme, which the shared pages are drawn against. */
-internal fun desktopColorScheme() = darkColorScheme(
+/** The app's dark scheme, supporting customizable background tones and themes. */
+internal fun desktopColorScheme(theme: DesktopThemeTone = DesktopThemeTone.DARK_CLASSIC) = darkColorScheme(
     primary = DesktopAccent,
     // Black on the accent, now that the accent is white.
     onPrimary = Color.Black,
     primaryContainer = Color.White.copy(alpha = 0.16f),
     onPrimaryContainer = Color.White,
-    background = DesktopBackground,
+    background = theme.background,
     onBackground = Color.White,
-    surface = DesktopSurface,
+    surface = theme.surface,
     onSurface = Color.White,
-    surfaceVariant = DesktopSurfaceRaised,
+    surfaceVariant = theme.surfaceRaised,
     onSurfaceVariant = DesktopSecondary,
     outline = Color(0xFF2C2C2E),
     outlineVariant = DesktopDivider,
@@ -460,21 +461,21 @@ internal fun desktopTypography(): Typography {
     )
     val defaults = Typography()
     return defaults.copy(
-        displayLarge = defaults.displayLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
-        displayMedium = defaults.displayMedium.copy(fontFamily = sfProDisplay),
-        displaySmall = defaults.displaySmall.copy(fontFamily = sfProDisplay),
+        displayLarge = defaults.displayLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 36.sp, letterSpacing = (-0.8).sp),
+        displayMedium = defaults.displayMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 30.sp),
+        displaySmall = defaults.displaySmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 26.sp),
         headlineLarge = defaults.headlineLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),
-        headlineMedium = defaults.headlineMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 22.sp, letterSpacing = (-0.4).sp),
-        headlineSmall = defaults.headlineSmall.copy(fontFamily = sfProDisplay),
-        titleLarge = defaults.titleLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 20.sp, letterSpacing = (-0.3).sp),
-        titleMedium = defaults.titleMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 16.sp, letterSpacing = (-0.2).sp),
-        titleSmall = defaults.titleSmall.copy(fontFamily = sfProDisplay),
+        headlineMedium = defaults.headlineMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 24.sp, letterSpacing = (-0.4).sp),
+        headlineSmall = defaults.headlineSmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 20.sp),
+        titleLarge = defaults.titleLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 21.sp, letterSpacing = (-0.3).sp),
+        titleMedium = defaults.titleMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 17.sp, letterSpacing = (-0.2).sp),
+        titleSmall = defaults.titleSmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 15.sp),
         bodyLarge = defaults.bodyLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W400, fontSize = 16.sp),
-        bodyMedium = defaults.bodyMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W400, fontSize = 14.sp),
-        bodySmall = defaults.bodySmall.copy(fontFamily = sfProDisplay),
-        labelLarge = defaults.labelLarge.copy(fontFamily = sfProDisplay),
-        labelMedium = defaults.labelMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 12.sp),
-        labelSmall = defaults.labelSmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 11.sp),
+        bodyMedium = defaults.bodyMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W400, fontSize = 15.sp),
+        bodySmall = defaults.bodySmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W400, fontSize = 13.sp),
+        labelLarge = defaults.labelLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 14.sp),
+        labelMedium = defaults.labelMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 13.sp),
+        labelSmall = defaults.labelSmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W500, fontSize = 12.sp),
     )
 }
 
@@ -519,31 +520,6 @@ fun BitChordDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
-    var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
-    LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
-    availableUpdate?.let { update ->
-        AlertDialog(
-            onDismissRequest = { availableUpdate = null },
-            title = { Text(DesktopStrings["d_update_available", "Update available"]) },
-            text = {
-                Text(
-                    "BitChord ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
-                        (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
-                    availableUpdate = null
-                }) { Text(DesktopStrings["d_download", "Download"]) }
-            },
-            dismissButton = {
-                TextButton(onClick = { availableUpdate = null }) {
-                    Text(DesktopStrings["d_later", "Later"])
-                }
-            },
-        )
-    }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     var query by remember { mutableStateOf("") }
     var searchFilter by remember { mutableStateOf(SearchFilter.ALL) }
@@ -3140,8 +3116,10 @@ fun BitChordDesktopApp() {
         partySyncHolder[0]?.onLocalIntent()
     }
 
+    val currentTheme by DesktopAppearanceSettings.themeTone.collectAsState()
+
     MaterialTheme(
-        colorScheme = desktopColorScheme(),
+        colorScheme = desktopColorScheme(currentTheme),
         typography = desktopTypography(),
     ) {
         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
@@ -3151,8 +3129,7 @@ fun BitChordDesktopApp() {
             LocalNowPlaying provides selectedSong,
         ) {
             DesktopFrame(
-                // The phone's page is black, not the near-black of its cards.
-                containerColor = DesktopBackground,
+                containerColor = currentTheme.background,
                 // Only Replay dresses itself unless ambient backdrop is on; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     val ambientArtworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
@@ -3161,6 +3138,7 @@ fun BitChordDesktopApp() {
                     DesktopPageBackdrop(
                         artworkUrl = ambientArtworkUrl,
                         transparentBase = transparentBase,
+                        containerColor = currentTheme.background,
                     )
                 },
                 modifier = Modifier.onPreviewKeyEvent { event ->
@@ -4435,12 +4413,12 @@ private fun DesktopTopBar(
             ) {
                 // The mark leads the player's own controls, now that the sidebar runs to the top.
                 Image(
-                    painter = painterResource(Res.drawable.logo_mark),
+                    painter = painterResource(Res.drawable.app_logo),
                     contentDescription = "BitChord",
-                    modifier = Modifier.size(width = 28.dp, height = 18.dp),
+                    modifier = Modifier.size(28.dp).clip(CircleShape),
                 )
                 Spacer(Modifier.width(14.dp))
-                DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
+                DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 34.dp) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
                         DesktopStrings["back", "Back"],
@@ -4451,29 +4429,29 @@ private fun DesktopTopBar(
                 Spacer(Modifier.width(6.dp))
                 if (!compact) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 32.dp) {
+                        DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 34.dp) {
                             Icon(
                                 BitChordIcons.Shuffle,
                                 DesktopStrings["shuffle", "Shuffle"],
                                 tint = if (shuffle) DesktopAccent else DesktopSecondary,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(19.dp),
                             )
                         }
-                        DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 32.dp) {
+                        DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 34.dp) {
                             Icon(
                                 Icons.Rounded.FastRewind,
                                 DesktopStrings["widget_previous", "Previous"],
                                 tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.40f),
-                                modifier = Modifier.size(21.dp),
+                                modifier = Modifier.size(22.dp),
                             )
                         }
-                        DesktopToolbarButton(onClick = onPlayPause, size = 32.dp) {
+                        DesktopToolbarButton(onClick = onPlayPause, size = 34.dp) {
                             if (isLoading) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(20.dp),
                                     color = Color.White,
                                     strokeWidth = 2.dp,
                                 )
@@ -4482,21 +4460,21 @@ private fun DesktopTopBar(
                                     if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                     if (isPlaying) "Pause" else "Play",
                                     tint = Color.White,
-                                    modifier = Modifier.size(23.dp),
+                                    modifier = Modifier.size(24.dp),
                                 )
                             }
                         }
-                        DesktopToolbarButton(onClick = onNext, size = 32.dp) {
+                        DesktopToolbarButton(onClick = onNext, size = 34.dp) {
                             Icon(
                                 Icons.Rounded.FastForward,
                                 DesktopStrings["widget_next", "Next"],
                                 tint = Color.White,
-                                modifier = Modifier.size(21.dp),
+                                modifier = Modifier.size(22.dp),
                             )
                         }
                         DesktopToolbarButton(
                             onClick = { onRepeatModeChange(repeatMode.next()) },
-                            size = 32.dp,
+                            size = 34.dp,
                         ) {
                             val tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else DesktopSecondary
                             if (repeatMode == DesktopRepeatMode.ONE) {
@@ -4512,7 +4490,7 @@ private fun DesktopTopBar(
                                     BitChordIcons.Repeat,
                                     "Repeat ${repeatMode.label()}",
                                     tint = tint,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(19.dp),
                                 )
                             }
                         }
@@ -4524,11 +4502,11 @@ private fun DesktopTopBar(
                     ) {
                         Surface(
                             modifier = Modifier
-                                .widthIn(min = 300.dp, max = 520.dp)
+                                .widthIn(min = 320.dp, max = 560.dp)
                                 .fillMaxWidth()
-                                .height(46.dp)
-                                .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(4.dp))
-                                .clip(RoundedCornerShape(4.dp))
+                                .height(48.dp)
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable(onClick = onOpenNowPlaying),
                             color = Color(0xFF323236),
                             tonalElevation = 0.dp,
@@ -4540,15 +4518,15 @@ private fun DesktopTopBar(
                                             BitChordIcons.MusicNote,
                                             DesktopStrings["playback_channel_name", "Now playing"],
                                             tint = DesktopSecondary.copy(alpha = 0.65f),
-                                            modifier = Modifier.size(21.dp),
+                                            modifier = Modifier.size(22.dp),
                                         )
                                     }
                                 } else {
                                     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                                         DesktopArtwork(
                                             song.thumbnailUrl,
-                                            Modifier.size(44.dp).clip(RoundedCornerShape(3.dp)),
-                                            px = ROW_ART_PX,
+                                            Modifier.size(46.dp).clip(RoundedCornerShape(6.dp)),
+                                            px = CARD_ART_PX,
                                         )
                                         Column(
                                             Modifier.weight(1f).padding(start = 12.dp, end = 56.dp),
@@ -4558,7 +4536,7 @@ private fun DesktopTopBar(
                                                 song.title,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.labelLarge,
+                                                style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.SemiBold,
                                             )
                                             Text(
@@ -4566,7 +4544,7 @@ private fun DesktopTopBar(
                                                 color = DesktopSecondary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.labelSmall,
+                                                style = MaterialTheme.typography.bodySmall,
                                             )
                                         }
                                     }
@@ -4722,7 +4700,7 @@ private fun DesktopSidebar(
     val hiddenSidebar by DesktopSidebarVisibility.hidden.collectAsState()
     Box(
         Modifier
-            .width(220.dp)
+            .width(230.dp)
             .fillMaxHeight()
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
@@ -4887,15 +4865,16 @@ private fun DesktopSidebarItem(
                         }
                     },
                 )
-                .padding(horizontal = 9.dp, vertical = 7.dp),
+                .padding(horizontal = 11.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
+            Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
             Text(
                 label,
                 color = if (selected) Color.White else DesktopSecondary,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -5249,6 +5228,11 @@ private fun DesktopFrame(
                         }
                     }
                     overlay()
+                    DesktopDownloadFloatingWidget(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 24.dp, bottom = 24.dp),
+                    )
                 }
             }
         }
@@ -5262,11 +5246,11 @@ private fun DesktopFrame(
  * ink so a page of text stays readable over it.
  */
 @Composable
-private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean) {
+private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean, containerColor: Color = DesktopBackground) {
     Box(
         Modifier
             .fillMaxSize()
-            .then(if (transparentBase) Modifier else Modifier.background(DesktopBackground)),
+            .then(if (transparentBase) Modifier else Modifier.background(containerColor)),
     ) {
         if (artworkUrl == null) return@Box
         DesktopMesh(artworkUrl)
@@ -6300,6 +6284,47 @@ private fun DesktopSettingsScreen(
             }
             if (section == DesktopSettingsSection.APPEARANCE) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
+                    val currentTheme by DesktopAppearanceSettings.themeTone.collectAsState()
+                    val themeTitle = "Tema y tono de fondo"
+                    val themeSubtitle = "Personaliza el color de fondo y la atmósfera visual de la app"
+                    if (settingsRowVisible(themeTitle, themeSubtitle)) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Text(themeTitle, fontWeight = FontWeight.Medium)
+                            Text(themeSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(10.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                DesktopThemeTone.entries.forEach { tone ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = currentTheme == tone,
+                                        onClick = { DesktopAppearanceSettings.setThemeTone(tone) },
+                                        leadingIcon = {
+                                            Box(
+                                                Modifier
+                                                    .size(14.dp)
+                                                    .clip(CircleShape)
+                                                    .background(tone.background)
+                                                    .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+                                            )
+                                        },
+                                        label = { Text(tone.title) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    val floatingDownload by DesktopAppearanceSettings.floatingDownloadStatus.collectAsState()
+                    SettingsToggle(
+                        "Estado flotante de descargas",
+                        "Muestra una ventana flotante con progreso en la esquina inferior derecha al descargar canciones",
+                        floatingDownload,
+                        DesktopAppearanceSettings::setFloatingDownloadStatus,
+                    )
+
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     SettingsToggle(
                         DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],
@@ -6636,32 +6661,19 @@ private fun DesktopSettingsScreen(
     }
 }
 
-/** The line at the foot of the settings sheet, as Android has it. */
+/** The line at the foot of the settings sheet. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("bitchord.version") ?: "1.8-beta1" }
+    val version = remember { System.getProperty("bitchord.version") ?: "1.8" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
     Text(
         text = buildAnnotatedString {
-            append("bitchord $version  ")
-            withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx/BitChord", linkStyles)) {
-                append("GitHub")
-            }
-            append("  ")
-            withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
-                append("Developer")
-            }
-            append("  ")
-            withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {
-                append("Discord")
-            }
-            append("  ")
+            append("BitChord Desktop $version  •  ")
             withLink(LinkAnnotation.Clickable("licenses", linkStyles) { onLicenses() }) {
                 append("Licenses")
             }
-            append("\n~YouTube Music Backend")
         },
         style = MaterialTheme.typography.labelSmall,
         color = DesktopSecondary,
@@ -7345,7 +7357,7 @@ private fun DesktopCollectionSongRow(
 
 
 /** The track playing, for rows that want to say so. */
-private val LocalNowPlaying = compositionLocalOf<Song?> { null }
+internal val LocalNowPlaying = compositionLocalOf<Song?> { null }
 
 /**
  * Opens the app's song menu where the pointer is, for the desktop's own rows.
@@ -7668,8 +7680,8 @@ internal fun BoxScope.DesktopShelfArrow(
 
 @Composable
 private fun DesktopShelfCard(item: ShelfItem, onClick: (ShelfItem) -> Unit) {
-    val width = 158.dp
-    val shape = RoundedCornerShape(10.dp)
+    val width = 176.dp
+    val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier
             .width(width)
@@ -7685,10 +7697,10 @@ private fun DesktopShelfCard(item: ShelfItem, onClick: (ShelfItem) -> Unit) {
                 .background(DesktopGlass)
                 .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
         ) {
-            DesktopArtwork(item.thumbnailUrl, Modifier.fillMaxSize())
+            DesktopArtwork(item.thumbnailUrl, Modifier.fillMaxSize(), px = CARD_ART_PX)
         }
         Spacer(Modifier.height(8.dp))
-        Text(item.title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
         Text(item.subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -7718,7 +7730,7 @@ private fun DesktopSongRow(
             .background(DesktopGlass.copy(alpha = 0.38f))
             .desktopHoverFill(corner = 10.dp)
             .clickable { onClick(song) }
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (number != null) {
@@ -7729,21 +7741,22 @@ private fun DesktopSongRow(
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
         }
         DesktopArtwork(
             song.thumbnailUrl,
-            Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)),
-            px = ROW_ART_PX,
+            Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
+            px = CARD_ART_PX,
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 song.title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Medium,
-                color = if (isCurrent ?: song.isNowPlaying()) Color.White else Color.White.copy(alpha = 0.75f),
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isCurrent ?: song.isNowPlaying()) Color.White else Color.White.copy(alpha = 0.85f),
             )
             Text(listOfNotNull(song.artist.takeIf(String::isNotBlank), song.durationText).joinToString(" · "), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

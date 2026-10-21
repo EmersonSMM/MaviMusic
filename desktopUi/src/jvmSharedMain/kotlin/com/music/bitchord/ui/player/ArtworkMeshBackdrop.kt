@@ -143,28 +143,40 @@ fun FullArtworkBlurBackdrop(
 ) {
     val imageAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (image != null) 1f else 0f,
-        animationSpec = tween(320, easing = FastOutSlowInEasing),
+        animationSpec = tween(380, easing = FastOutSlowInEasing),
         label = "preparedBackdropImage",
     )
     Box(modifier = modifier.fillMaxSize().background(FallbackBackdrop)) {
         image?.let { bitmap ->
-            val painter = remember(bitmap) { BitmapPainter(bitmap) }
+            val painter = remember(bitmap) { BitmapPainter(bitmap, filterQuality = FilterQuality.Medium) }
             Image(
                 painter = painter,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = imageAlpha },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = imageAlpha
+                        scaleX = 1.08f
+                        scaleY = 1.08f
+                    },
             )
         }
 
-        // Lyrics and queue are dense white foregrounds. Preserve the cover's
-        // colour and layout, but keep bright sleeves from lowering contrast.
+        // Apple Music aesthetic ambient wash: soft vignette and dark gradient for lyrics legibility
         Canvas(Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.34f),
-                    0.55f to Color.Black.copy(alpha = 0.48f),
-                    1f to Color.Black.copy(alpha = 0.64f),
+                    0f to Color.Black.copy(alpha = 0.38f),
+                    0.5f to Color.Black.copy(alpha = 0.50f),
+                    1f to Color.Black.copy(alpha = 0.72f),
+                ),
+            )
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)),
+                    center = center,
+                    radius = maxOf(size.width, size.height) * 0.85f,
                 ),
             )
         }
@@ -430,23 +442,23 @@ private fun DrawScope.drawMesh(mesh: ArtworkMesh, seamY: Float, alpha: Float) {
 /** Drawn only until an artwork has been read — never a colour anyone chose. */
 private val FallbackBackdrop = Color(0xFF121212)
 
-/** A screen cannot recover detail discarded here; small is the performance feature. */
-private const val FULL_BLUR_SOURCE_PX = 128
-private const val FULL_BLUR_PASSES = 3
+/** A screen cannot recover detail discarded here; 320px keeps detail without heavy memory usage. */
+private const val FULL_BLUR_SOURCE_PX = 320
+private const val FULL_BLUR_PASSES = 4
 
-/** A handful of recent covers; each entry is only 64 KiB at 128x128 ARGB. */
+/** A handful of recent covers; each entry is small and cached for instant switching. */
 private val fullBlurCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
     override fun removeEldestEntry(eldest: Map.Entry<String, ImageBitmap>) = size > 8
 }
 
-/** Three small box passes approximate a broad Gaussian blur at thumbnail scale. */
+/** Multiple box passes approximate a broad, smooth Apple Music-like Gaussian blur. */
 private fun ImageBitmap.boxBlurred(passes: Int): ImageBitmap {
     val width = width
     val height = height
     if (width < 2 || height < 2) return this
     var source = argbPixels()
     var target = IntArray(source.size)
-    val radius = (minOf(width, height) / 12).coerceAtLeast(2)
+    val radius = (minOf(width, height) / 8).coerceAtLeast(6)
 
     repeat(passes) {
         boxBlurPass(source, target, width, height, radius, horizontal = true)

@@ -1,6 +1,7 @@
 package com.music.bitchord.desktop
 
 import com.music.bitchord.data.model.artworkAt
+import com.music.bitchord.data.model.CARD_ART_PX
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -57,7 +59,7 @@ internal object DesktopArtworkCache {
     }
 }
 
-/** Artwork, fetched at the size the surface drawing it actually needs. */
+/** Artwork, fetched at the size the surface drawing it actually needs, with smooth filtering. */
 @Composable
 fun DesktopArtwork(
     url: String?,
@@ -66,7 +68,8 @@ fun DesktopArtwork(
     contentDescription: String? = null,
     px: Int? = null,
 ) {
-    val sized = if (px != null) url.artworkAt(px) else url
+    val targetPx = px ?: CARD_ART_PX
+    val sized = url.artworkAt(targetPx) ?: url
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = sized) {
         value = withContext(Dispatchers.IO) {
             DesktopArtworkCache.load(sized)
@@ -76,7 +79,7 @@ fun DesktopArtwork(
         Box(modifier.background(Color(0xFF2B2B35)))
     } else {
         Image(
-            painter = BitmapPainter(bitmap!!),
+            painter = BitmapPainter(bitmap!!, filterQuality = FilterQuality.Medium),
             contentDescription = contentDescription,
             contentScale = contentScale,
             modifier = modifier,
