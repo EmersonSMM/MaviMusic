@@ -1,5 +1,6 @@
 package com.music.bitchord.desktop
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.hoverable
@@ -37,7 +38,7 @@ internal fun Modifier.desktopHoverLift(
     val hovered by interaction.collectIsHoveredAsState()
     val lift by animateFloatAsState(
         targetValue = if (hovered) 1f else 0f,
-        animationSpec = tween(HOVER_MS),
+        animationSpec = tween(HOVER_MS, easing = FastOutSlowInEasing),
         label = "hoverLift",
     )
     this
@@ -56,7 +57,7 @@ private const val HOVER_SCALE = 1.035f
 private val HOVER_ELEVATION = 18.dp
 
 /** Quick enough to feel like a response rather than an animation. */
-private const val HOVER_MS = 140
+private const val HOVER_MS = 180
 
 
 /**
@@ -75,7 +76,7 @@ internal fun Modifier.desktopHoverWash(
     val hovered by interaction.collectIsHoveredAsState()
     val wash by animateFloatAsState(
         targetValue = if (hovered) 1f else 0f,
-        animationSpec = tween(WASH_MS),
+        animationSpec = tween(WASH_MS, easing = FastOutSlowInEasing),
         label = "hoverWash",
     )
     this
@@ -110,7 +111,7 @@ internal fun Modifier.desktopHoverFill(
     val hovered by interaction.collectIsHoveredAsState()
     val wash by animateFloatAsState(
         targetValue = if (hovered) 1f else 0f,
-        animationSpec = tween(WASH_MS),
+        animationSpec = tween(WASH_MS, easing = FastOutSlowInEasing),
         label = "hoverFill",
     )
     this

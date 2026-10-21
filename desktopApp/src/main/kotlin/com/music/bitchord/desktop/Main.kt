@@ -28,6 +28,14 @@ import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
+    // Enable Metal hardware-accelerated rendering on macOS for maximum animation fluidity and ProMotion support
+    if (System.getProperty("os.name").contains("Mac", ignoreCase = true)) {
+        System.setProperty("skiko.renderApi", "METAL")
+        System.setProperty("skiko.metal.gpu.priority", "auto")
+        System.setProperty("apple.awt.application.appearance", "system")
+        System.setProperty("apple.laf.useScreenMenuBar", "true")
+    }
+
     // Before any WebView exists, so the sign-in window can start over with an empty jar.
     DesktopWebCookies.install()
     DesktopWindowVisibility.install()

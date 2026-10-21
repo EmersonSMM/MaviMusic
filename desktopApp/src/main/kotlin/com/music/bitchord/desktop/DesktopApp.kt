@@ -2535,7 +2535,7 @@ fun BitChordDesktopApp() {
         if (!trayIconEnabled) return@LaunchedEffect
         // The logo travels to the tray as pixels: a themed icon name would be whatever the user's
         // theme draws for a generic music player.
-        runCatching { Res.readBytes("drawable/logo.svg") }.onSuccess(tray::setIcon)
+        runCatching { Res.readBytes("drawable/app_logo.png") }.onSuccess(tray::setIcon)
     }
     LaunchedEffect(tray) {
         DesktopTrayMenu.bind(
@@ -3219,6 +3219,9 @@ fun BitChordDesktopApp() {
                         } else {
                             0f
                         },
+                        positionMs = playback.positionMs,
+                        durationMs = playback.durationMs,
+                        onSeek = { playbackEngine.seekTo(it) },
                         volume = playback.volume,
                         shuffle = shuffle,
                         repeatMode = repeatMode,
@@ -4354,6 +4357,9 @@ private fun DesktopTopBar(
     isLoading: Boolean,
     previousEnabled: Boolean,
     progress: Float,
+    positionMs: Long = 0L,
+    durationMs: Long = 0L,
+    onSeek: (Long) -> Unit = {},
     volume: Float,
     shuffle: Boolean,
     repeatMode: DesktopRepeatMode,
@@ -4497,82 +4503,46 @@ private fun DesktopTopBar(
                     }
 
                     Box(
-                        Modifier.weight(1f).padding(horizontal = 14.dp),
+                        Modifier.weight(1f).padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Surface(
-                            modifier = Modifier
-                                .widthIn(min = 320.dp, max = 560.dp)
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = onOpenNowPlaying),
-                            color = Color(0xFF323236),
-                            tonalElevation = 0.dp,
-                        ) {
-                            Box(Modifier.fillMaxSize()) {
-                                if (song == null) {
-                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            BitChordIcons.MusicNote,
-                                            DesktopStrings["playback_channel_name", "Now playing"],
-                                            tint = DesktopSecondary.copy(alpha = 0.65f),
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                } else {
-                                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                                        DesktopArtwork(
-                                            song.thumbnailUrl,
-                                            Modifier.size(46.dp).clip(RoundedCornerShape(6.dp)),
-                                            px = CARD_ART_PX,
-                                        )
-                                        Column(
-                                            Modifier.weight(1f).padding(start = 12.dp, end = 56.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                        ) {
-                                            Text(
-                                                song.title,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                            Text(
-                                                song.artist,
-                                                color = DesktopSecondary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.bodySmall,
-                                            )
-                                        }
-                                    }
-                                    // Drawn rather than sized: through a blend the line covers
-                                    // the full width and pulses on the beat, as the player's
-                                    // scrubber does, and reading either in draw keeps the frame
-                                    // clock from recomposing the whole bar.
-                                    Box(
-                                        Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(start = 44.dp)
-                                            .fillMaxWidth()
-                                            .height(2.dp)
-                                            .drawBehind {
-                                                val base = currentProgress.coerceIn(0f, 1f)
-                                                val fraction = base + (1f - base) * mixPulse.cover
-                                                drawRect(
-                                                    color = Color.White.copy(alpha = mixPulse.alpha(0.48f)),
-                                                    size = Size(size.width * fraction, size.height),
-                                                )
-                                            },
-                                    )
-                                }
-                            }
-                        }
+                        DesktopTopMiniPlayer(
+                            compact = false,
+                            song = song,
+                            isPlaying = isPlaying,
+                            isLoading = isLoading,
+                            previousEnabled = previousEnabled,
+                            progress = progress,
+                            positionMs = positionMs,
+                            durationMs = durationMs,
+                            onSeek = onSeek,
+                            onPlayPause = onPlayPause,
+                            onPrevious = onPrevious,
+                            onNext = onNext,
+                            onOpenNowPlaying = onOpenNowPlaying,
+                        )
                     }
                 } else {
-                    Spacer(Modifier.weight(1f))
+                    Box(
+                        Modifier.weight(1f).padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        DesktopTopMiniPlayer(
+                            compact = true,
+                            song = song,
+                            isPlaying = isPlaying,
+                            isLoading = isLoading,
+                            previousEnabled = previousEnabled,
+                            progress = progress,
+                            positionMs = positionMs,
+                            durationMs = durationMs,
+                            onSeek = onSeek,
+                            onPlayPause = onPlayPause,
+                            onPrevious = onPrevious,
+                            onNext = onNext,
+                            onOpenNowPlaying = onOpenNowPlaying,
+                        )
+                    }
                 }
 
                 Row(
@@ -5176,7 +5146,7 @@ private fun DesktopFrame(
                 DesktopTitleBar()
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val compact = maxWidth < 980.dp
+                        val compact = maxWidth < 820.dp
                         // The sidebar runs the full height of the window, its head the window's
                         // caption; the player's bar and the page share the column beside it.
                         Row(Modifier.fillMaxSize()) {
@@ -6468,6 +6438,16 @@ private fun DesktopSettingsScreen(
                             onCloseToTrayChange,
                         )
                     }
+                    val autoStartEnabled by DesktopAutoStart.enabled.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["d_start_with_system", "Start with system"],
+                        DesktopStrings[
+                            "d_start_with_system_subtitle",
+                            "Automatically open BitChord when your computer starts",
+                        ],
+                        autoStartEnabled,
+                        { DesktopAutoStart.setEnabled(it) },
+                    )
                     val hideVolumeBar by DesktopAppearanceSettings.hideVolumeBar.collectAsState()
                     SettingsToggle(
                         DesktopStrings["hide_volume_bar", "Hide volume bar"],

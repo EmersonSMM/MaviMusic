@@ -16,8 +16,10 @@ import java.util.concurrent.TimeUnit
  */
 internal object DesktopDownloadHttp {
     val client: OkHttpClient = Http.client.newBuilder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .connectionPool(okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
         .build()
 
     /** A GET for [url] with the download's user agent and the stream's own headers, from [rangeFrom] on. */
