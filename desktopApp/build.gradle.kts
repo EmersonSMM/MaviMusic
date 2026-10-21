@@ -526,11 +526,11 @@ compose.desktop {
                 TargetFormat.Deb,
                 TargetFormat.Rpm,
             )
-            packageName = "BitChord"
+            packageName = "MaviMusic"
             packageVersion = nativePackageVersion
-            description = if (targetOs == "windows") "BitChord" else "Aesthetic YouTube Music client"
-            vendor = "BitChord contributors"
-            copyright = "Copyright © 2026 BitChord contributors"
+            description = "MaviMusic - Cliente estético de YouTube Music"
+            vendor = "MaviMusic"
+            copyright = "Copyright © 2026 MaviMusic"
 
             modules(
                 "java.base",
@@ -558,9 +558,9 @@ compose.desktop {
 
             macOS {
                 iconFile.set(project.file("packaging/icons/AppIcon.icns"))
-                bundleID = "com.music.bitchord"
+                bundleID = "com.music.mavimusic"
                 appCategory = "public.app-category.music"
-                dockName = "BitChord"
+                dockName = "MaviMusic"
                 infoPlist {
                     extraKeysRawXml = """
                         <key>NSRequiresAquaSystemAppearance</key>

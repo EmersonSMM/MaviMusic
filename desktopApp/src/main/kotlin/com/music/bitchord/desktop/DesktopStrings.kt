@@ -60,10 +60,8 @@ object DesktopStrings {
             if (available.any { it.tag.equals(chosen, ignoreCase = true) }) return chosen
             return com.music.bitchord.data.LocaleTags.normalizeAppTag(chosen)
         }
-        val system = com.music.bitchord.data.LocaleTags.normalizeAppTag(
-            Locale.getDefault().toLanguageTag(),
-        )
-        return if (available.any { it.tag.equals(system, ignoreCase = true) }) system else "en"
+        // MaviMusic defaults to Spanish out of the box
+        return "es"
     }
 
     /**
