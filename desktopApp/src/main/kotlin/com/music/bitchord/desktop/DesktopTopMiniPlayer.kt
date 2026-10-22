@@ -319,7 +319,7 @@ internal fun DesktopTopMiniPlayer(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("🎲 Tener suerte") },
+                                text = { Text("🎲 Azar") },
                                 onClick = {
                                     moreMenuOpen = false
                                     onFeelingLucky()

@@ -158,6 +158,7 @@ fun QueueSidePanel(
         onRemove = onRemove,
         onMove = onMove,
         onClear = onClear,
+        showTitle = false,
         modifier = modifier,
     )
 }

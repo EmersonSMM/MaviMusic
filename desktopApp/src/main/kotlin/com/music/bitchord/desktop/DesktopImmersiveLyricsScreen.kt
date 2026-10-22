@@ -1,11 +1,15 @@
 package com.music.bitchord.desktop
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,7 +27,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
@@ -37,21 +40,30 @@ import androidx.compose.material.icons.rounded.VolumeMute
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,11 +77,22 @@ import com.music.bitchord.ui.LyricsProviderState
 import com.music.bitchord.ui.player.LyricsSidePanel
 import com.music.bitchord.ui.player.MeshGradientBackground
 import com.music.bitchord.ui.player.rememberArtworkColors
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
+
+internal enum class ImmersiveVisualMode(val label: String) {
+    WINAMP_WAVES("🌊 Ondas Winamp"),
+    WINAMP_SPECTRUM("📊 Espectro Winamp"),
+    WINAMP_MILKDROP("🌀 MilkDrop Plasma"),
+    APPLE_LYRICS("🎤 Letras Mesh"),
+}
 
 /**
- * Apple Music-inspired full-window / fullscreen immersive lyrics experience.
- * Features an organic living animated artwork mesh backdrop, high-resolution album artwork,
- * full playback transport controls, and kinetic synchronized lyrics with tap-to-seek.
+ * Full-window / fullscreen immersive visualizer & lyrics experience.
+ * Includes classic Winamp Oscilloscope waves, LED Spectrum Analyzer with falling peak-hold dots,
+ * MilkDrop psychedelic plasma waves, and Apple Music synchronized kinetic lyrics.
  */
 @Composable
 internal fun DesktopImmersiveLyricsScreen(
@@ -98,40 +121,60 @@ internal fun DesktopImmersiveLyricsScreen(
     modifier: Modifier = Modifier,
 ) {
     val artworkPalette = rememberArtworkColors(song.thumbnailUrl, null)
+    var visualMode by remember { mutableStateOf(ImmersiveVisualMode.WINAMP_WAVES) }
+    var showLyricsInWinamp by remember { mutableStateOf(true) }
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-        // Dynamic living Apple Music mesh gradient backdrop
-        MeshGradientBackground(
-            palette = artworkPalette,
-            trackKey = song.videoId,
-            modifier = Modifier.fillMaxSize(),
-        )
-
-        // Cinematic vignette / scrim overlay for contrast & readability
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.40f),
-                            Color.Black.copy(alpha = 0.65f),
-                            Color.Black.copy(alpha = 0.85f),
+    Box(modifier = modifier.fillMaxSize().background(Color(0xFF06060C))) {
+        if (visualMode == ImmersiveVisualMode.APPLE_LYRICS) {
+            MeshGradientBackground(
+                palette = artworkPalette,
+                trackKey = song.videoId,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.40f),
+                                Color.Black.copy(alpha = 0.65f),
+                                Color.Black.copy(alpha = 0.85f),
+                            ),
                         ),
                     ),
-                ),
-        )
+            )
+        } else {
+            WinampVisualizerBackdrop(
+                mode = visualMode,
+                isPlaying = isPlaying,
+                songSeed = song.videoId.hashCode(),
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.35f),
+                                Color.Black.copy(alpha = 0.20f),
+                                Color.Black.copy(alpha = 0.55f),
+                            ),
+                        ),
+                    ),
+            )
+        }
 
         Column(Modifier.fillMaxSize()) {
-            // Minimal Glass Header
+            // Header with Exit, Mode Switcher Pills, Winamp Badge, and Close
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(60.dp)
                     .padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Exit Pill Button
                 Surface(
                     onClick = onClose,
                     shape = RoundedCornerShape(20.dp),
@@ -145,7 +188,7 @@ internal fun DesktopImmersiveLyricsScreen(
                     ) {
                         Icon(
                             Icons.Rounded.FullscreenExit,
-                            contentDescription = DesktopStrings["exit_immersive_lyrics", "Salir de pantalla completa"],
+                            contentDescription = DesktopStrings["exit_immersive_lyrics", "Salir"],
                             tint = Color.White,
                             modifier = Modifier.size(16.dp),
                         )
@@ -159,20 +202,91 @@ internal fun DesktopImmersiveLyricsScreen(
                     }
                 }
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(14.dp))
 
-                // Track and Artist indicator
-                Text(
-                    text = "${song.title} • ${song.artist}",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                // Visual Mode Selector Pills
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ImmersiveVisualMode.entries.forEach { mode ->
+                        val selected = visualMode == mode
+                        Surface(
+                            onClick = { visualMode = mode },
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (selected) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) Color(0xFF00E5FF).copy(alpha = 0.75f) else Color.White.copy(alpha = 0.14f),
+                            ),
+                            modifier = Modifier.height(32.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = mode.label,
+                                    color = if (selected) Color(0xFF80F8FF) else Color.White.copy(alpha = 0.78f),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                )
+                            }
+                        }
+                    }
 
-                // Volume Normalization Badge (if active)
+                    if (visualMode != ImmersiveVisualMode.APPLE_LYRICS) {
+                        Surface(
+                            onClick = { showLyricsInWinamp = !showLyricsInWinamp },
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (showLyricsInWinamp) Color(0xFF00FF66).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (showLyricsInWinamp) Color(0xFF00FF66).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.12f),
+                            ),
+                            modifier = Modifier.height(32.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 11.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = if (showLyricsInWinamp) "Letras: ON" else "Solo Visualizador",
+                                    color = if (showLyricsInWinamp) Color(0xFF69F0AE) else Color.White.copy(alpha = 0.7f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                // Retro Winamp Digital Readout Badge
+                if (visualMode != ImmersiveVisualMode.APPLE_LYRICS) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xCC0A140E),
+                        border = BorderStroke(1.dp, Color(0x6600FF66)),
+                        modifier = Modifier.height(28.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "WINAMP DSP • 320 kbps • 48 kHz • STEREO",
+                                color = Color(0xFF00FF66),
+                                fontSize = 10.5.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                }
+
                 if (volumeNormalizationActive) {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -192,10 +306,9 @@ internal fun DesktopImmersiveLyricsScreen(
                             )
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
                 }
 
-                // Close Button
                 DesktopToolbarButton(onClick = onClose, size = 32.dp) {
                     Icon(
                         Icons.Rounded.Close,
@@ -206,7 +319,7 @@ internal fun DesktopImmersiveLyricsScreen(
                 }
             }
 
-            // Body Area (Responsive layout: 2 Columns on wide screen, single column if compact)
+            // Body Area
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -214,13 +327,13 @@ internal fun DesktopImmersiveLyricsScreen(
                     .padding(start = 24.dp, end = 24.dp, bottom = 20.dp),
             ) {
                 val isWide = maxWidth >= 860.dp
+                val displayLyrics = visualMode == ImmersiveVisualMode.APPLE_LYRICS || showLyricsInWinamp
 
-                if (isWide) {
+                if (isWide && displayLyrics) {
                     Row(
                         modifier = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.spacedBy(36.dp),
                     ) {
-                        // Left Column: Large Artwork, Metadata & Transport Controls
                         Box(
                             modifier = Modifier
                                 .widthIn(max = 420.dp)
@@ -247,7 +360,6 @@ internal fun DesktopImmersiveLyricsScreen(
                             )
                         }
 
-                        // Right Column: Kinetic Synchronized Lyrics
                         Box(
                             modifier = Modifier
                                 .weight(0.58f)
@@ -268,23 +380,348 @@ internal fun DesktopImmersiveLyricsScreen(
                         }
                     }
                 } else {
-                    // Compact mode: Lyrics take center stage
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        LyricsSidePanel(
-                            song = song,
-                            isPlaying = isPlaying,
-                            position = position,
-                            lyrics = lyrics,
-                            lyricsSource = lyricsSource,
-                            lyricsProviderStates = lyricsProviderStates,
-                            onSelectLyricsProvider = onSelectLyricsProvider,
-                            lyricsUnavailable = lyricsUnavailable,
-                            onSeek = onSeek,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                    // Full stage Winamp Visualizer with centered hero player controls
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(modifier = Modifier.widthIn(max = 460.dp)) {
+                            ImmersiveHeroPlayer(
+                                song = song,
+                                isPlaying = isPlaying,
+                                isLoading = isLoading,
+                                position = position,
+                                durationMs = durationMs,
+                                volume = volume,
+                                onVolumeChange = onVolumeChange,
+                                onSeek = onSeek,
+                                onPlayPause = onPlayPause,
+                                onPrevious = onPrevious,
+                                onNext = onNext,
+                                shuffle = shuffle,
+                                onShuffleChange = onShuffleChange,
+                                repeatMode = repeatMode,
+                                onRepeatModeChange = onRepeatModeChange,
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Real-time 60fps Winamp-inspired audio visualizer backdrop.
+ * Renders multi-harmonic oscilloscope neon waves, classic segmented LED spectrum bars
+ * with gravity-falling peak-hold caps, and MilkDrop psychedelic plasma waves.
+ */
+@Composable
+private fun WinampVisualizerBackdrop(
+    mode: ImmersiveVisualMode,
+    isPlaying: Boolean,
+    songSeed: Int,
+    modifier: Modifier = Modifier,
+) {
+    var timeSec by remember { mutableFloatStateOf(0f) }
+    val numBands = 56
+    val barValues = remember { FloatArray(numBands) { 0.15f } }
+    val peakValues = remember { FloatArray(numBands) { 0.20f } }
+    val peakVelocities = remember { FloatArray(numBands) { 0f } }
+
+    LaunchedEffect(isPlaying, mode, songSeed) {
+        var lastNanos = 0L
+        while (true) {
+            withFrameNanos { nanos ->
+                val dt = if (lastNanos == 0L) 0.016f else ((nanos - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+                lastNanos = nanos
+                timeSec += if (isPlaying) dt else dt * 0.18f
+
+                val seedOffset = (songSeed and 0xFFFF) * 0.013f
+                val beatPulse = if (isPlaying) {
+                    val b1 = sin(timeSec * 7.2f + seedOffset).coerceAtLeast(0f)
+                    val b2 = sin(timeSec * 3.6f + seedOffset * 0.5f).coerceAtLeast(0f)
+                    0.35f + 0.65f * (b1 * b1 * 0.65f + b2 * 0.35f)
+                } else {
+                    0.12f
+                }
+
+                for (i in 0 until numBands) {
+                    val norm = i.toFloat() / numBands.toFloat()
+                    // Shape like a real musical spectrum (strong sub-bass/kick, lively mids, crisp highs)
+                    val freqWeight = when {
+                        norm < 0.18f -> 1.05f - norm * 1.2f
+                        norm < 0.65f -> 0.78f - (norm - 0.18f) * 0.35f
+                        else -> 0.58f - (norm - 0.65f) * 0.6f
+                    }
+                    val osc1 = sin(timeSec * (5.5f + i * 0.37f) + i * 0.61f + seedOffset)
+                    val osc2 = cos(timeSec * (8.3f + (numBands - i) * 0.23f) - i * 0.43f)
+                    val osc3 = sin(timeSec * 13.7f + i * 1.15f)
+                    val raw = ((osc1 * 0.45f + osc2 * 0.35f + osc3 * 0.20f) * 0.5f + 0.5f)
+                    val target = if (isPlaying) {
+                        (raw * freqWeight * beatPulse * 1.35f).coerceIn(0.06f, 0.98f)
+                    } else {
+                        (0.05f + 0.03f * sin(timeSec * 2f + i * 0.3f)).coerceIn(0.03f, 0.12f)
+                    }
+
+                    // Fast attack, smooth decay like Winamp's analyzer
+                    barValues[i] = if (target > barValues[i]) {
+                        barValues[i] + (target - barValues[i]) * 0.55f
+                    } else {
+                        (barValues[i] - dt * 1.45f).coerceAtLeast(target)
+                    }
+
+                    // Classic Winamp Peak-Hold dot with gravity
+                    if (barValues[i] >= peakValues[i]) {
+                        peakValues[i] = barValues[i]
+                        peakVelocities[i] = 0f
+                    } else {
+                        peakVelocities[i] += dt * 0.68f
+                        peakValues[i] = (peakValues[i] - peakVelocities[i] * dt).coerceAtLeast(barValues[i])
+                    }
+                }
+            }
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val t = timeSec
+
+        // Deep retro-cyber grid glow backdrop
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFF141834),
+                    Color(0xFF090A14),
+                    Color(0xFF040408),
+                ),
+                center = Offset(w * 0.5f, h * 0.5f),
+                radius = w.coerceAtLeast(h) * 0.75f,
+            ),
+        )
+
+        when (mode) {
+            ImmersiveVisualMode.WINAMP_WAVES -> {
+                // 1. Multi-harmonic glowing Winamp Oscilloscope Waves across the upper/middle stage
+                val waveColors = listOf(
+                    Color(0xFF00F0FF), // Electric Cyan
+                    Color(0xFF00FF66), // Classic Winamp Green
+                    Color(0xFFFF007F), // Neon Magenta
+                    Color(0xFFFFD600), // Solar Gold
+                )
+                val steps = 160
+                val dx = w / steps.toFloat()
+                val centerY = h * 0.42f
+                val ampBase = if (isPlaying) h * 0.16f else h * 0.03f
+
+                waveColors.forEachIndexed { wIdx, color ->
+                    val path = Path()
+                    val phaseShift = wIdx * 1.15f
+                    val speed = 3.2f + wIdx * 0.75f
+                    for (s in 0..steps) {
+                        val x = s * dx
+                        val nx = s.toFloat() / steps.toFloat()
+                        val bandIdx = (nx * (numBands - 1)).toInt().coerceIn(0, numBands - 1)
+                        val energy = barValues[bandIdx]
+                        val env = sin(nx * PI.toFloat())
+                        val y = centerY +
+                            env * ampBase * (0.4f + energy * 0.9f) * (
+                                sin(nx * 10f + t * speed + phaseShift) * 0.6f +
+                                    cos(nx * 23f - t * (speed * 1.3f) + wIdx) * 0.4f
+                                )
+                        if (s == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    // Outer neon bloom
+                    drawPath(
+                        path = path,
+                        color = color.copy(alpha = 0.24f),
+                        style = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                    )
+                    // Core oscilloscope beam
+                    drawPath(
+                        path = path,
+                        color = color.copy(alpha = 0.92f),
+                        style = Stroke(width = 2.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                    )
+                }
+
+                // 2. Classic Winamp Segmented LED Spectrum Analyzer with Peak-Hold Dots along bottom
+                drawWinampSpectrumBars(
+                    barValues = barValues,
+                    peakValues = peakValues,
+                    numBands = numBands,
+                    topY = h * 0.56f,
+                    bottomY = h * 0.92f,
+                    reflectionHeight = h * 0.06f,
+                )
+            }
+
+            ImmersiveVisualMode.WINAMP_SPECTRUM -> {
+                // Top Mini Oscilloscope Ribbon
+                val steps = 140
+                val dx = w / steps.toFloat()
+                val wavePath = Path()
+                val waveY = h * 0.20f
+                for (s in 0..steps) {
+                    val x = s * dx
+                    val nx = s.toFloat() / steps.toFloat()
+                    val bIdx = (nx * (numBands - 1)).toInt().coerceIn(0, numBands - 1)
+                    val dy = sin(nx * 18f + t * 5f) * barValues[bIdx] * (h * 0.08f)
+                    if (s == 0) wavePath.moveTo(x, waveY + dy) else wavePath.lineTo(x, waveY + dy)
+                }
+                drawPath(
+                    path = wavePath,
+                    color = Color(0xFF00FF66).copy(alpha = 0.30f),
+                    style = Stroke(width = 8f, cap = StrokeCap.Round),
+                )
+                drawPath(
+                    path = wavePath,
+                    color = Color(0xFF80FFB4),
+                    style = Stroke(width = 2.5f, cap = StrokeCap.Round),
+                )
+
+                // Full-Stage Giant Classic Winamp LED Spectrum Analyzer
+                drawWinampSpectrumBars(
+                    barValues = barValues,
+                    peakValues = peakValues,
+                    numBands = numBands,
+                    topY = h * 0.26f,
+                    bottomY = h * 0.88f,
+                    reflectionHeight = h * 0.09f,
+                )
+            }
+
+            ImmersiveVisualMode.WINAMP_MILKDROP -> {
+                // MilkDrop / Geiss Psychedelic Plasma & Bass Shockwaves
+                val cx = w * 0.5f
+                val cy = h * 0.5f
+                val bassEnergy = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+                val maxR = w.coerceAtLeast(h) * 0.55f
+
+                // Concentric bass-reactive neon plasma rings
+                for (rIdx in 0 until 7) {
+                    val frac = ((t * 0.22f + rIdx / 7f) % 1f)
+                    val radius = (0.08f + frac * 0.92f) * maxR * (0.85f + bassEnergy * 0.30f)
+                    val hueColor = when (rIdx % 4) {
+                        0 -> Color(0xFF00F0FF)
+                        1 -> Color(0xFFFF007F)
+                        2 -> Color(0xFF00FF66)
+                        else -> Color(0xFFFFAB00)
+                    }
+                    val ringPath = Path()
+                    val pts = 96
+                    for (p in 0..pts) {
+                        val angle = (p.toFloat() / pts.toFloat()) * (2f * PI.toFloat())
+                        val bIdx = ((p.toFloat() / pts.toFloat()) * (numBands - 1)).toInt()
+                        val wobble = 1f + 0.18f * barValues[bIdx] * sin(angle * 6f + t * 3f + rIdx)
+                        val px = cx + cos(angle) * radius * wobble
+                        val py = cy + sin(angle) * radius * wobble
+                        if (p == 0) ringPath.moveTo(px, py) else ringPath.lineTo(px, py)
+                    }
+                    drawPath(
+                        path = ringPath,
+                        color = hueColor.copy(alpha = (1f - frac) * 0.55f),
+                        style = Stroke(width = 3.5f + (1f - frac) * 4f, cap = StrokeCap.Round),
+                    )
+                }
+
+                // Flowing Lissajous / Aurora Plasma Ribbons
+                val ribbonColors = listOf(
+                    Color(0xFF00E5FF),
+                    Color(0xFFFF1744),
+                    Color(0xFF76FF03),
+                    Color(0xFFE040FB),
+                )
+                val steps = 150
+                val dx = w / steps.toFloat()
+                ribbonColors.forEachIndexed { idx, col ->
+                    val p = Path()
+                    for (s in 0..steps) {
+                        val x = s * dx
+                        val nx = s.toFloat() / steps.toFloat()
+                        val y = cy +
+                            sin(nx * 8f + t * (2.2f + idx * 0.5f) + idx) * (h * 0.22f) * (0.5f + bassEnergy * 0.6f) +
+                            cos(nx * 15f - t * 3.1f + idx * 2f) * (h * 0.10f)
+                        if (s == 0) p.moveTo(x, y) else p.lineTo(x, y)
+                    }
+                    drawPath(p, col.copy(alpha = 0.22f), style = Stroke(width = 14f, cap = StrokeCap.Round))
+                    drawPath(p, col.copy(alpha = 0.85f), style = Stroke(width = 2.6f, cap = StrokeCap.Round))
+                }
+            }
+
+            ImmersiveVisualMode.APPLE_LYRICS -> Unit
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumBars(
+    barValues: FloatArray,
+    peakValues: FloatArray,
+    numBands: Int,
+    topY: Float,
+    bottomY: Float,
+    reflectionHeight: Float,
+) {
+    val w = size.width
+    val horizontalPad = w * 0.04f
+    val usableW = w - horizontalPad * 2f
+    val slotW = usableW / numBands.toFloat()
+    val barW = (slotW * 0.72f).coerceAtLeast(4f)
+    val maxBarH = (bottomY - topY).coerceAtLeast(60f)
+    val segments = 24
+    val segGap = 2.5f
+    val segH = ((maxBarH / segments.toFloat()) - segGap).coerceAtLeast(3f)
+
+    for (i in 0 until numBands) {
+        val x = horizontalPad + i * slotW + (slotW - barW) * 0.5f
+        val level = barValues[i].coerceIn(0f, 1f)
+        val activeSegs = (level * segments).toInt()
+
+        // Classic Winamp Segmented LED Bar (Green -> Yellow -> Orange -> Red)
+        for (s in 0 until activeSegs) {
+            val segFrac = s.toFloat() / segments.toFloat()
+            val segColor = when {
+                segFrac < 0.50f -> Color(0xFF00FF66) // Classic Winamp Green
+                segFrac < 0.75f -> Color(0xFFC6FF00) // Lime-Yellow
+                segFrac < 0.88f -> Color(0xFFFFAB00) // Warm Amber-Orange
+                else -> Color(0xFFFF1744) // Peak Red
+            }
+            val segY = bottomY - (s + 1) * (segH + segGap)
+            drawRoundRect(
+                color = segColor.copy(alpha = 0.88f),
+                topLeft = Offset(x, segY),
+                size = Size(barW, segH),
+                cornerRadius = CornerRadius(2f, 2f),
+            )
+        }
+
+        // Classic Winamp Falling Peak-Hold Cap
+        val peakSeg = (peakValues[i].coerceIn(0f, 1f) * segments).toInt().coerceIn(0, segments)
+        val peakY = bottomY - (peakSeg + 1) * (segH + segGap)
+        drawRoundRect(
+            color = Color(0xFFE0F7FA),
+            topLeft = Offset(x, peakY),
+            size = Size(barW, segH.coerceAtMost(5f)),
+            cornerRadius = CornerRadius(2f, 2f),
+        )
+
+        // Subtle Floor Reflection
+        if (reflectionHeight > 0f && activeSegs > 0) {
+            val reflH = (level * reflectionHeight).coerceAtLeast(2f)
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF00FF66).copy(alpha = 0.22f),
+                        Color.Transparent,
+                    ),
+                    startY = bottomY + 4f,
+                    endY = bottomY + 4f + reflH,
+                ),
+                topLeft = Offset(x, bottomY + 4f),
+                size = Size(barW, reflH),
+            )
         }
     }
 }
@@ -323,11 +760,10 @@ private fun ImmersiveHeroPlayer(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        // High-resolution Artwork with ambient glow
         val artShape = RoundedCornerShape(20.dp)
         Box(
             modifier = Modifier
-                .size(310.dp)
+                .size(290.dp)
                 .shadow(28.dp, artShape, spotColor = Color.Black.copy(alpha = 0.7f))
                 .clip(artShape),
         ) {
@@ -338,9 +774,8 @@ private fun ImmersiveHeroPlayer(
             )
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(24.dp))
 
-        // Song Title
         Text(
             text = song.title,
             color = Color.White,
@@ -353,7 +788,6 @@ private fun ImmersiveHeroPlayer(
 
         Spacer(Modifier.height(6.dp))
 
-        // Artist Name
         Text(
             text = song.artist,
             color = Color.White.copy(alpha = 0.80f),
@@ -377,9 +811,8 @@ private fun ImmersiveHeroPlayer(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
 
-        // Scrubber Slider
         DesktopThinSlider(
             value = currentDisplayFraction,
             onValueChange = {
@@ -399,7 +832,6 @@ private fun ImmersiveHeroPlayer(
 
         Spacer(Modifier.height(6.dp))
 
-        // Timestamp Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -421,15 +853,13 @@ private fun ImmersiveHeroPlayer(
             )
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // Transport Controls Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Shuffle
             IconButton(onClick = { onShuffleChange(!shuffle) }) {
                 Icon(
                     Icons.Rounded.Shuffle,
@@ -439,7 +869,6 @@ private fun ImmersiveHeroPlayer(
                 )
             }
 
-            // Previous
             DesktopToolbarButton(onClick = onPrevious, size = 42.dp) {
                 Icon(
                     Icons.Rounded.SkipPrevious,
@@ -449,7 +878,6 @@ private fun ImmersiveHeroPlayer(
                 )
             }
 
-            // Play / Pause Circle
             Surface(
                 onClick = onPlayPause,
                 shape = CircleShape,
@@ -467,7 +895,6 @@ private fun ImmersiveHeroPlayer(
                 }
             }
 
-            // Next
             DesktopToolbarButton(onClick = onNext, size = 42.dp) {
                 Icon(
                     Icons.Rounded.SkipNext,
@@ -477,7 +904,6 @@ private fun ImmersiveHeroPlayer(
                 )
             }
 
-            // Repeat Mode
             IconButton(
                 onClick = {
                     val nextMode = when (repeatMode) {
@@ -500,9 +926,8 @@ private fun ImmersiveHeroPlayer(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // Volume Bar
         Row(
             modifier = Modifier
                 .widthIn(max = 280.dp)

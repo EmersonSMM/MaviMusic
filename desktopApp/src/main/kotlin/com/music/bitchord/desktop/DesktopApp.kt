@@ -1776,7 +1776,12 @@ fun BitChordDesktopApp() {
                 },
                 onSpotlight = {
                     java.awt.EventQueue.invokeLater {
-                        DesktopSpotlightState.toggle()
+                        DesktopSpotlightState.toggle(external = false)
+                    }
+                },
+                onSpotlightExternal = {
+                    java.awt.EventQueue.invokeLater {
+                        DesktopSpotlightState.toggle(external = true)
                     }
                 },
             ),
@@ -2654,8 +2659,8 @@ fun BitChordDesktopApp() {
 
         val chosen = userTasteSongs.distinctBy { it.videoId }.shuffled().firstOrNull()
         if (chosen != null) {
-            playSong(chosen, startPlaying = true, source = DesktopQueueSource("🎲 Tener suerte", PlaybackSourceType.HOME))
-            DesktopPlayerHost.showMessage("🎲 Voy a tener suerte: ${chosen.title} — ${chosen.artist}")
+            playSong(chosen, startPlaying = true, source = DesktopQueueSource("🎲 Azar", PlaybackSourceType.HOME))
+            DesktopPlayerHost.showMessage("🎲 Azar: ${chosen.title} — ${chosen.artist}")
         } else {
             scope.launch {
                 loadHome()
@@ -2786,8 +2791,30 @@ fun BitChordDesktopApp() {
             playSong(song, startPlaying = true, source = DesktopQueueSource("⌘K Spotlight", PlaybackSourceType.SEARCH))
         }
         DesktopSpotlightState.onOpenCollection = { id, type ->
-            DesktopWindowVisibility.show()
-            openCollection(id, BrowseItem(id, "", "", null, type))
+            scope.launch {
+                val localMatch = playlists.firstOrNull { it.id == id }
+                if (localMatch != null && localMatch.songs.isNotEmpty()) {
+                    playSongs(
+                        localMatch.songs,
+                        0,
+                        DesktopQueueSource(localMatch.title, PlaybackSourceType.BROWSE, localMatch.id),
+                    )
+                } else {
+                    DesktopSearchClient.browse(id).onSuccess { coll ->
+                        if (coll.songs.isNotEmpty()) {
+                            playSongs(coll.songs, 0, collectionSource(coll))
+                        } else {
+                            DesktopSpotlightState.openedExternally = false
+                            DesktopWindowVisibility.show()
+                            openCollection(id, BrowseItem(id, "", "", null, type))
+                        }
+                    }.onFailure {
+                        DesktopSpotlightState.openedExternally = false
+                        DesktopWindowVisibility.show()
+                        openCollection(id, BrowseItem(id, "", "", null, type))
+                    }
+                }
+            }
         }
         DesktopSpotlightState.onOpenArtist = { id, name ->
             DesktopWindowVisibility.show()
@@ -2814,6 +2841,10 @@ fun BitChordDesktopApp() {
             DesktopWindowVisibility.show()
             overlays.sidePanel = DesktopSidePanel.QUEUE
         }
+        DesktopSpotlightState.onOpenImmersive = {
+            DesktopWindowVisibility.show()
+            overlays.immersiveLyrics = true
+        }
         DesktopSpotlightState.onNavigate = { dest ->
             DesktopWindowVisibility.show()
             destination = dest
@@ -2829,7 +2860,27 @@ fun BitChordDesktopApp() {
             if (e.id == java.awt.event.KeyEvent.KEY_PRESSED) {
                 val isMetaOrCtrl = if (DesktopPlatform.isMac) e.isMetaDown else e.isControlDown
                 if (isMetaOrCtrl && e.keyCode == java.awt.event.KeyEvent.VK_K) {
-                    DesktopSpotlightState.toggle()
+                    DesktopSpotlightState.toggle(external = false)
+                    return@KeyEventDispatcher true
+                }
+                if (
+                    e.keyCode == java.awt.event.KeyEvent.VK_SPACE &&
+                    !e.isMetaDown && !e.isControlDown && !e.isAltDown && !e.isShiftDown &&
+                    !DesktopSpotlightState.isOpen &&
+                    !DesktopSpotlightState.isSearchFieldFocused &&
+                    !overlays.commandPalette &&
+                    !overlays.playlistDialog &&
+                    !overlays.rename &&
+                    !overlays.listenTogether &&
+                    !overlays.lastfmLogin &&
+                    !overlays.listenBrainzToken &&
+                    !overlays.discordToken &&
+                    !overlays.signIn &&
+                    overlays.settingsPage == null
+                ) {
+                    if (selectedSong != null) {
+                        togglePlayPauseFromUser()
+                    }
                     return@KeyEventDispatcher true
                 }
             }
@@ -3626,6 +3677,7 @@ fun BitChordDesktopApp() {
                                 onOpenAudioOutput = { overlays.audioOutput = true },
                                 onOpenSleepTimer = { overlays.sleepTimer = true },
                                 isSleepTimerActive = sleepTimerMinutes != null || sleepAfterTrack,
+                                onOpenImmersive = { overlays.immersiveLyrics = true },
                                 sidePanel = overlays.sidePanel,
                                 isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
                                 onToggleLike = { selectedSong?.let { toggleLike(it) } },

@@ -187,6 +187,6 @@ internal fun DesktopSidePanelColumn(
 
 private val SIDE_PANEL_WIDTH = 380.dp
 private val HEADER_HEIGHT = 46.dp
-private val QUEUE_HEADER_HEIGHT = 30.dp
+private val QUEUE_HEADER_HEIGHT = 44.dp
 private const val SLIDE_MS = 260
 private const val CROSSFADE_MS = 180

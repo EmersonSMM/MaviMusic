@@ -23,6 +23,7 @@ internal object DesktopMacMedia {
     private const val BUTTON_PREVIOUS = 3
     private const val BUTTON_STOP = 4
     private const val BUTTON_SPOTLIGHT = 5
+    private const val BUTTON_SPOTLIGHT_EXTERNAL = 6
 
     private val started = AtomicBoolean(false)
     private val shutdownHookAdded = AtomicBoolean(false)
@@ -42,6 +43,7 @@ internal object DesktopMacMedia {
         /** Moves playback to a position the scrubber was dragged to, in milliseconds. */
         val onSeek: (Long) -> Unit,
         val onSpotlight: () -> Unit = {},
+        val onSpotlightExternal: () -> Unit = onSpotlight,
     )
 
     private val available: Boolean by lazy {
@@ -134,6 +136,7 @@ internal object DesktopMacMedia {
             BUTTON_PREVIOUS -> target.onPrevious()
             BUTTON_STOP -> target.onStop()
             BUTTON_SPOTLIGHT -> target.onSpotlight()
+            BUTTON_SPOTLIGHT_EXTERNAL -> target.onSpotlightExternal()
         }
     }
 
@@ -141,6 +144,21 @@ internal object DesktopMacMedia {
     @JvmStatic
     fun onSeek(positionMs: Long) {
         controller?.onSeek(positionMs)
+    }
+
+    fun configureSpotlight(keepMainHidden: Boolean) {
+        if (!available) return
+        runCatching { nativeConfigureSpotlight(keepMainHidden) }
+    }
+
+    fun onSpotlightDismissed(hideApp: Boolean) {
+        if (!available || !hideApp) return
+        runCatching { nativeOnSpotlightDismissed(true) }
+    }
+
+    fun enforceMainMinSize(minW: Int, minH: Int) {
+        if (!available) return
+        runCatching { nativeEnforceMainMinSize(minW, minH) }
     }
 
     @JvmStatic
@@ -180,4 +198,13 @@ internal object DesktopMacMedia {
         body: String,
         imagePath: String,
     )
+
+    @JvmStatic
+    private external fun nativeConfigureSpotlight(keepMainHidden: Boolean)
+
+    @JvmStatic
+    private external fun nativeOnSpotlightDismissed(hideApp: Boolean)
+
+    @JvmStatic
+    private external fun nativeEnforceMainMinSize(minW: Int, minH: Int)
 }

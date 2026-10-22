@@ -375,18 +375,14 @@ internal fun DesktopTopBar(
                     .fillMaxSize()
                     .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
                     .padding(
-                        start = if (DesktopPlatform.isMac) 78.dp else 14.dp,
+                        start = 18.dp,
                         end = 14.dp,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(Res.drawable.app_logo),
-                        contentDescription = "MaviMusic",
-                        modifier = Modifier.size(26.dp).clip(CircleShape),
-                    )
-                    Spacer(Modifier.width(10.dp))
+                    MaviMusicFireWordmark()
+                    Spacer(Modifier.width(12.dp))
                     DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
@@ -397,7 +393,7 @@ internal fun DesktopTopBar(
                     }
                 }
 
-                // Centered search bar like YouTube Music with "Tener suerte" button
+                // Centered search bar like YouTube Music with "Azar" button
                 Box(
                     modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center,
@@ -434,7 +430,7 @@ internal fun DesktopTopBar(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    text = DesktopStrings["feeling_lucky", "Tener suerte"],
+                                    text = DesktopStrings["feeling_lucky", "Azar"],
                                     color = Color.White,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
@@ -944,7 +940,10 @@ internal fun DesktopSearchField(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .onFocusChanged { onFocusChanged(it.isFocused) }
+                .onFocusChanged {
+                    DesktopSpotlightState.isSearchFieldFocused = it.isFocused
+                    onFocusChanged(it.isFocused)
+                }
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                         onSearch()
@@ -978,4 +977,72 @@ internal fun DesktopSearchField(
         )
     }
 }
+
+/**
+ * Brand wordmark "MaviMusic" with slight glass transparency and a continuous
+ * horizontal fire shimmer/ember glow, keeping crisp legibility at all times.
+ */
+@Composable
+internal fun MaviMusicFireWordmark() {
+    val transition = rememberInfiniteTransition(label = "mavi_fire_shimmer")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "fire_phase",
+    )
+
+    val shift = phase * 260f
+    val fireBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFFFD54F).copy(alpha = 0.93f),
+            Color(0xFFFF7043).copy(alpha = 0.90f),
+            Color(0xFFFF3D00).copy(alpha = 0.92f),
+            Color(0xFFFFF8E1).copy(alpha = 0.97f),
+            Color(0xFFFFAB00).copy(alpha = 0.93f),
+            Color(0xFFFF5722).copy(alpha = 0.91f),
+            Color(0xFFFFD54F).copy(alpha = 0.93f),
+        ),
+        start = Offset(shift - 180f, 0f),
+        end = Offset(shift + 80f, 4f),
+    )
+
+    val auraBrush = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0x00FF3D00),
+            Color(0x2EFF5722),
+            Color(0x38FFAB00),
+            Color(0x2EFF3D00),
+            Color(0x00FF3D00),
+        ),
+    )
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(auraBrush)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "MaviMusic",
+            style = TextStyle(
+                brush = fireBrush,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp,
+                shadow = Shadow(
+                    color = Color(0xCCFF3D00),
+                    offset = Offset(0f, 0f),
+                    blurRadius = 11f,
+                ),
+            ),
+            maxLines = 1,
+        )
+    }
+}
+
 

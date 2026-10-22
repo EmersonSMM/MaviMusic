@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.OpenInFull
@@ -85,6 +86,7 @@ internal fun DesktopBottomPlayerBar(
     onOpenAudioOutput: () -> Unit,
     onOpenSleepTimer: () -> Unit = {},
     isSleepTimerActive: Boolean = false,
+    onOpenImmersive: () -> Unit = {},
     sidePanel: DesktopSidePanel?,
     isLiked: Boolean,
     onToggleLike: () -> Unit,
@@ -379,6 +381,15 @@ internal fun DesktopBottomPlayerBar(
                             DesktopStrings["sleep_timer", "Temporizador de apagado"],
                             tint = if (isSleepTimerActive) Color.White else DesktopSecondary,
                             modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    DesktopToolbarButton(onClick = onOpenImmersive, size = 32.dp) {
+                        Icon(
+                            Icons.Rounded.GraphicEq,
+                            DesktopStrings["immersive_lyrics", "Modo Inmersivo Winamp / Ondas"],
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(19.dp),
                         )
                     }
 

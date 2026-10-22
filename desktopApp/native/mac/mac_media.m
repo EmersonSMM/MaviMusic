@@ -16,6 +16,7 @@ static BOOL g_isPlaying = NO;
 #define BUTTON_PREVIOUS 3
 #define BUTTON_STOP 4
 #define BUTTON_SPOTLIGHT 5
+#define BUTTON_SPOTLIGHT_EXTERNAL 6
 
 static EventHotKeyRef g_spotlightHotKey1 = NULL;
 static EventHotKeyRef g_spotlightHotKey2 = NULL;
@@ -27,7 +28,19 @@ static OSStatus spotlightHotKeyHandler(EventHandlerCallRef nextHandler, EventRef
     EventHotKeyID hotKeyID;
     GetEventParameter(anEvent, kEventParamDirectObject, typeEventHotKeyID, NULL, sizeof(hotKeyID), NULL, &hotKeyID);
     if (hotKeyID.signature == 'MVL1' || hotKeyID.signature == 'MVL2') {
-        dispatchButton(BUTTON_SPOTLIGHT);
+        BOOL appActive = [NSApp isActive];
+        if (!appActive) {
+            // User triggered Spotlight from outside MaviMusic: keep the main window hidden
+            for (NSWindow *win in [NSApp windows]) {
+                NSString *title = [win title] ?: @"";
+                if (![title isEqualToString:@"MaviMusic Spotlight"] && win.level == NSNormalWindowLevel) {
+                    [win orderOut:nil];
+                }
+            }
+            dispatchButton(BUTTON_SPOTLIGHT_EXTERNAL);
+        } else {
+            dispatchButton(BUTTON_SPOTLIGHT);
+        }
     }
     return noErr;
 }
@@ -439,4 +452,73 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativePos
         });
     }
 }
+
+JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeConfigureSpotlight(
+    JNIEnv *env,
+    jclass clazz,
+    jboolean keepMainHidden
+) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSWindow *spotWin = nil;
+        for (NSWindow *win in [NSApp windows]) {
+            NSString *title = [win title] ?: @"";
+            if ([title isEqualToString:@"MaviMusic Spotlight"]) {
+                spotWin = win;
+            } else if (keepMainHidden && win.level == NSNormalWindowLevel) {
+                [win orderOut:nil];
+            }
+        }
+        if (spotWin) {
+            [spotWin setLevel:NSStatusWindowLevel];
+            [spotWin setCollectionBehavior:(NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                            NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                            NSWindowCollectionBehaviorMoveToActiveSpace)];
+            [spotWin setMovableByWindowBackground:YES];
+            [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+            [spotWin makeKeyAndOrderFront:nil];
+        }
+    });
+}
+
+JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeOnSpotlightDismissed(
+    JNIEnv *env,
+    jclass clazz,
+    jboolean hideApp
+) {
+    if (!hideApp) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSApp hide:nil];
+    });
+}
+
+JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeEnforceMainMinSize(
+    JNIEnv *env,
+    jclass clazz,
+    jint minW,
+    jint minH
+) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (NSWindow *win in [NSApp windows]) {
+            NSString *title = [win title] ?: @"";
+            if (![title isEqualToString:@"MaviMusic Spotlight"] && (win.styleMask & NSWindowStyleMaskResizable)) {
+                [win setMinSize:NSMakeSize((CGFloat)minW, (CGFloat)minH)];
+                [win setContentMinSize:NSMakeSize((CGFloat)minW, (CGFloat)minH)];
+                NSRect frame = [win frame];
+                BOOL changed = NO;
+                if (frame.size.width < minW) {
+                    frame.size.width = minW;
+                    changed = YES;
+                }
+                if (frame.size.height < minH) {
+                    frame.size.height = minH;
+                    changed = YES;
+                }
+                if (changed) {
+                    [win setFrame:frame display:YES animate:NO];
+                }
+            }
+        }
+    });
+}
+
 

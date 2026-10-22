@@ -85,11 +85,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.music.bitchord.data.model.BrowseItem
 import com.music.bitchord.data.model.BrowseType
 import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.SearchResult
 import com.music.bitchord.data.model.Song
+import java.awt.MouseInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -172,7 +175,7 @@ internal fun DesktopCommandPalette(
     val quickCommands = remember {
         listOf(
             PaletteItem.Command(
-                title = DesktopStrings["command_lucky", "Tener suerte (Música recomendada aleatoria)"],
+                title = DesktopStrings["command_lucky", "Azar (Música recomendada aleatoria)"],
                 subtitle = "Reproduce un mix sorpresa basado en tus gustos",
                 icon = Icons.Rounded.Casino,
                 action = { onPlayLucky(); onDismiss() },
@@ -190,8 +193,8 @@ internal fun DesktopCommandPalette(
                 action = { onOpenDownloads(); onDismiss() },
             ),
             PaletteItem.Command(
-                title = DesktopStrings["command_immersive_lyrics", "Modo inmersivo de letras (Apple Music)"],
-                subtitle = "Pantalla completa de letras con fondo animado Mesh y tipografía cinética",
+                title = DesktopStrings["command_immersive_lyrics", "Modo inmersivo Winamp / Letras (Ondas y Espectro)"],
+                subtitle = "Visualizador de ondas y espectro estilo Winamp + letras sincronizadas",
                 icon = Icons.Rounded.OpenInFull,
                 action = { onOpenImmersiveLyrics(); onDismiss() },
             ),
@@ -373,6 +376,76 @@ internal fun DesktopCommandPalette(
             shadowElevation = 24.dp,
         ) {
             Column(Modifier.fillMaxWidth()) {
+                if (isStandaloneWindow) {
+                    var dragStartMouseX by remember { mutableStateOf(0) }
+                    var dragStartMouseY by remember { mutableStateOf(0) }
+                    var dragStartWinX by remember { mutableStateOf(0) }
+                    var dragStartWinY by remember { mutableStateOf(0) }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF14141A))
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        DesktopSpotlightState.isDragging = true
+                                        val p = runCatching { MouseInfo.getPointerInfo()?.location }.getOrNull()
+                                        if (p != null) {
+                                            dragStartMouseX = p.x
+                                            dragStartMouseY = p.y
+                                            dragStartWinX = DesktopSpotlightState.screenX
+                                            dragStartWinY = DesktopSpotlightState.screenY
+                                        }
+                                    },
+                                    onDragEnd = { DesktopSpotlightState.isDragging = false },
+                                    onDragCancel = { DesktopSpotlightState.isDragging = false },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        val p = runCatching { MouseInfo.getPointerInfo()?.location }.getOrNull()
+                                        if (p != null) {
+                                            DesktopSpotlightState.screenX = dragStartWinX + (p.x - dragStartMouseX)
+                                            DesktopSpotlightState.screenY = dragStartWinY + (p.y - dragStartMouseY)
+                                        }
+                                    },
+                                )
+                            }
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "✦ MaviMusic Spotlight",
+                            color = Color.White.copy(alpha = 0.65f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .width(38.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color.White.copy(alpha = 0.22f)),
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .clickable { DesktopSpotlightState.moveToOtherScreen() }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = "⇄ Cambiar pantalla",
+                                color = Color.White.copy(alpha = 0.75f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = Color(0x18FFFFFF), thickness = 1.dp)
+                }
+
                 // Input Row
                 Row(
                     modifier = Modifier

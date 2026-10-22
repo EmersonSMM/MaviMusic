@@ -149,26 +149,30 @@ private fun desktopMain() = application {
                 (composeWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
                 composeWindow.rootPane.isOpaque = false
             }
-            // AWT measures this in device pixels while Compose's window state is in dp. Keeping
-            // the scale in the conversion makes the usable minimum consistent on every display.
             val transform = composeWindow.graphicsConfiguration.defaultTransform
-            composeWindow.minimumSize = Dimension(
-                (MIN_WINDOW_WIDTH_DP * transform.scaleX).roundToInt(),
-                (MIN_WINDOW_HEIGHT_DP * transform.scaleY).roundToInt(),
-            )
-            // Setting AWT's minimum during the first composition can resize the native peer to
-            // that minimum without updating Compose's state. Compose would then keep laying out a
-            // 1220dp surface inside a 900dp window, cropping the right edge and putting its resize
-            // boundary off-screen until a maximize/restore cycle synchronised the two. Re-assert
-            // the requested opening size on the native peer so both layers start in agreement.
+            val scaleX = if (DesktopPlatform.isMac) 1.0 else transform.scaleX
+            val scaleY = if (DesktopPlatform.isMac) 1.0 else transform.scaleY
+            val minW = (MIN_WINDOW_WIDTH_DP * scaleX).roundToInt()
+            val minH = (MIN_WINDOW_HEIGHT_DP * scaleY).roundToInt()
+            composeWindow.minimumSize = Dimension(minW, minH)
             composeWindow.size = Dimension(
-                (openingSize.width.value * transform.scaleX).roundToInt(),
-                (openingSize.height.value * transform.scaleY).roundToInt(),
+                (openingSize.width.value * scaleX).roundToInt().coerceAtLeast(minW),
+                (openingSize.height.value * scaleY).roundToInt().coerceAtLeast(minH),
             )
+            composeWindow.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                override fun componentResized(e: java.awt.event.ComponentEvent?) {
+                    val w = composeWindow.width
+                    val h = composeWindow.height
+                    if (w < minW || h < minH) {
+                        composeWindow.setSize(w.coerceAtLeast(minW), h.coerceAtLeast(minH))
+                    }
+                }
+            })
             if (DesktopPlatform.isWindows && DesktopWindowsFrame.install("MaviMusic")) {
                 DesktopWindowBackdrop.apply()
             } else if (DesktopPlatform.isMac && DesktopMacFrame.install(composeWindow)) {
                 DesktopWindowBackdrop.apply()
+                DesktopMacMedia.enforceMainMinSize(MIN_WINDOW_WIDTH_DP.roundToInt(), MIN_WINDOW_HEIGHT_DP.roundToInt())
             }
             DesktopCursorFix.install(composeWindow)
         }
@@ -310,13 +314,10 @@ private fun desktopMain() = application {
     if (DesktopSpotlightState.isOpen) {
         val spotlightWindowState = rememberWindowState(
             position = WindowPosition(DesktopSpotlightState.screenX.dp, DesktopSpotlightState.screenY.dp),
-            size = DpSize(660.dp, 480.dp),
+            size = DpSize(660.dp, 500.dp),
         )
-        LaunchedEffect(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY) {
-            spotlightWindowState.position = WindowPosition(DesktopSpotlightState.screenX.dp, DesktopSpotlightState.screenY.dp)
-        }
         Window(
-            onCloseRequest = { DesktopSpotlightState.isOpen = false },
+            onCloseRequest = { DesktopSpotlightState.dismiss() },
             state = spotlightWindowState,
             title = "MaviMusic Spotlight",
             undecorated = true,
@@ -326,12 +327,16 @@ private fun desktopMain() = application {
             focusable = true,
             onKeyEvent = { event ->
                 if (event.key == Key.Escape) {
-                    DesktopSpotlightState.isOpen = false
+                    DesktopSpotlightState.dismiss()
                     true
                 } else false
             },
         ) {
             val spotWindow = window
+            LaunchedEffect(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY) {
+                spotlightWindowState.position = WindowPosition(DesktopSpotlightState.screenX.dp, DesktopSpotlightState.screenY.dp)
+                spotWindow.setLocation(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY)
+            }
             DisposableEffect(spotWindow) {
                 spotWindow.background = java.awt.Color(0, 0, 0, 0)
                 spotWindow.contentPane.background = java.awt.Color(0, 0, 0, 0)
@@ -341,12 +346,14 @@ private fun desktopMain() = application {
                 spotWindow.setLocation(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY)
                 spotWindow.toFront()
                 spotWindow.requestFocus()
-                DesktopMacFrame.activateProcess()
+                DesktopMacMedia.configureSpotlight(DesktopSpotlightState.openedExternally)
 
                 val focusListener = object : java.awt.event.WindowFocusListener {
                     override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {}
                     override fun windowLostFocus(e: java.awt.event.WindowEvent?) {
-                        DesktopSpotlightState.isOpen = false
+                        if (!DesktopSpotlightState.isDragging) {
+                            DesktopSpotlightState.dismiss(returnFocusToExternalApp = false)
+                        }
                     }
                 }
                 spotWindow.addWindowFocusListener(focusListener)
@@ -357,20 +364,24 @@ private fun desktopMain() = application {
 
             DesktopCommandPalette(
                 isStandaloneWindow = true,
-                onDismiss = { DesktopSpotlightState.isOpen = false },
+                onDismiss = { DesktopSpotlightState.dismiss() },
                 onNavigate = { dest ->
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
                     DesktopSpotlightState.onNavigate(dest)
                 },
                 onOpenSettings = {
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
                     DesktopSpotlightState.onOpenSettings()
                 },
                 onOpenSleepTimer = {
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
-                    DesktopSpotlightState.isOpen = false
+                    DesktopSpotlightState.dismiss(returnFocusToExternalApp = false)
                 },
                 onOpenDownloads = {
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
                     DesktopSpotlightState.onOpenDownloads()
                 },
@@ -380,15 +391,19 @@ private fun desktopMain() = application {
                 onPlayPrevious = DesktopSpotlightState.onPlayPrevious,
                 onToggleShuffle = DesktopSpotlightState.onToggleShuffle,
                 onOpenLyrics = {
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
                     DesktopSpotlightState.onOpenLyrics()
                 },
                 onOpenQueue = {
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
                     DesktopSpotlightState.onOpenQueue()
                 },
                 onOpenImmersiveLyrics = {
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onOpenImmersive()
                 },
                 onToggleNormalization = {},
                 onPlaySong = { song ->
@@ -398,6 +413,7 @@ private fun desktopMain() = application {
                     DesktopSpotlightState.onOpenCollection(id, type)
                 },
                 onOpenArtist = { id, name ->
+                    DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
                     DesktopSpotlightState.onOpenArtist(id, name)
                 },
@@ -406,5 +422,5 @@ private fun desktopMain() = application {
     }
 }
 
-private const val MIN_WINDOW_WIDTH_DP = 900.0
-private const val MIN_WINDOW_HEIGHT_DP = 600.0
+private const val MIN_WINDOW_WIDTH_DP = 1024.0
+private const val MIN_WINDOW_HEIGHT_DP = 768.0
