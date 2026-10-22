@@ -233,8 +233,8 @@ val LIBRARY_GRID_SPACING = 12.dp
 
 private const val LIBRARY_GRID_MIN_COLUMNS = 2
 
-/** Library shelves never grow past this many across, however wide the screen. */
-private const val LIBRARY_GRID_MAX_COLUMNS = 5
+/** Library shelves adapt responsively across wide desktop screens up to 12 columns. */
+private const val LIBRARY_GRID_MAX_COLUMNS = 12
 
 /**
  * How a Library shelf's full "Show all" page lays out as a grid, in

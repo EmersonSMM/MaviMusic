@@ -65,8 +65,8 @@ internal object DesktopAppUiHost : AppUiHost {
         MutableStateFlow(persistence.boolean(KEY_SWIPE_PLAY_NEXT, false))
 
     private val _homeRecentsViewType = MutableStateFlow(
-        runCatching { LibraryViewType.valueOf(persistence.string(KEY_HOME_RECENTS_VIEW, LibraryViewType.LIST.name)) }
-            .getOrDefault(LibraryViewType.LIST),
+        runCatching { LibraryViewType.valueOf(persistence.string(KEY_HOME_RECENTS_VIEW, LibraryViewType.GRID.name)) }
+            .getOrDefault(LibraryViewType.GRID),
     )
     override val homeRecentsViewType: StateFlow<LibraryViewType> = _homeRecentsViewType
 

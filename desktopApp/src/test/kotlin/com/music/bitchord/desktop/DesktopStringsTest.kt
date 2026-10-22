@@ -69,7 +69,7 @@ class DesktopStringsTest {
     @Test
     fun `a key that exists comes back from the catalogue rather than the fallback`() {
         // The fallback is deliberately wrong, so a pass proves the catalogue was read.
-        assertEquals("Settings", DesktopStrings["settings", "WRONG"])
+        assertEquals("Ajustes", DesktopStrings["settings", "WRONG"])
     }
 
     @Test

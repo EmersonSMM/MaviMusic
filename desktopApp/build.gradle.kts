@@ -565,6 +565,10 @@ compose.desktop {
                     extraKeysRawXml = """
                         <key>NSRequiresAquaSystemAppearance</key>
                         <false/>
+                        <key>CFBundleName</key>
+                        <string>MaviMusic</string>
+                        <key>CFBundleDisplayName</key>
+                        <string>MaviMusic</string>
                     """.trimIndent()
                 }
             }

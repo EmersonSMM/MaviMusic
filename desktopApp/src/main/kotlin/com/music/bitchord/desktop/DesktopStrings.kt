@@ -47,20 +47,112 @@ object DesktopStrings {
     /** The stored choice: a tag, or blank for the system's own language. */
     val language: StateFlow<String> = _language
 
+    private const val KEY_MAVIMUSIC_INIT = "mavimusic_lang_initialized_v5"
+
+    val SPANISH_FALLBACKS: Map<String, String> = mapOf(
+        "home" to "Inicio",
+        "explore" to "Explorar",
+        "library" to "Biblioteca",
+        "search" to "Buscar",
+        "history" to "Historial",
+        "downloads" to "Descargas",
+        "downloaded_songs" to "Canciones descargadas",
+        "local_music" to "Música local",
+        "d_audio_files_on_this_computer" to "Archivos de audio en este equipo",
+        "spotify_library_subtitle" to "Tus listas de reproducción y canciones favoritas",
+        "settings" to "Ajustes",
+        "play" to "Reproducir",
+        "pause" to "Pausar",
+        "playback" to "Reproducción",
+        "playback_play" to "Reproducir",
+        "playback_pause" to "Pausar",
+        "shuffle" to "Aleatorio",
+        "repeat" to "Repetir",
+        "queue" to "Cola de reproducción",
+        "lyrics" to "Letras",
+        "show_all" to "Ver todo",
+        "hide_from_sidebar" to "Ocultar de la barra lateral",
+        "storage" to "Almacenamiento",
+        "equalizer" to "Ecualizador",
+        "done" to "Listo",
+        "cancel" to "Cancelar",
+        "delete" to "Eliminar",
+        "rename" to "Renombrar",
+        "remove" to "Quitar",
+        "retry" to "Reintentar",
+        "save" to "Guardar",
+        "share" to "Compartir",
+        "subscribe" to "Suscribirse",
+        "unsubscribe" to "Cancelar suscripción",
+        "top_songs" to "Canciones destacadas",
+        "top_albums" to "Álbumes destacados",
+        "top_artists" to "Artistas destacados",
+        "d_about_artist" to "Acerca del artista",
+        "new_playlist" to "Nueva lista",
+        "playlist_name" to "Nombre de la lista",
+        "app_language" to "Idioma de la aplicación",
+        "language" to "Idioma",
+        "audio_output" to "Salida de audio",
+        "audio_output_playing" to "Reproduciendo aquí",
+        "listen_together" to "Escuchar juntos",
+        "song_cache_limit" to "Límite de caché de canciones",
+        "filter_languages" to "Filtrar idiomas",
+        "translation_language" to "Idioma de traducción",
+        "d_follow_the_app_language" to "Seguir el idioma de la aplicación",
+        "nothing_downloading" to "No hay descargas en curso",
+        "cancel_all" to "Cancelar todo",
+        "clear" to "Limpiar",
+        "queued" to "En cola",
+        "like" to "Me gusta",
+        "unlike" to "Ya no me gusta",
+        "feeling_lucky" to "Tener suerte",
+        "auto_quick_picks" to "Selección rápida",
+        "auto_recents" to "Recientes",
+        "shelf_quick_picks" to "Selección rápida",
+        "shelf_listen_again" to "Volver a escuchar",
+        "shelf_mixed_for_you" to "Mezclas para ti",
+        "shelf_recents" to "Recientes",
+        "shelf_forgotten_favorites" to "Favoritos olvidados",
+        "shelf_trending" to "Tendencias",
+        "shelf_for_you" to "Para ti",
+        "shelf_from_your_library" to "De tu biblioteca",
+        "shelf_charts" to "Listas de éxitos",
+        "shelf_new_releases" to "Novedades",
+        "shelf_top_music_videos" to "Vídeos musicales destacados",
+        "widget_previous" to "Anterior",
+        "widget_next" to "Siguiente",
+        "widget_open_bitchord" to "Abrir MaviMusic",
+        "d_quit_bitchord" to "Salir de MaviMusic",
+        "d_choose_something_to_play" to "Elige algo para reproducir",
+    )
+
     init {
-        current = catalogue(resolvedTag())
+        val persistence = DesktopPersistence()
+        val stored = persistence.string(KEY_LANGUAGE)
+        // Default to Spanish for MaviMusic
+        if (stored.isBlank() || stored == "system" || stored == "en" || !persistence.boolean(KEY_MAVIMUSIC_INIT, false)) {
+            persistence.saveString(KEY_LANGUAGE, "es")
+            persistence.saveBoolean(KEY_MAVIMUSIC_INIT, true)
+            _language.value = "es"
+        }
+        val tag = resolvedTag()
+        current = catalogue(tag)
+        val loc = Locale.forLanguageTag(tag)
+        runCatching {
+            Locale.setDefault(loc)
+            Locale.setDefault(Locale.Category.DISPLAY, loc)
+            Locale.setDefault(Locale.Category.FORMAT, loc)
+        }
     }
 
     /** Which catalogue is actually in use, after the system default is resolved. */
     fun resolvedTag(): String {
         val chosen = _language.value
-        // Migrate legacy single "zh" (Simplified) to explicit script tag.
-        if (chosen.isNotBlank()) {
+        if (chosen.isNotBlank() && chosen != "system") {
             if (chosen == "zh") return "zh-Hans"
             if (available.any { it.tag.equals(chosen, ignoreCase = true) }) return chosen
             return com.music.bitchord.data.LocaleTags.normalizeAppTag(chosen)
         }
-        // MaviMusic defaults to Spanish out of the box
         return "es"
     }
 
@@ -87,21 +179,32 @@ object DesktopStrings {
     fun setLanguage(tag: String) {
         DesktopPersistence().saveString(KEY_LANGUAGE, tag)
         _language.value = tag
-        current = catalogue(resolvedTag())
+        val resolved = resolvedTag()
+        current = catalogue(resolved)
+        val loc = Locale.forLanguageTag(resolved)
+        runCatching {
+            Locale.setDefault(loc)
+            Locale.setDefault(Locale.Category.DISPLAY, loc)
+            Locale.setDefault(Locale.Category.FORMAT, loc)
+        }
     }
 
     /** The label shown for the stored choice. */
     fun languageLabel(): String =
-        available.firstOrNull { it.tag == _language.value }?.label ?: "System default"
+        available.firstOrNull { it.tag == _language.value }?.label ?: "Español"
 
     /**
      * The string for [key], or [fallback] when no catalogue has one.
      *
-     * The fallback is the English text the call site would otherwise have held literally, so an
-     * untranslated key still reads as the sentence it was written as.
+     * When Spanish is active, prioritizes Spanish catalogue and Spanish fallbacks.
      */
-    operator fun get(key: String, fallback: String = key): String =
-        current[key] ?: english[key] ?: fallback
+    operator fun get(key: String, fallback: String = key): String {
+        val resolved = resolvedTag()
+        if (resolved.startsWith("es")) {
+            return current[key] ?: SPANISH_FALLBACKS[key] ?: fallback.takeIf { it != key && !it.startsWith("English") } ?: english[key] ?: key
+        }
+        return current[key] ?: english[key] ?: fallback
+    }
 
     /** As [get], with Android's `%1$s`-style positional arguments filled in. */
     fun format(key: String, vararg arguments: Any?, fallback: String = key): String =

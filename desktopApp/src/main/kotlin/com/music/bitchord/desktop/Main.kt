@@ -12,10 +12,13 @@ import com.music.bitchord.data.spotify.SpotifyLibrary
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import bitchord.desktopapp.generated.resources.Res
@@ -30,10 +33,21 @@ import org.jetbrains.compose.resources.painterResource
 fun main() {
     // Enable Metal hardware-accelerated rendering on macOS for maximum animation fluidity and ProMotion support
     if (System.getProperty("os.name").contains("Mac", ignoreCase = true)) {
+        System.setProperty("apple.awt.application.name", "MaviMusic")
+        System.setProperty("com.apple.mrj.application.apple.menu.about.name", "MaviMusic")
         System.setProperty("skiko.renderApi", "METAL")
         System.setProperty("skiko.metal.gpu.priority", "auto")
-        System.setProperty("apple.awt.application.appearance", "system")
+        System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
         System.setProperty("apple.laf.useScreenMenuBar", "true")
+    }
+
+    // Initialize application default locale (Spanish by default)
+    runCatching {
+        val langTag = DesktopStrings.resolvedTag()
+        val loc = java.util.Locale.forLanguageTag(langTag)
+        java.util.Locale.setDefault(loc)
+        java.util.Locale.setDefault(java.util.Locale.Category.DISPLAY, loc)
+        java.util.Locale.setDefault(java.util.Locale.Category.FORMAT, loc)
     }
 
     // Before any WebView exists, so the sign-in window can start over with an empty jar.
@@ -104,7 +118,7 @@ private fun desktopMain() = application {
     Window(
         onCloseRequest = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
         visible = visible,
-        title = "MaviMusic",
+        title = if (DesktopPlatform.isMac) "" else "MaviMusic",
         icon = painterResource(Res.drawable.app_logo),
         state = state,
         // No system title bar on Windows, where the application draws its own instead — see
@@ -191,6 +205,98 @@ private fun desktopMain() = application {
             LocalDesktopWindowScope provides this,
         ) {
             BitChordDesktopApp()
+        }
+    }
+
+    if (DesktopMiniPlayerState.isOpen) {
+        val miniState = rememberWindowState(
+            position = WindowPosition(DesktopMiniPlayerState.screenX.dp, DesktopMiniPlayerState.screenY.dp),
+            size = DpSize(384.dp, 172.dp),
+        )
+        LaunchedEffect(DesktopMiniPlayerState.screenX, DesktopMiniPlayerState.screenY) {
+            miniState.position = WindowPosition(DesktopMiniPlayerState.screenX.dp, DesktopMiniPlayerState.screenY.dp)
+        }
+        Window(
+            onCloseRequest = { DesktopMiniPlayerState.isOpen = false },
+            state = miniState,
+            title = "MaviMusic",
+            undecorated = true,
+            transparent = true,
+            alwaysOnTop = true,
+            resizable = false,
+            focusable = true,
+        ) {
+            val miniWindow = window
+            DisposableEffect(miniWindow) {
+                miniWindow.background = java.awt.Color(0, 0, 0, 0)
+                miniWindow.contentPane.background = java.awt.Color(0, 0, 0, 0)
+                (miniWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
+                miniWindow.rootPane.isOpaque = false
+
+                miniWindow.setLocation(DesktopMiniPlayerState.screenX, DesktopMiniPlayerState.screenY)
+                miniWindow.toFront()
+                miniWindow.requestFocus()
+
+                val focusListener = object : java.awt.event.WindowFocusListener {
+                    override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {}
+                    override fun windowLostFocus(e: java.awt.event.WindowEvent?) {
+                        DesktopMiniPlayerState.lastLostFocusTime = System.currentTimeMillis()
+                        DesktopMiniPlayerState.isOpen = false
+                    }
+                }
+                miniWindow.addWindowFocusListener(focusListener)
+                onDispose {
+                    miniWindow.removeWindowFocusListener(focusListener)
+                }
+            }
+
+            DesktopTopMiniPlayer(
+                compact = false,
+                song = DesktopMiniPlayerState.song,
+                isPlaying = DesktopMiniPlayerState.isPlaying,
+                isLoading = DesktopMiniPlayerState.isLoading,
+                previousEnabled = DesktopMiniPlayerState.previousEnabled,
+                progress = if (DesktopMiniPlayerState.durationMs > 0L) {
+                    DesktopMiniPlayerState.positionMs.toFloat() / DesktopMiniPlayerState.durationMs.toFloat()
+                } else {
+                    0f
+                },
+                positionMs = DesktopMiniPlayerState.positionMs,
+                durationMs = DesktopMiniPlayerState.durationMs,
+                volume = DesktopMiniPlayerState.volume,
+                onVolumeChange = DesktopMiniPlayerState.onVolumeChange,
+                onSeek = DesktopMiniPlayerState.onSeek,
+                onPlayPause = DesktopMiniPlayerState.onPlayPause,
+                onPrevious = DesktopMiniPlayerState.onPrevious,
+                onNext = DesktopMiniPlayerState.onNext,
+                onFeelingLucky = DesktopMiniPlayerState.onFeelingLucky,
+                onOpenNowPlaying = {
+                    DesktopMiniPlayerState.isOpen = false
+                    DesktopWindowVisibility.show()
+                    DesktopMiniPlayerState.onOpenNowPlaying()
+                },
+                onOpenLyrics = {
+                    DesktopMiniPlayerState.isOpen = false
+                    DesktopWindowVisibility.show()
+                    DesktopMiniPlayerState.onOpenLyrics()
+                },
+                onOpenQueue = {
+                    DesktopMiniPlayerState.isOpen = false
+                    DesktopWindowVisibility.show()
+                    DesktopMiniPlayerState.onOpenQueue()
+                },
+                onMinimize = {
+                    DesktopMiniPlayerState.isOpen = false
+                },
+                onToggleExpand = {
+                    DesktopMiniPlayerState.isOpen = false
+                    DesktopWindowVisibility.show()
+                    DesktopMiniPlayerState.onToggleExpand()
+                },
+                onClose = {
+                    DesktopMiniPlayerState.isOpen = false
+                },
+            )
         }
     }
 }

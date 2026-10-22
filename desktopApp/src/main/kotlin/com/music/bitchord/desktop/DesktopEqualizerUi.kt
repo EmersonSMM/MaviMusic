@@ -91,7 +91,7 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                     color = Color.White,
                 )
                 Text(
-                    DesktopStrings["equalizer_footer", "Shapes the sound inside BitChord, before it reaches the system."],
+                    DesktopStrings["equalizer_footer", "Modifica el sonido dentro de MaviMusic antes de enviarlo al sistema."],
                     style = MaterialTheme.typography.bodySmall,
                     color = DesktopSecondary,
                 )

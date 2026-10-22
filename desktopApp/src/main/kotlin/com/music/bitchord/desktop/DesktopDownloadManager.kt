@@ -27,7 +27,7 @@ object DesktopDownloadManager {
         return try {
             require(song.localPath == null) { "This track is already local" }
             val stream = DesktopMusicSources.resolve(song, quality, forDownload = true).getOrThrow()
-            val directory = Path.of(System.getProperty("user.home"), "Music", "BitChord")
+            val directory = Path.of(System.getProperty("user.home"), "Music", "MaviMusic")
             Files.createDirectories(directory)
             val safeName = buildString {
                 append(song.artist)
@@ -180,7 +180,7 @@ object DesktopDownloadManager {
         if (path != null && Files.isRegularFile(path) && runCatching { Files.size(path) > 0 }.getOrDefault(false)) {
             return path
         }
-        val directory = Path.of(System.getProperty("user.home"), "Music", "BitChord")
+        val directory = Path.of(System.getProperty("user.home"), "Music", "MaviMusic")
         val safeName = buildString {
             append(song.artist)
             append(" - ")
@@ -189,6 +189,10 @@ object DesktopDownloadManager {
         val candidateMp3 = directory.resolve("$safeName.mp3")
         if (Files.isRegularFile(candidateMp3) && runCatching { Files.size(candidateMp3) > 0 }.getOrDefault(false)) {
             return candidateMp3
+        }
+        val legacyCandidate = Path.of(System.getProperty("user.home"), "Music", "BitChord").resolve("$safeName.mp3")
+        if (Files.isRegularFile(legacyCandidate) && runCatching { Files.size(legacyCandidate) > 0 }.getOrDefault(false)) {
+            return legacyCandidate
         }
         return null
     }

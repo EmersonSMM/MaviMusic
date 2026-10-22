@@ -39,18 +39,19 @@ internal object DesktopAwtTray {
                     image ?: blank(tray.trayIconSize.width.coerceAtLeast(16))
                 }
                 val created = if (DesktopPlatform.isMac) {
-                    // On macOS, avoid the retro grey text menu on left-click; left-click directly activates Now Playing
+                    // On macOS, clicks (both left-click and right-click) open the dark teal Apple Music glass Mini Player widget
                     TrayIcon(art, tooltip).apply {
                         isImageAutoSize = true
-                        addActionListener { EventQueue.invokeLater(onActivate) }
+                        val trigger = {
+                            EventQueue.invokeLater {
+                                val pt = runCatching { java.awt.MouseInfo.getPointerInfo()?.location }.getOrNull()
+                                DesktopMiniPlayerState.toggle(pt)
+                            }
+                        }
+                        addActionListener { trigger() }
                         addMouseListener(object : java.awt.event.MouseAdapter() {
                             override fun mouseReleased(e: java.awt.event.MouseEvent) {
-                                if (e.isPopupTrigger || e.button == java.awt.event.MouseEvent.BUTTON3) {
-                                    // Right click shows options
-                                    popupMenu = DesktopTrayMenu.awtPopup()
-                                } else if (e.button == java.awt.event.MouseEvent.BUTTON1) {
-                                    EventQueue.invokeLater(onActivate)
-                                }
+                                trigger()
                             }
                         })
                     }
@@ -88,7 +89,9 @@ internal object DesktopAwtTray {
                 tooltip = text
                 val current = icon ?: return@invokeLater
                 current.toolTip = text
-                current.popupMenu = DesktopTrayMenu.awtPopup()
+                if (!DesktopPlatform.isMac) {
+                    current.popupMenu = DesktopTrayMenu.awtPopup()
+                }
             }
         }
     }

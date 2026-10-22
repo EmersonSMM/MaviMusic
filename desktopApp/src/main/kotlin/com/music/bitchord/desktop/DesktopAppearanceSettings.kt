@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Visual color themes for the desktop application ground and surfaces.
  */
-internal enum class DesktopThemeTone(
+internal data class DesktopThemeTone(
     val id: String,
     val title: String,
     val background: Color,
@@ -15,14 +15,16 @@ internal enum class DesktopThemeTone(
     val surfaceRaised: Color,
     val glass: Color,
 ) {
-    DARK_CLASSIC("dark_classic", "Classic Dark", Color(0xFF202020), Color(0xFF141416), Color(0xFF26262A), Color(0x661C1C1E)),
-    OLED_BLACK("oled_black", "OLED Black", Color(0xFF000000), Color(0xFF0A0A0C), Color(0xFF161618), Color(0x66121212)),
-    MIDNIGHT_BLUE("midnight_blue", "Midnight Blue", Color(0xFF0B111E), Color(0xFF070B14), Color(0xFF141E32), Color(0x66111B2E)),
-    DEEP_PURPLE("deep_purple", "Deep Velvet", Color(0xFF150D1E), Color(0xFF0B0710), Color(0xFF241533), Color(0x6620132E)),
-    SLATE_GRAY("slate_gray", "Slate Modern", Color(0xFF181B20), Color(0xFF0F1115), Color(0xFF22272E), Color(0x661E232B)),
-    FOREST_EMERALD("forest_emerald", "Forest Emerald", Color(0xFF0B1713), Color(0xFF060E0B), Color(0xFF142620), Color(0x6612241E));
-
     companion object {
+        val DARK_CLASSIC = DesktopThemeTone("dark_classic", "Classic Dark", Color(0xFF202020), Color(0xFF141416), Color(0xFF26262A), Color(0x661C1C1E))
+        val OLED_BLACK = DesktopThemeTone("oled_black", "OLED Black", Color(0xFF000000), Color(0xFF0A0A0C), Color(0xFF161618), Color(0x66121212))
+        val MIDNIGHT_BLUE = DesktopThemeTone("midnight_blue", "Midnight Blue", Color(0xFF0B111E), Color(0xFF070B14), Color(0xFF141E32), Color(0x66111B2E))
+        val DEEP_PURPLE = DesktopThemeTone("deep_purple", "Deep Velvet", Color(0xFF150D1E), Color(0xFF0B0710), Color(0xFF241533), Color(0x6620132E))
+        val SLATE_GRAY = DesktopThemeTone("slate_gray", "Slate Modern", Color(0xFF181B20), Color(0xFF0F1115), Color(0xFF22272E), Color(0x661E232B))
+        val FOREST_EMERALD = DesktopThemeTone("forest_emerald", "Forest Emerald", Color(0xFF0B1713), Color(0xFF060E0B), Color(0xFF142620), Color(0x6612241E))
+
+        val entries: List<DesktopThemeTone> = listOf(DARK_CLASSIC, OLED_BLACK, MIDNIGHT_BLUE, DEEP_PURPLE, SLATE_GRAY, FOREST_EMERALD)
+
         fun fromId(id: String): DesktopThemeTone = entries.firstOrNull { it.id == id } ?: DARK_CLASSIC
     }
 }
@@ -56,7 +58,8 @@ internal object DesktopAppearanceSettings {
     /** Removes the volume slider from the main player. */
     val hideVolumeBar: StateFlow<Boolean> = _hideVolumeBar
 
-    /** Diffuses current artwork colors under the window glass chrome like Apple Music. */
+    /** Diffuses current artwork colors under the window glass chrome and adapts interface colors to the song. */
+    val dynamicArtworkTheme: StateFlow<Boolean> = _ambientBackdrop
     val ambientBackdrop: StateFlow<Boolean> = _ambientBackdrop
 
     /** Whether to show a floating download status pill at the bottom right. */
@@ -71,6 +74,8 @@ internal object DesktopAppearanceSettings {
 
     fun setHideVolumeBar(value: Boolean) = write(KEY_HIDE_VOLUME_BAR, value, _hideVolumeBar)
 
+    fun setDynamicArtworkTheme(value: Boolean) = write(KEY_AMBIENT_BACKDROP, value, _ambientBackdrop)
+
     fun setAmbientBackdrop(value: Boolean) = write(KEY_AMBIENT_BACKDROP, value, _ambientBackdrop)
 
     fun setFloatingDownloadStatus(value: Boolean) = write(KEY_FLOATING_DOWNLOAD_STATUS, value, _floatingDownloadStatus)
@@ -78,6 +83,8 @@ internal object DesktopAppearanceSettings {
     fun setThemeTone(tone: DesktopThemeTone) {
         DesktopPersistence().saveString(KEY_THEME_TONE, tone.id)
         _themeTone.value = tone
+        // Choosing a manual theme automatically disables dynamic artwork colors
+        setDynamicArtworkTheme(false)
     }
 
     private fun write(key: String, value: Boolean, into: MutableStateFlow<Boolean>) {

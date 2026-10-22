@@ -1,6 +1,7 @@
 package com.music.bitchord.playback
 
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.model.durationMillis
 import java.util.Locale
 
 /**
@@ -77,14 +78,34 @@ object QueueBuilder {
      */
     fun isSameRecording(a: Song, b: Song): Boolean {
         if (a.videoId == b.videoId) return true
-        val title = normalisedTitle(a.title)
-        if (title.isEmpty() || title != normalisedTitle(b.title)) return false
-        // One shared name is enough. The two cuts of a track get billed in
-        // whatever order the upload used — "Pritam, Arijit Singh & Shilpa Rao"
-        // against "Shilpa Rao, Arijit Singh, & Pritam" is one song, twice.
+        val titleA = normalisedTitle(a.title)
+        val titleB = normalisedTitle(b.title)
+        if (titleA.isEmpty() || titleB.isEmpty()) return false
+
         val left = artistSet(a.artist)
         val right = artistSet(b.artist)
-        return left.isEmpty() || right.isEmpty() || left.any { it in right }
+        val artistMatches = left.isEmpty() || right.isEmpty() || left.any { it in right }
+
+        // Exact normalized title match with matching artist
+        if (titleA == titleB && artistMatches) {
+            val durA = a.durationMillis() / 1000L
+            val durB = b.durationMillis() / 1000L
+            if (durA > 0L && durB > 0L && kotlin.math.abs(durA - durB) > 40L) {
+                // Large duration difference (e.g. extended mix or different version)
+                return false
+            }
+            return true
+        }
+
+        // Substring / prefix match (e.g. one title includes extra subtitle or feature) with matching artist and duration
+        if (artistMatches && (titleA.startsWith(titleB) || titleB.startsWith(titleA))) {
+            val durA = a.durationMillis() / 1000L
+            val durB = b.durationMillis() / 1000L
+            if (durA > 0L && durB > 0L && kotlin.math.abs(durA - durB) <= 15L) {
+                return true
+            }
+        }
+        return false
     }
 
     /**
@@ -94,6 +115,7 @@ object QueueBuilder {
      */
     fun normalisedTitle(raw: String): String = raw.lowercase(Locale.ROOT)
         .substringBefore(" | ")
+        .substringBefore(" // ")
         .replace(NOISE, " ")
         .replace(PUNCTUATION, " ")
         .replace(SPACES, " ")
@@ -102,16 +124,16 @@ object QueueBuilder {
     /** The cast behind a credit, split out so billing order stops mattering. */
     fun artistSet(raw: String): Set<String> = raw.lowercase(Locale.ROOT)
         .replace(TOPIC, " ")
-        .split(",", "&", "·", "•", ";", " feat", " ft.", " ft ", " x ", " with ")
+        .split(",", "&", "·", "•", ";", " feat.", " feat", " ft.", " ft ", " x ", " with ")
         .map { it.replace(PUNCTUATION, " ").replace(SPACES, " ").trim() }
         .filter { it.isNotEmpty() }
         .toSet()
 
     private val NOISE = Regex(
-        """\((?:official|lyric|lyrics|lyrical|audio|video|visuali[sz]er|full song|hd|4k)[^)]*\)""" +
+        """\((?:official|video oficial|audio oficial|letra|lyric|lyrics|lyrical|audio|video|visuali[sz]er|full song|hd|4k|clip oficial|en vivo|live)[^)]*\)""" +
             """|\(from[^)]*\)""" +
-            """|\[[^]]*]""" +
-            """|\b(?:official (?:video|audio|music video)|lyrical video|full video|4k video)\b""",
+            """|\[(?:official|video oficial|audio oficial|letra|lyric|lyrics|audio|video|visuali[sz]er|hd|4k|clip oficial)[^]]*]""" +
+            """|\b(?:official (?:video|audio|music video)|video oficial|audio oficial|video musical|lyrical video|full video|4k video|clip oficial)\b""",
         RegexOption.IGNORE_CASE,
     )
     private val TOPIC = Regex("""\s*-\s*topic\b""", RegexOption.IGNORE_CASE)

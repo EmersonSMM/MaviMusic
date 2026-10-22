@@ -252,12 +252,10 @@ internal object DesktopMacFrame {
         if (!DesktopPlatform.isMac) return false
 
         // Clear AWT background layers immediately on the caller thread
-        window.background = Color(0, 0, 0, 0)
+        if ((window as? java.awt.Frame)?.isUndecorated == true) {
+            window.background = Color(0, 0, 0, 0)
+        }
         (window as? javax.swing.RootPaneContainer)?.let { rpc ->
-            rpc.contentPane?.background = Color(0, 0, 0, 0)
-            (rpc.contentPane as? javax.swing.JComponent)?.isOpaque = false
-            rpc.rootPane?.isOpaque = false
-            rpc.rootPane?.background = Color(0, 0, 0, 0)
             rpc.rootPane?.putClientProperty("apple.awt.transparentTitleBar", true)
             rpc.rootPane?.putClientProperty("apple.awt.fullWindowContent", true)
         }
@@ -422,29 +420,20 @@ internal object DesktopMacFrame {
         }
     }
 
-    private fun ensureWindowAndEffectView(o: LibObjC, send: com.sun.jna.Function, nsWindow: Pointer): Pointer? {
+    private fun ensureWindowConfigured(o: LibObjC, send: com.sun.jna.Function, nsWindow: Pointer) {
         if (!windowConfigured) {
-            val selSetOpaque = o.sel_registerName("setOpaque:")
-            send.invoke(arrayOf(nsWindow, selSetOpaque, false))
+            val selSetTitlebarAppearsTransparent = o.sel_registerName("setTitlebarAppearsTransparent:")
+            send.invoke(arrayOf(nsWindow, selSetTitlebarAppearsTransparent, true))
 
-            val nsColorClass = o.objc_getClass("NSColor")
-            if (nsColorClass != null) {
-                val selClearColor = o.sel_registerName("clearColor")
-                val clearColor = send.invokePointer(arrayOf(nsColorClass, selClearColor))
-                if (clearColor != null) {
-                    val selSetBackgroundColor = o.sel_registerName("setBackgroundColor:")
-                    send.invoke(arrayOf(nsWindow, selSetBackgroundColor, clearColor))
-                }
-            }
-
-            val selSetHasShadow = o.sel_registerName("setHasShadow:")
-            send.invoke(arrayOf(nsWindow, selSetHasShadow, true))
-
-            val selInvalidateShadow = o.sel_registerName("invalidateShadow")
-            send.invoke(arrayOf(nsWindow, selInvalidateShadow))
+            val selSetMovable = o.sel_registerName("setMovableByWindowBackground:")
+            send.invoke(arrayOf(nsWindow, selSetMovable, false))
 
             windowConfigured = true
         }
+    }
+
+    private fun ensureWindowAndEffectView(o: LibObjC, send: com.sun.jna.Function, nsWindow: Pointer): Pointer? {
+        ensureWindowConfigured(o, send, nsWindow)
 
         effectViewPtr?.let { return it }
 
@@ -501,7 +490,6 @@ internal object DesktopMacFrame {
         pinConstraints(view, contentView)
 
         effectViewPtr = view
-        applyDarkAppearance(nsWindow, view)
         return view
     }
 
@@ -510,23 +498,29 @@ internal object DesktopMacFrame {
         val send = msgSend ?: return
         val nsWindow = windowPtr ?: return
 
+        ensureWindowConfigured(o, send, nsWindow)
+
+        if (nativeKind == 0) { // OFF
+            effectViewPtr?.let {
+                val selSetHidden = o.sel_registerName("setHidden:")
+                send.invoke(arrayOf(it, selSetHidden, true))
+            }
+            DesktopTrackLog.log("DesktopMacFrame: backdrop set to OFF")
+            return
+        }
+
         val effectView = ensureWindowAndEffectView(o, send, nsWindow) ?: return
 
         val selSetHidden = o.sel_registerName("setHidden:")
         val selSetMaterial = o.sel_registerName("setMaterial:")
 
-        if (nativeKind == 0) { // OFF
-            send.invoke(arrayOf(effectView, selSetHidden, true))
-            DesktopTrackLog.log("DesktopMacFrame: backdrop set to OFF (hidden=true)")
-        } else {
-            // macOS Materials:
-            // MICA (2) -> NSVisualEffectMaterialSidebar (7)
-            // ACRYLIC (3) -> NSVisualEffectMaterialHUDWindow (13)
-            val material = if (nativeKind == 2) 7L else 13L
-            send.invoke(arrayOf(effectView, selSetMaterial, material))
-            send.invoke(arrayOf(effectView, selSetHidden, false))
-            DesktopTrackLog.log("DesktopMacFrame: backdrop applied material $material (nativeKind $nativeKind)")
-        }
+        // macOS Materials:
+        // MICA (2) -> NSVisualEffectMaterialSidebar (7)
+        // ACRYLIC (3) -> NSVisualEffectMaterialHUDWindow (13)
+        val material = if (nativeKind == 2) 7L else 13L
+        send.invoke(arrayOf(effectView, selSetMaterial, material))
+        send.invoke(arrayOf(effectView, selSetHidden, false))
+        DesktopTrackLog.log("DesktopMacFrame: backdrop applied material $material (nativeKind $nativeKind)")
     }
 
     private fun pinConstraints(view: Pointer, target: Pointer) {

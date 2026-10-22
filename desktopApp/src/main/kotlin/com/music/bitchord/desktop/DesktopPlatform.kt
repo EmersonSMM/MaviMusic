@@ -11,6 +11,11 @@ internal object DesktopPlatform {
 
     val isMac: Boolean = name.contains("mac", ignoreCase = true)
 
-    /** Whether the application draws the window's own frame instead of the system drawing it. */
-    val drawsOwnWindowFrame: Boolean = isWindows || isMac
+    /**
+     * Whether the application draws the window's own frame instead of the system drawing it.
+     * On macOS, we delegate window borders and resizing to native AppKit (Cocoa) with
+     * apple.awt.transparentTitleBar and apple.awt.fullWindowContent so that macOS WindowServer
+     * handles 120 FPS hardware-accelerated resizing and native vector cursors.
+     */
+    val drawsOwnWindowFrame: Boolean = isWindows
 }

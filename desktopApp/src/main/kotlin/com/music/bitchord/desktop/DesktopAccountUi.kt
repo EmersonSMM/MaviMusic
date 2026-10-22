@@ -337,12 +337,12 @@ internal fun DesktopSignInDialog(
             }
             Text(
                 if (webSignIn) {
-                    "Sign in with Google in a BitChord window, then choose \"Use this profile\"."
+                    "Inicia sesión con Google en una ventana de MaviMusic y luego elige \"Usar este perfil\"."
                 } else {
                     DesktopStrings[
                         "d_google_signs_in_inside_a_browser",
-                        "Google signs in inside a browser and hands back a session. Pick a browser " +
-                            "here that is already signed in and BitChord will use its session.",
+                        "Google inicia sesión dentro de un navegador y devuelve una sesión. Elige un navegador " +
+                            "en el que ya hayas iniciado sesión y MaviMusic usará esa sesión.",
                     ]
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -416,9 +416,9 @@ internal fun DesktopSignInDialog(
                                     Text("Sign in with Google", color = Color.White)
                                     Text(
                                         if (busy == WEB_SIGN_IN) {
-                                            "Finish in the sign-in window, then choose \"Use this profile\""
+                                            "Termina en la ventana de inicio de sesión, luego elige \"Usar este perfil\""
                                         } else {
-                                            "Opens Google's sign-in page in a BitChord window"
+                                            "Abre la página de inicio de sesión de Google en una ventana de MaviMusic"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = DesktopSecondary,

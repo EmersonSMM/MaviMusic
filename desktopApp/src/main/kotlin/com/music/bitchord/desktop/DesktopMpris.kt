@@ -247,8 +247,8 @@ internal class DesktopMprisController(
             "CanQuit" to variant(false),
             "CanRaise" to variant(false),
             "HasTrackList" to variant(false),
-            "Identity" to variant("BitChord"),
-            "DesktopEntry" to variant("bitchord"),
+            "Identity" to variant("MaviMusic"),
+            "DesktopEntry" to variant("mavimusic"),
             "SupportedUriSchemes" to variant(listOf("file", "http", "https"), "as"),
             "SupportedMimeTypes" to variant(
                 listOf("audio/mpeg", "audio/mp4", "audio/aac", "audio/flac", "audio/ogg"),
