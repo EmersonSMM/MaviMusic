@@ -138,6 +138,62 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeSto
     }
 }
 
+static MPMediaItemArtwork *createArtwork(NSImage *originalImage) {
+    if (!originalImage) return nil;
+    CGSize imageSize = originalImage.size;
+    if (imageSize.width <= 0 || imageSize.height <= 0) {
+        for (NSImageRep *rep in [originalImage representations]) {
+            if (rep.pixelsWide > 0 && rep.pixelsHigh > 0) {
+                imageSize = CGSizeMake(rep.pixelsWide, rep.pixelsHigh);
+                [originalImage setSize:imageSize];
+                break;
+            }
+        }
+    }
+    if (imageSize.width <= 0 || imageSize.height <= 0) {
+        imageSize = CGSizeMake(512, 512);
+        [originalImage setSize:imageSize];
+    }
+
+    return [[MPMediaItemArtwork alloc] initWithBoundsSize:imageSize requestHandler:^NSImage * _Nonnull(CGSize requestedSize) {
+        if (requestedSize.width <= 0 || requestedSize.height <= 0) {
+            return originalImage;
+        }
+        if (fabs(requestedSize.width - imageSize.width) < 1.0 && fabs(requestedSize.height - imageSize.height) < 1.0) {
+            return originalImage;
+        }
+        return [NSImage imageWithSize:requestedSize flipped:NO drawingHandler:^BOOL(NSRect dstRect) {
+            [originalImage drawInRect:dstRect
+                             fromRect:NSMakeRect(0, 0, imageSize.width, imageSize.height)
+                            operation:NSCompositingOperationSourceOver
+                             fraction:1.0];
+            return YES;
+        }];
+    }];
+}
+
+static NSImage *loadImageFromPathOrUrl(NSString *pathOrUrl) {
+    if (!pathOrUrl || pathOrUrl.length == 0) return nil;
+    if ([pathOrUrl hasPrefix:@"http://"] || [pathOrUrl hasPrefix:@"https://"]) {
+        NSURL *url = [NSURL URLWithString:pathOrUrl];
+        if (url) {
+            NSData *data = [NSData dataWithContentsOfURL:url];
+            if (data) {
+                return [[NSImage alloc] initWithData:data];
+            }
+        }
+        return nil;
+    }
+    NSImage *img = [[NSImage alloc] initWithContentsOfFile:pathOrUrl];
+    if (!img) {
+        NSData *data = [NSData dataWithContentsOfFile:pathOrUrl];
+        if (data) {
+            img = [[NSImage alloc] initWithData:data];
+        }
+    }
+    return img;
+}
+
 JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeUpdate(
     JNIEnv *env,
     jclass clazz,
@@ -153,7 +209,41 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeUpd
         MPNowPlayingInfoCenter *infoCenter = [MPNowPlayingInfoCenter defaultCenter];
         g_isPlaying = (isPlaying == JNI_TRUE);
 
-        if (!title && durationMs <= 0) {
+        NSString *sTitle = nil;
+        NSString *sArtist = nil;
+        NSString *sAlbum = nil;
+        NSString *sArtwork = nil;
+
+        if (title) {
+            const char *titleUtf8 = (*env)->GetStringUTFChars(env, title, NULL);
+            if (titleUtf8) {
+                sTitle = [NSString stringWithUTF8String:titleUtf8];
+                (*env)->ReleaseStringUTFChars(env, title, titleUtf8);
+            }
+        }
+        if (artist) {
+            const char *artistUtf8 = (*env)->GetStringUTFChars(env, artist, NULL);
+            if (artistUtf8) {
+                sArtist = [NSString stringWithUTF8String:artistUtf8];
+                (*env)->ReleaseStringUTFChars(env, artist, artistUtf8);
+            }
+        }
+        if (album) {
+            const char *albumUtf8 = (*env)->GetStringUTFChars(env, album, NULL);
+            if (albumUtf8) {
+                sAlbum = [NSString stringWithUTF8String:albumUtf8];
+                (*env)->ReleaseStringUTFChars(env, album, albumUtf8);
+            }
+        }
+        if (artworkPath) {
+            const char *artUtf8 = (*env)->GetStringUTFChars(env, artworkPath, NULL);
+            if (artUtf8) {
+                sArtwork = [NSString stringWithUTF8String:artUtf8];
+                (*env)->ReleaseStringUTFChars(env, artworkPath, artUtf8);
+            }
+        }
+
+        if ((!sTitle || sTitle.length == 0) && durationMs <= 0) {
             infoCenter.nowPlayingInfo = nil;
             if (@available(macOS 10.13, *)) {
                 infoCenter.playbackState = MPNowPlayingPlaybackStateStopped;
@@ -162,45 +252,9 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeUpd
         }
 
         NSMutableDictionary *info = [NSMutableDictionary dictionary];
-
-        if (title) {
-            const char *titleUtf8 = (*env)->GetStringUTFChars(env, title, NULL);
-            if (titleUtf8) {
-                info[MPMediaItemPropertyTitle] = [NSString stringWithUTF8String:titleUtf8];
-                (*env)->ReleaseStringUTFChars(env, title, titleUtf8);
-            }
-        }
-        if (artist) {
-            const char *artistUtf8 = (*env)->GetStringUTFChars(env, artist, NULL);
-            if (artistUtf8) {
-                info[MPMediaItemPropertyArtist] = [NSString stringWithUTF8String:artistUtf8];
-                (*env)->ReleaseStringUTFChars(env, artist, artistUtf8);
-            }
-        }
-        if (album) {
-            const char *albumUtf8 = (*env)->GetStringUTFChars(env, album, NULL);
-            if (albumUtf8) {
-                info[MPMediaItemPropertyAlbumTitle] = [NSString stringWithUTF8String:albumUtf8];
-                (*env)->ReleaseStringUTFChars(env, album, albumUtf8);
-            }
-        }
-
-        if (artworkPath) {
-            const char *artUtf8 = (*env)->GetStringUTFChars(env, artworkPath, NULL);
-            if (artUtf8) {
-                if (strlen(artUtf8) > 0) {
-                    NSString *path = [NSString stringWithUTF8String:artUtf8];
-                    NSImage *image = [[NSImage alloc] initWithContentsOfFile:path];
-                    if (image) {
-                        MPMediaItemArtwork *artwork = [[MPMediaItemArtwork alloc] initWithBoundsSize:image.size requestHandler:^NSImage * _Nonnull(CGSize size) {
-                            return image;
-                        }];
-                        info[MPMediaItemPropertyArtwork] = artwork;
-                    }
-                }
-                (*env)->ReleaseStringUTFChars(env, artworkPath, artUtf8);
-            }
-        }
+        if (sTitle && sTitle.length > 0) info[MPMediaItemPropertyTitle] = sTitle;
+        if (sArtist && sArtist.length > 0) info[MPMediaItemPropertyArtist] = sArtist;
+        if (sAlbum && sAlbum.length > 0) info[MPMediaItemPropertyAlbumTitle] = sAlbum;
 
         double durationSec = (double)durationMs / 1000.0;
         double positionSec = (double)positionMs / 1000.0;
@@ -209,9 +263,52 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeUpd
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(positionSec);
         info[MPNowPlayingInfoPropertyPlaybackRate] = @(isPlaying ? 1.0 : 0.0);
 
+        BOOL artworkAssigned = NO;
+        if (sArtwork && sArtwork.length > 0) {
+            if (![sArtwork hasPrefix:@"http://"] && ![sArtwork hasPrefix:@"https://"]) {
+                NSImage *localImage = loadImageFromPathOrUrl(sArtwork);
+                if (localImage) {
+                    MPMediaItemArtwork *artwork = createArtwork(localImage);
+                    if (artwork) {
+                        info[MPMediaItemPropertyArtwork] = artwork;
+                        artworkAssigned = YES;
+                    }
+                }
+            }
+        }
+
+        if (!artworkAssigned && infoCenter.nowPlayingInfo && infoCenter.nowPlayingInfo[MPMediaItemPropertyArtwork]) {
+            NSString *existingTitle = infoCenter.nowPlayingInfo[MPMediaItemPropertyTitle];
+            if (sTitle && [existingTitle isEqualToString:sTitle]) {
+                info[MPMediaItemPropertyArtwork] = infoCenter.nowPlayingInfo[MPMediaItemPropertyArtwork];
+                artworkAssigned = YES;
+            }
+        }
+
         infoCenter.nowPlayingInfo = info;
         if (@available(macOS 10.13, *)) {
             infoCenter.playbackState = isPlaying ? MPNowPlayingPlaybackStatePlaying : MPNowPlayingPlaybackStatePaused;
+        }
+
+        if (!artworkAssigned && sArtwork && ([sArtwork hasPrefix:@"http://"] || [sArtwork hasPrefix:@"https://"])) {
+            NSString *urlStr = [sArtwork copy];
+            NSString *trackTitle = [sTitle copy];
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSImage *fetchedImage = loadImageFromPathOrUrl(urlStr);
+                if (fetchedImage) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
+                        NSMutableDictionary *curr = [center.nowPlayingInfo mutableCopy];
+                        if (curr && trackTitle && [curr[MPMediaItemPropertyTitle] isEqualToString:trackTitle]) {
+                            MPMediaItemArtwork *art = createArtwork(fetchedImage);
+                            if (art) {
+                                curr[MPMediaItemPropertyArtwork] = art;
+                                center.nowPlayingInfo = curr;
+                            }
+                        }
+                    });
+                }
+            });
         }
     }
 }
@@ -241,42 +338,51 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativePos
             [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:g_notifDelegate];
         }
 
-        NSUserNotification *notification = [[NSUserNotification alloc] init];
+        NSString *sTitle = nil;
+        NSString *sSub = nil;
+        NSString *sBody = nil;
+        NSString *sPath = nil;
+
         if (title) {
             const char *cTitle = (*env)->GetStringUTFChars(env, title, NULL);
             if (cTitle) {
-                notification.title = [NSString stringWithUTF8String:cTitle];
+                sTitle = [NSString stringWithUTF8String:cTitle];
                 (*env)->ReleaseStringUTFChars(env, title, cTitle);
             }
         }
         if (subtitle) {
             const char *cSub = (*env)->GetStringUTFChars(env, subtitle, NULL);
             if (cSub) {
-                notification.subtitle = [NSString stringWithUTF8String:cSub];
+                sSub = [NSString stringWithUTF8String:cSub];
                 (*env)->ReleaseStringUTFChars(env, subtitle, cSub);
             }
         }
         if (body) {
             const char *cBody = (*env)->GetStringUTFChars(env, body, NULL);
             if (cBody) {
-                notification.informativeText = [NSString stringWithUTF8String:cBody];
+                sBody = [NSString stringWithUTF8String:cBody];
                 (*env)->ReleaseStringUTFChars(env, body, cBody);
             }
         }
         if (imagePath) {
             const char *cImg = (*env)->GetStringUTFChars(env, imagePath, NULL);
             if (cImg) {
-                if (strlen(cImg) > 0) {
-                    NSString *path = [NSString stringWithUTF8String:cImg];
-                    NSImage *image = [[NSImage alloc] initWithContentsOfFile:path];
-                    if (image) {
-                        notification.contentImage = image;
-                    }
-                }
+                sPath = [NSString stringWithUTF8String:cImg];
                 (*env)->ReleaseStringUTFChars(env, imagePath, cImg);
             }
         }
 
-        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            NSImage *image = loadImageFromPathOrUrl(sPath);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSUserNotification *notification = [[NSUserNotification alloc] init];
+                if (sTitle) notification.title = sTitle;
+                if (sSub) notification.subtitle = sSub;
+                if (sBody) notification.informativeText = sBody;
+                if (image) notification.contentImage = image;
+                [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+            });
+        });
     }
 }
+

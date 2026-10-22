@@ -1,5 +1,10 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.model.artworkAt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -20,6 +25,8 @@ internal object DesktopMacMedia {
 
     private val started = AtomicBoolean(false)
     private val shutdownHookAdded = AtomicBoolean(false)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var lastArtFetchKey: String? = null
 
     @Volatile
     private var controller: Controller? = null
@@ -62,6 +69,7 @@ internal object DesktopMacMedia {
     fun stop() {
         if (!started.compareAndSet(true, false)) return
         controller = null
+        lastArtFetchKey = null
         runCatching { nativeStop() }
     }
 
@@ -69,20 +77,47 @@ internal object DesktopMacMedia {
     fun publish(state: DesktopPlaybackState) {
         if (!started.get()) return
         val song = state.song
-        val artworkPath = song?.thumbnailUrl?.let { url ->
-            DesktopMediaCache.existing(url, "jpg")?.toString()
-                ?: DesktopMediaCache.existing(url, "png")?.toString()
-        }.orEmpty()
+        val preferredArtUrl = song?.artworkAt(512) ?: song?.thumbnailUrl
+        val cachedFile = DesktopArtworkCache.getCachedFile(preferredArtUrl)
+            ?: song?.thumbnailUrl?.let { DesktopArtworkCache.getCachedFile(it) }
+
+        val artToSend = cachedFile?.absolutePath
+            ?: preferredArtUrl
+            ?: song?.thumbnailUrl.orEmpty()
+
         runCatching {
             nativeUpdate(
                 song?.title.orEmpty(),
                 song?.artist.orEmpty(),
                 song?.albumName.orEmpty(),
-                artworkPath,
+                artToSend,
                 state.isPlaying,
                 state.positionMs,
                 state.durationMs,
             )
+        }
+
+        if (cachedFile == null && !preferredArtUrl.isNullOrBlank()) {
+            val trackKey = "${song?.videoId}|$preferredArtUrl"
+            if (lastArtFetchKey != trackKey) {
+                lastArtFetchKey = trackKey
+                scope.launch {
+                    val file = DesktopArtworkCache.getOrFetchFile(preferredArtUrl)
+                    if (file != null && started.get() && controller != null && lastArtFetchKey == trackKey) {
+                        runCatching {
+                            nativeUpdate(
+                                song?.title.orEmpty(),
+                                song?.artist.orEmpty(),
+                                song?.albumName.orEmpty(),
+                                file.absolutePath,
+                                state.isPlaying,
+                                state.positionMs,
+                                state.durationMs,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 

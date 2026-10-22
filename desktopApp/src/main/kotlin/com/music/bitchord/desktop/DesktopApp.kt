@@ -2056,10 +2056,10 @@ fun BitChordDesktopApp() {
         )
         if (playback.isPlaying && selectedSong != null && selectedSong?.videoId != lastNotifiedTrackId) {
             lastNotifiedTrackId = selectedSong?.videoId
-            val artPath = selectedSong?.thumbnailUrl?.let { url ->
-                DesktopMediaCache.existing(url, "jpg")?.toString()
-                    ?: DesktopMediaCache.existing(url, "png")?.toString()
-            }.orEmpty()
+            val artUrl = selectedSong?.artworkAt(512) ?: selectedSong?.thumbnailUrl
+            val artPath = DesktopArtworkCache.getCachedFile(artUrl)?.absolutePath
+                ?: selectedSong?.thumbnailUrl?.let { DesktopArtworkCache.getCachedFile(it)?.absolutePath }
+                ?: artUrl.orEmpty()
             DesktopMacMedia.postNotification(
                 title = selectedSong?.title.orEmpty(),
                 subtitle = selectedSong?.artist.orEmpty(),

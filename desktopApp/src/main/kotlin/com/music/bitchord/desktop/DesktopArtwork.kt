@@ -18,10 +18,12 @@ import androidx.compose.foundation.Image
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.decodeToImageBitmap
+import java.io.File
 import java.net.URI
+import java.nio.file.Files
 
 /**
- * Decoded artwork, kept to a budget.
+ * Decoded artwork, kept to a budget and persisted to disk.
  *
  * It used to be an unbounded map. Every distinct URL a session ever loaded stayed decoded for the
  * life of the process, so browsing Explore and Search for a while was hundreds of megabytes of
@@ -47,15 +49,62 @@ internal object DesktopArtworkCache {
     /** Everything held, dropped — what the Storage settings' "Clear image cache" does. */
     fun clear() = images.clear()
 
+    /** Returns the local cached image file for [url] if it exists and has content. */
+    fun getCachedFile(url: String?): File? {
+        if (url.isNullOrBlank()) return null
+        val existing = DesktopMediaCache.existing(url, "jpg")
+            ?: DesktopMediaCache.existing(url, "png")
+        return existing?.toFile()
+    }
+
+    /** Returns the local cached image file, or fetches and saves it to disk if not present. */
+    suspend fun getOrFetchFile(url: String?): File? = withContext(Dispatchers.IO) {
+        if (url.isNullOrBlank()) return@withContext null
+        getCachedFile(url)?.let { return@withContext it }
+        runCatching {
+            val target = DesktopMediaCache.pathFor(url, "jpg")
+            val connection = URI(url).toURL().openConnection().apply {
+                connectTimeout = 10_000
+                readTimeout = 10_000
+            }
+            val bytes = connection.getInputStream().use { it.readBytes() }
+            if (bytes.isNotEmpty()) {
+                Files.createDirectories(target.parent)
+                Files.write(target, bytes)
+                DesktopMediaCache.trim()
+                target.toFile()
+            } else {
+                null
+            }
+        }.getOrNull()
+    }
+
     suspend fun load(url: String?): ImageBitmap? {
         if (url.isNullOrBlank()) return null
         images.get(url)?.let { return it }
-        return runCatching {
-            URI(url).toURL().openConnection().apply {
-                connectTimeout = 10_000
-                readTimeout = 10_000
-            }.getInputStream().use { stream -> stream.readBytes().decodeToImageBitmap() }
-        }.getOrNull()?.also { images.put(url, it) }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val cached = getCachedFile(url)
+                val bytes = if (cached != null && cached.length() > 0) {
+                    cached.readBytes()
+                } else {
+                    val target = DesktopMediaCache.pathFor(url, "jpg")
+                    val downloaded = URI(url).toURL().openConnection().apply {
+                        connectTimeout = 10_000
+                        readTimeout = 10_000
+                    }.getInputStream().use { it.readBytes() }
+                    if (downloaded.isNotEmpty()) {
+                        runCatching {
+                            Files.createDirectories(target.parent)
+                            Files.write(target, downloaded)
+                            DesktopMediaCache.trim()
+                        }
+                    }
+                    downloaded
+                }
+                bytes.decodeToImageBitmap()
+            }.getOrNull()?.also { images.put(url, it) }
+        }
     }
 }
 
