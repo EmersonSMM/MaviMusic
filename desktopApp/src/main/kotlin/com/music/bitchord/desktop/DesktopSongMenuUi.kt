@@ -455,15 +455,17 @@ internal fun DesktopSongMenu(
             }
         }
 
-        val albumId = song.albumId
-        val artistId = song.artistId
-        if ((albumId != null && onOpenAlbum != null) || (artistId != null && onOpenArtist != null)) {
+        val albumTarget = song.albumId ?: song.albumName?.takeIf { it.isNotBlank() }
+        val artistTarget = song.artistId ?: song.artist.takeIf { it.isNotBlank() && !it.equals("Unknown Artist", ignoreCase = true) }
+        val canOpenAlbum = onOpenAlbum != null && albumTarget != null
+        val canOpenArtist = onOpenArtist != null && artistTarget != null
+        if (canOpenAlbum || canOpenArtist) {
             DesktopMenuDivider()
-            if (albumId != null && onOpenAlbum != null) {
-                DesktopMenuRow(Icons.Rounded.Album, DesktopStrings["open_album", "Open album"]) { onOpenAlbum(albumId) }
+            if (canOpenAlbum) {
+                DesktopMenuRow(Icons.Rounded.Album, DesktopStrings["open_album", "Ir al álbum"]) { onOpenAlbum(albumTarget) }
             }
-            if (artistId != null && onOpenArtist != null) {
-                DesktopMenuRow(Icons.Rounded.Person, DesktopStrings["open_artist", "Open artist"]) { onOpenArtist(artistId) }
+            if (canOpenArtist) {
+                DesktopMenuRow(Icons.Rounded.Person, DesktopStrings["open_artist", "Ir al artista"]) { onOpenArtist(artistTarget) }
             }
         }
 

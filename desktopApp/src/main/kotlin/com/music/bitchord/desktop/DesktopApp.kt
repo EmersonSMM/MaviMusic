@@ -2141,7 +2141,7 @@ fun BitChordDesktopApp() {
     }
 
     /** Opens an artist's page, from a card, a search row or the player's credit. */
-    fun openArtist(browseId: String, name: String) {
+    fun openArtist(browseId: String, name: String = "") {
         val target = DesktopArtistTarget(browseId, name)
         if (openedArtist == target && artistState is UiState.Success) return
         openedCollection = null
@@ -2150,6 +2150,33 @@ fun BitChordDesktopApp() {
         openedArtist = target
         artistState = UiState.Loading
         artistReloads++
+    }
+
+    /** Finds and opens an album by title and optional artist name. */
+    fun openAlbumByName(title: String, artist: String? = null) {
+        scope.launch {
+            val query = if (artist.isNullOrBlank()) title else "$title $artist"
+            val match = DesktopSearchClient.search(query, SearchFilter.ALBUMS)
+                .getOrDefault(emptyList())
+                .filterIsInstance<SearchResult.Browse>()
+                .map { it.item }
+                .firstOrNull { it.browseId.isNotBlank() }
+                ?: return@launch
+            openAlbum(match.browseId)
+        }
+    }
+
+    /** Replay counts artists by name, so the page has to be found from the name alone. */
+    fun openArtistByName(name: String) {
+        scope.launch {
+            val match = DesktopSearchClient.search(name, SearchFilter.ARTISTS)
+                .getOrDefault(emptyList())
+                .filterIsInstance<SearchResult.Browse>()
+                .map { it.item }
+                .firstOrNull { it.browseId.isNotBlank() }
+                ?: return@launch
+            openArtist(match.browseId, match.title)
+        }
     }
 
     /**
@@ -2172,8 +2199,20 @@ fun BitChordDesktopApp() {
         onStartRadio = ::startRadio,
         onPlayNext = ::playNext,
         onAddToQueue = ::addToQueue,
-        onOpenAlbum = ::openAlbum,
-        onOpenArtist = { id -> openArtist(id, song.artist) },
+        onOpenAlbum = { target ->
+            if (target.startsWith("MPRE") || target.startsWith("FEmusic_library_privately_owned_release") || target.startsWith("OLAK") || (target.length >= 24 && !target.contains(' '))) {
+                openAlbum(target)
+            } else {
+                openAlbumByName(target, song.artist)
+            }
+        },
+        onOpenArtist = { target ->
+            if (target.startsWith("UC") || target.startsWith("FEmusic_library_privately_owned_artist") || (target.length >= 24 && !target.contains(' '))) {
+                openArtist(target, song.artist)
+            } else {
+                openArtistByName(target)
+            }
+        },
         onSleepTimer = { minutes ->
             if (minutes == null) DesktopSleepTimer.cancel() else DesktopSleepTimer.start(minutes)
         },
@@ -2191,19 +2230,6 @@ fun BitChordDesktopApp() {
         onRevertToOriginal = null,
         onUpgradeQuality = null,
     )
-
-    /** Replay counts artists by name, so the page has to be found from the name alone. */
-    fun openArtistByName(name: String) {
-        scope.launch {
-            val match = DesktopSearchClient.search(name, SearchFilter.ARTISTS)
-                .getOrDefault(emptyList())
-                .filterIsInstance<SearchResult.Browse>()
-                .map { it.item }
-                .firstOrNull { it.browseId.isNotBlank() }
-                ?: return@launch
-            openArtist(match.browseId, match.title)
-        }
-    }
 
     LaunchedEffect(openedArtist, artistReloads) {
         val target = openedArtist ?: return@LaunchedEffect
@@ -2746,6 +2772,10 @@ fun BitChordDesktopApp() {
             overlays.nowPlaying = true
         }
         DesktopMiniPlayerState.onFeelingLucky = ::playFeelingLucky
+        DesktopMiniPlayerState.onOpenSongMenu = { song ->
+            DesktopWindowVisibility.show()
+            openMenu(song)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -3537,6 +3567,7 @@ fun BitChordDesktopApp() {
                                 isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
                                 onToggleLike = { selectedSong?.let { toggleLike(it) } },
                                 onToggleMiniPlayer = { overlays.miniPlayer = !overlays.miniPlayer },
+                                onOpenSongMenu = ::openMenu,
                             )
                         }
                     }
@@ -4447,6 +4478,13 @@ fun BitChordDesktopApp() {
                             downloadedIds = downloads.map(Song::videoId).toSet(),
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
+                            onOpenArtist = { target ->
+                                if (target.startsWith("UC") || target.startsWith("FEmusic_library_privately_owned_artist") || (target.length >= 24 && !target.contains(' '))) {
+                                    openArtist(target)
+                                } else {
+                                    openArtistByName(target)
+                                }
+                            },
                         )
                         destination == DesktopDestination.LISTEN_NOW -> HomeScreen(
                             state = homeState,

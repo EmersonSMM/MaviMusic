@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -60,12 +61,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.bitchord.data.model.CARD_ART_PX
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.ui.components.contextClick
 import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.player.FullArtworkBlurBackdrop
+import com.music.bitchord.ui.player.rememberFullArtworkBlurImage
 
 /**
- * Authentic Apple Music / macOS style Dark Teal Glass Mini Reproductor (Widget Superior).
- * Faithfully matches the exact layout, dimensions, teal glass finish, timestamps,
- * and controls from macOS Apple Music Mini Player.
+ * Authentic Apple Music / macOS style Glass Mini Reproductor (Widget Superior).
+ * Features dynamic blurred artwork backdrop, timestamps, and playback controls.
  */
 @Composable
 internal fun DesktopTopMiniPlayer(
@@ -90,64 +93,88 @@ internal fun DesktopTopMiniPlayer(
     onMinimize: () -> Unit = {},
     onToggleExpand: () -> Unit = onOpenNowPlaying,
     onClose: () -> Unit = {},
+    onOpenSongMenu: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val tealTop = Color(0xFF09414B)
-    val tealBottom = Color(0xFF052B32)
-    val backgroundBrush = Brush.verticalGradient(listOf(tealTop, tealBottom))
+    val palette = rememberDesktopArtworkPalette(song?.thumbnailUrl)
+    val blurImage = rememberFullArtworkBlurImage(imageUrl = song?.thumbnailUrl)
     val shape = RoundedCornerShape(14.dp)
-    val mutedTeal = Color(0xFF8BA5A8)
+    val subtitleColor = Color.White.copy(alpha = 0.72f)
 
     Surface(
         modifier = modifier
             .widthIn(min = 340.dp, max = 420.dp)
             .clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.14f), shape)
-            .shadow(12.dp, shape),
-        color = Color.Transparent,
+            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
+            .shadow(16.dp, shape),
+        color = Color(0xFF131318),
         tonalElevation = 0.dp,
     ) {
-        Box(
-            modifier = Modifier
-                .background(backgroundBrush)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        ) {
-            Column(Modifier.fillMaxWidth()) {
-                // Top section: Album Art on left + Perfectly Centered Song/Artist Info + Window Controls at top-right
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp),
-                ) {
-                    // Artwork on the left
-                    Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                        if (song != null) {
-                            DesktopArtwork(
-                                song.thumbnailUrl,
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .shadow(4.dp, RoundedCornerShape(8.dp))
-                                    .clickable(onClick = onOpenNowPlaying),
-                                px = CARD_ART_PX,
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Blurred artwork backdrop
+            if (blurImage != null) {
+                FullArtworkBlurBackdrop(
+                    image = blurImage,
+                    modifier = Modifier.matchParentSize().alpha(0.42f),
+                )
+            }
+            // Ambient artwork color wash & gradient scrim for legibility
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                palette.primary.copy(alpha = 0.40f),
+                                palette.secondary.copy(alpha = 0.25f),
+                                Color(0xFF0C0C10).copy(alpha = 0.88f),
                             )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.White.copy(alpha = 0.08f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    BitChordIcons.MusicNote,
-                                    contentDescription = null,
-                                    tint = mutedTeal,
-                                    modifier = Modifier.size(28.dp),
+                        )
+                    )
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                Column(Modifier.fillMaxWidth()) {
+                    // Top section: Album Art on left + Perfectly Centered Song/Artist Info + Window Controls at top-right
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp),
+                    ) {
+                        // Artwork on the left
+                        Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                            if (song != null) {
+                                DesktopArtwork(
+                                    song.thumbnailUrl,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .shadow(6.dp, RoundedCornerShape(8.dp))
+                                        .contextClick { onOpenSongMenu?.invoke(song) }
+                                        .clickable(onClick = onOpenNowPlaying),
+                                    px = CARD_ART_PX,
                                 )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.08f)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        BitChordIcons.MusicNote,
+                                        contentDescription = null,
+                                        tint = subtitleColor,
+                                        modifier = Modifier.size(28.dp),
+                                    )
+                                }
                             }
                         }
-                    }
 
                     // Window control buttons at top right (⤢, ✕)
                     Row(
@@ -180,6 +207,7 @@ internal fun DesktopTopMiniPlayer(
                             .fillMaxWidth()
                             .padding(start = 74.dp, end = 74.dp)
                             .align(Alignment.Center)
+                            .contextClick { song?.let { onOpenSongMenu?.invoke(it) } }
                             .clickable(onClick = onOpenNowPlaying),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -205,7 +233,7 @@ internal fun DesktopTopMiniPlayer(
                             text = subtitle,
                             style = MaterialTheme.typography.bodySmall,
                             fontSize = 12.sp,
-                            color = mutedTeal,
+                            color = subtitleColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center,
@@ -223,7 +251,7 @@ internal fun DesktopTopMiniPlayer(
                     Text(
                         text = formatTimestamp(positionMs),
                         fontSize = 11.sp,
-                        color = mutedTeal,
+                        color = subtitleColor,
                         modifier = Modifier.width(34.dp),
                     )
                     DesktopThinSlider(
@@ -243,7 +271,7 @@ internal fun DesktopTopMiniPlayer(
                     Text(
                         text = "-${formatTimestamp(remainingMs)}",
                         fontSize = 11.sp,
-                        color = mutedTeal,
+                        color = subtitleColor,
                         textAlign = TextAlign.End,
                         modifier = Modifier.width(38.dp),
                     )
@@ -266,7 +294,7 @@ internal fun DesktopTopMiniPlayer(
                             volume < 0.5f -> Icons.Rounded.VolumeDown
                             else -> Icons.Rounded.VolumeUp
                         }
-                        Icon(volIcon, "Volumen", tint = mutedTeal, modifier = Modifier.size(19.dp))
+                        Icon(volIcon, "Volumen", tint = subtitleColor, modifier = Modifier.size(19.dp))
                     }
 
                     Spacer(Modifier.width(10.dp))
@@ -275,12 +303,21 @@ internal fun DesktopTopMiniPlayer(
                     var moreMenuOpen by remember { mutableStateOf(false) }
                     Box {
                         DesktopMiniControlButton(onClick = { moreMenuOpen = true }, size = 28.dp) {
-                            Icon(Icons.Rounded.MoreHoriz, "Opciones", tint = mutedTeal, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Rounded.MoreHoriz, "Opciones", tint = subtitleColor, modifier = Modifier.size(20.dp))
                         }
                         DropdownMenu(
                             expanded = moreMenuOpen,
                             onDismissRequest = { moreMenuOpen = false },
                         ) {
+                            if (song != null && onOpenSongMenu != null) {
+                                DropdownMenuItem(
+                                    text = { Text("⋯ Opciones de la canción") },
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        onOpenSongMenu(song)
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("🎲 Tener suerte") },
                                 onClick = {
@@ -356,7 +393,7 @@ internal fun DesktopTopMiniPlayer(
                         Icon(
                             BitChordIcons.LyricsQuote,
                             contentDescription = DesktopStrings["lyrics", "Letras"],
-                            tint = mutedTeal,
+                            tint = subtitleColor,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -368,7 +405,7 @@ internal fun DesktopTopMiniPlayer(
                         Icon(
                             BitChordIcons.Queue,
                             contentDescription = DesktopStrings["queue", "Cola de reproducción"],
-                            tint = mutedTeal,
+                            tint = subtitleColor,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -376,6 +413,7 @@ internal fun DesktopTopMiniPlayer(
             }
         }
     }
+}
 }
 
 @Composable

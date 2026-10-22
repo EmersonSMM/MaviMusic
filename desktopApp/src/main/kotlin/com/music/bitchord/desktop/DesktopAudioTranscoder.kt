@@ -25,12 +25,19 @@ internal object DesktopAudioTranscoder {
             val f = File(candidate)
             if (f.isFile && f.canExecute()) return@lazy candidate
         }
-        val loaderPath = runCatching {
-            Loader.load(org.bytedeco.ffmpeg.ffmpeg::class.java)
-        }.getOrNull()
-        if (loaderPath != null && File(loaderPath).canExecute()) return@lazy loaderPath
+        // Try extracting and caching the bundled FFmpeg binary from javacpp-ffmpeg
+        val resourcePath = "org/bytedeco/ffmpeg/" + Loader.getPlatform() + "/ffmpeg"
+        val cached = runCatching { Loader.cacheResource(resourcePath) }.getOrNull()
+        if (cached != null && cached.isFile) {
+            cached.setExecutable(true)
+            if (cached.canExecute()) return@lazy cached.absolutePath
+        }
 
+        // Search in ~/.javacpp/cache if previously extracted
         runCatching {
+            val cacheDir = Loader.getCacheDir()
+            cacheDir?.walkTopDown()?.firstOrNull { it.isFile && it.name == "ffmpeg" && it.canExecute() }?.absolutePath
+        }.getOrNull() ?: runCatching {
             val proc = ProcessBuilder("which", "ffmpeg").start()
             val path = proc.inputStream.bufferedReader().readLine()?.trim()
             if (!path.isNullOrBlank() && File(path).canExecute()) path else null

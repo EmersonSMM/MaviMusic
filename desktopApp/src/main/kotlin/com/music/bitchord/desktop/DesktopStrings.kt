@@ -129,6 +129,8 @@ object DesktopStrings {
         "search_placeholder_palette" to "Buscar canciones, artistas, páginas o comandos... (⌘K)",
         "download_all_mp3" to "Descargar todo a MP3",
         "all_downloaded" to "Descargado en MP3",
+        "open_album" to "Ir al álbum",
+        "open_artist" to "Ir al artista",
         "command_lucky" to "Tener suerte (Música aleatoria según tus gustos)",
         "command_sleep" to "Temporizador de apagado (Sleep Timer)",
         "command_downloads" to "Administrador de descargas",

@@ -11,6 +11,8 @@ import androidx.compose.ui.input.pointer.isBackPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateListOf
 import com.music.bitchord.ui.components.PAGE_GUTTER
@@ -368,6 +370,7 @@ internal fun DesktopCollectionPage(
     downloadedIds: Set<String>,
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
+    onOpenArtist: ((String) -> Unit)? = null,
 ) {
     val songs = collection.songs
     // The phone's "search this list": a filter over the rows already loaded.
@@ -625,6 +628,7 @@ internal fun DesktopCollectionPage(
                     downloadInProgress = song.videoId in downloadInProgress,
                     number = index + 1,
                     onRemove = onRemoveFromPlaylist?.takeIf { song.setVideoId != null },
+                    onOpenArtist = onOpenArtist,
                 )
             }
             if (collection.continuation != null) {
@@ -674,6 +678,7 @@ private fun DesktopCollectionSongRow(
     striped: Boolean,
     /** Takes this row out of the playlist being read. */
     onRemove: ((Song) -> Unit)? = null,
+    onOpenArtist: ((String) -> Unit)? = null,
 ) {
     // A Spotify track still being matched to YouTube Music, or with no match: listed, but there is
     // nothing yet to play, like, save or remove.
@@ -718,10 +723,27 @@ private fun DesktopCollectionSongRow(
             overflow = TextOverflow.Ellipsis,
             fontWeight = FontWeight.Medium,
         )
+        val artistInteraction = remember { MutableInteractionSource() }
+        val artistHovered by artistInteraction.collectIsHoveredAsState()
         Text(
             song.artist,
-            Modifier.weight(0.20f).padding(horizontal = 8.dp),
-            color = DesktopSecondary,
+            Modifier
+                .weight(0.20f)
+                .padding(horizontal = 8.dp)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .hoverable(artistInteraction)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        val target = song.artistId ?: song.artist
+                        if (target.isNotBlank()) onOpenArtist?.invoke(target)
+                    },
+                ),
+            color = if (artistHovered) Color.White else DesktopSecondary,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                textDecoration = if (artistHovered) TextDecoration.Underline else TextDecoration.None,
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

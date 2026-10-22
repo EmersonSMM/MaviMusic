@@ -38,6 +38,7 @@ internal object DesktopMiniPlayerState {
     var onOpenQueue: () -> Unit = {}
     var onToggleExpand: () -> Unit = {}
     var onFeelingLucky: () -> Unit = {}
+    var onOpenSongMenu: (Song) -> Unit = {}
 
     fun toggle(clickPoint: Point? = null) {
         val now = System.currentTimeMillis()

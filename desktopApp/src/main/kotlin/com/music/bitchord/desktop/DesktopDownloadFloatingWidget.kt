@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -191,18 +192,25 @@ internal fun DesktopDownloadFloatingWidget(
 
                         Spacer(Modifier.height(5.dp))
 
-                        if (activeItem?.state is DesktopDownloadState.Running) {
-                            LinearProgressIndicator(
-                                progress = { runningFraction },
-                                modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
-                                color = Color(0xFF0A84FF),
-                                trackColor = Color.White.copy(alpha = 0.12f),
-                            )
-                        } else {
-                            LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
-                                color = Color.White.copy(alpha = 0.5f),
-                                trackColor = Color.White.copy(alpha = 0.12f),
+                        // Clean progress bar without Material 3 stop indicator dot
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .background(Color.White.copy(alpha = 0.14f)),
+                        ) {
+                            val fraction = if (activeItem?.state is DesktopDownloadState.Running) {
+                                runningFraction.coerceIn(0f, 1f)
+                            } else {
+                                0.35f
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(1.5.dp))
+                                    .background(Color.White),
                             )
                         }
                     }

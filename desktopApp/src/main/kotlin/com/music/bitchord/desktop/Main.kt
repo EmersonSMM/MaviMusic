@@ -296,6 +296,11 @@ private fun desktopMain() = application {
                 onClose = {
                     DesktopMiniPlayerState.isOpen = false
                 },
+                onOpenSongMenu = { song ->
+                    DesktopMiniPlayerState.isOpen = false
+                    DesktopWindowVisibility.show()
+                    DesktopMiniPlayerState.onOpenSongMenu(song)
+                },
             )
         }
     }

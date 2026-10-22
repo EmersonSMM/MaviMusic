@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.music.bitchord.ui.components.contextClick
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -88,6 +89,7 @@ internal fun DesktopBottomPlayerBar(
     isLiked: Boolean,
     onToggleLike: () -> Unit,
     onToggleMiniPlayer: () -> Unit = {},
+    onOpenSongMenu: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -118,6 +120,7 @@ internal fun DesktopBottomPlayerBar(
             ) {
                 if (song != null) {
                     Row(
+                        modifier = Modifier.contextClick { onOpenSongMenu?.invoke(song) },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
