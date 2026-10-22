@@ -33,6 +33,7 @@ internal class DesktopOverlays {
     var nowPlaying by mutableStateOf(false)
     var miniPlayer by mutableStateOf(false)
     var sleepTimer by mutableStateOf(false)
+    var commandPalette by mutableStateOf(false)
 
     /**
      * Which page of Settings fills the page area, or none. A place like any other: it goes into

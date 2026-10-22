@@ -125,6 +125,19 @@ object DesktopStrings {
         "widget_open_bitchord" to "Abrir MaviMusic",
         "d_quit_bitchord" to "Salir de MaviMusic",
         "d_choose_something_to_play" to "Elige algo para reproducir",
+        "command_palette" to "Paleta de comandos",
+        "search_placeholder_palette" to "Buscar canciones, artistas, páginas o comandos... (⌘K)",
+        "download_all_mp3" to "Descargar todo a MP3",
+        "all_downloaded" to "Descargado en MP3",
+        "command_lucky" to "Tener suerte (Música aleatoria según tus gustos)",
+        "command_sleep" to "Temporizador de apagado (Sleep Timer)",
+        "command_downloads" to "Administrador de descargas",
+        "command_play_pause" to "Reproducir / Pausar",
+        "command_next" to "Siguiente pista",
+        "command_previous" to "Pista anterior",
+        "command_shuffle" to "Alternar modo aleatorio",
+        "command_lyrics" to "Ver letras sincronizadas",
+        "command_queue" to "Ver cola de reproducción",
     )
 
     init {

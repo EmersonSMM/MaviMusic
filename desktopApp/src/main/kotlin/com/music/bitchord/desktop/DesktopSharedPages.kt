@@ -311,6 +311,7 @@ internal fun DesktopCircleButton(
     contentDescription: String,
     onClick: () -> Unit,
     size: Dp = 50.dp,
+    tint: Color = Color.White,
 ) {
     Box(
         Modifier
@@ -320,6 +321,6 @@ internal fun DesktopCircleButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(size * 0.44f))
+        Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(size * 0.44f))
     }
 }

@@ -7,6 +7,7 @@ import com.music.bitchord.ui.components.ShelfRow
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.pointer.isBackPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -142,6 +143,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Language
@@ -479,7 +481,7 @@ internal fun desktopTypography(): Typography {
     )
 }
 
-private enum class DesktopDestination(val id: String, val label: String) {
+internal enum class DesktopDestination(val id: String, val label: String) {
     LISTEN_NOW("listen-now", "Inicio"),
     EXPLORE("explore", "Explorar"),
     LIBRARY("library", "Biblioteca"),
@@ -3398,9 +3400,17 @@ fun BitChordDesktopApp() {
                             windowActions?.minimize?.invoke()
                             true
                         }
+                        (event.isMetaPressed || event.isCtrlPressed) && event.key == Key.K -> {
+                            overlays.commandPalette = !overlays.commandPalette
+                            true
+                        }
                         // One layer at a time, innermost first: the player's own side panel, then
                         // the player.
                         event.key == Key.Escape -> when {
+                            overlays.commandPalette -> {
+                                overlays.commandPalette = false
+                                true
+                            }
                             // The player's own layers first — the lyrics, the queue, a
                             // drawer — in the order Android's back reaches them.
                             overlays.nowPlaying && PlayerBack.dispatch() -> true
@@ -3445,6 +3455,9 @@ fun BitChordDesktopApp() {
                         onSearchFocused = { searchFocusRequested = false },
                         onToggleMiniPlayer = { overlays.miniPlayer = !overlays.miniPlayer },
                         onFeelingLucky = ::playFeelingLucky,
+                        onOpenCommandPalette = { overlays.commandPalette = true },
+                        downloadingCount = downloadInProgress.size,
+                        onOpenDownloads = { overlays.downloadManager = true },
                     )
                 },
                 sidebar = {
@@ -3954,6 +3967,41 @@ fun BitChordDesktopApp() {
                             },
                             pipeline = playbackEngine.pipeline(),
                             onDismiss = { overlays.pipeline = false },
+                        )
+                    }
+                    if (overlays.commandPalette) {
+                        DesktopCommandPalette(
+                            onDismiss = { overlays.commandPalette = false },
+                            onNavigate = { dest ->
+                                destination = dest
+                                openedCollection = null
+                                openedArtist = null
+                                overlays.replay = false
+                                overlays.settingsPage = null
+                            },
+                            onOpenSettings = ::openSettings,
+                            onOpenSleepTimer = { overlays.sleepTimer = true },
+                            onOpenDownloads = { overlays.downloadManager = true },
+                            onPlayLucky = ::playFeelingLucky,
+                            onTogglePlayPause = ::togglePlayPauseFromUser,
+                            onPlayNext = ::playNext,
+                            onPlayPrevious = ::playPrevious,
+                            onToggleShuffle = { setShuffle(!shuffle) },
+                            onOpenLyrics = {
+                                overlays.sidePanel = DesktopSidePanel.LYRICS
+                            },
+                            onOpenQueue = {
+                                overlays.sidePanel = DesktopSidePanel.QUEUE
+                            },
+                            onPlaySong = { song ->
+                                playSong(song, startPlaying = true, source = DesktopQueueSource("⌘K Búsqueda", PlaybackSourceType.SEARCH))
+                            },
+                            onOpenCollection = { browseId, type ->
+                                openCollection(browseId, BrowseItem(browseId, "", "", null, type))
+                            },
+                            onOpenArtist = { browseId, name ->
+                                openArtist(browseId, name)
+                            },
                         )
                     }
                 },
@@ -4606,6 +4654,9 @@ private fun DesktopTopBar(
     onSearchFocused: () -> Unit,
     onToggleMiniPlayer: () -> Unit = {},
     onFeelingLucky: () -> Unit = {},
+    onOpenCommandPalette: () -> Unit = {},
+    downloadingCount: Int = 0,
+    onOpenDownloads: () -> Unit = {},
 ) {
     val searchFocusRequester = remember { FocusRequester() }
     LaunchedEffect(focusSearch) {
@@ -4685,6 +4736,54 @@ private fun DesktopTopBar(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                 )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            onClick = onOpenCommandPalette,
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                            modifier = Modifier.height(36.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = if (DesktopPlatform.isMac) "⌘K" else "Ctrl+K",
+                                    color = DesktopAccent,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        if (downloadingCount > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                onClick = onOpenDownloads,
+                                shape = RoundedCornerShape(20.dp),
+                                color = DesktopAccent.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, DesktopAccent.copy(alpha = 0.35f)),
+                                modifier = Modifier.height(36.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        color = DesktopAccent,
+                                        strokeWidth = 2.dp,
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "$downloadingCount",
+                                        color = DesktopAccent,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
                             }
                         }
                     }
@@ -7242,6 +7341,48 @@ private fun DesktopCollectionPage(
                                 onClick = { if (songs.isNotEmpty()) onPlaySongs(songs, 0) },
                                 iconOnly = true,
                             )
+                            val allDownloaded = songs.isNotEmpty() && songs.all { it.videoId in downloadedIds || it.localPath != null }
+                            val downloadingCount = songs.count { it.videoId in downloadInProgress }
+
+                            if (allDownloaded) {
+                                DesktopCircleButton(
+                                    Icons.Rounded.CheckCircle,
+                                    DesktopStrings["all_downloaded", "Descargado en MP3"],
+                                    onClick = {},
+                                    tint = Color(0xFF4CAF50),
+                                )
+                            } else if (downloadingCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .height(50.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .clickable { onDownloadAll(songs) }
+                                        .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            color = DesktopAccent,
+                                            strokeWidth = 2.dp,
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = "Descargando ($downloadingCount)",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = DesktopAccent,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
+                            } else {
+                                DesktopCircleButton(
+                                    BitChordIcons.Download,
+                                    DesktopStrings["download_all_mp3", "Descargar todo a MP3"],
+                                    onClick = { onDownloadAll(songs) },
+                                )
+                            }
                             DesktopCircleButton(
                                 if (searching) Icons.Rounded.Close else BitChordIcons.Search,
                                 if (searching) DesktopStrings["close_search", "Close search"] else DesktopStrings["search_this_list", "Search this list"],
