@@ -22,6 +22,7 @@ internal object DesktopMacMedia {
     private const val BUTTON_NEXT = 2
     private const val BUTTON_PREVIOUS = 3
     private const val BUTTON_STOP = 4
+    private const val BUTTON_SPOTLIGHT = 5
 
     private val started = AtomicBoolean(false)
     private val shutdownHookAdded = AtomicBoolean(false)
@@ -40,6 +41,7 @@ internal object DesktopMacMedia {
         val onStop: () -> Unit,
         /** Moves playback to a position the scrubber was dragged to, in milliseconds. */
         val onSeek: (Long) -> Unit,
+        val onSpotlight: () -> Unit = {},
     )
 
     private val available: Boolean by lazy {
@@ -131,6 +133,7 @@ internal object DesktopMacMedia {
             BUTTON_NEXT -> target.onNext()
             BUTTON_PREVIOUS -> target.onPrevious()
             BUTTON_STOP -> target.onStop()
+            BUTTON_SPOTLIGHT -> target.onSpotlight()
         }
     }
 

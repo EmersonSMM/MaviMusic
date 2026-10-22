@@ -346,6 +346,19 @@ internal object DesktopMacFrame {
         }
     }
 
+    fun activateProcess() {
+        if (!DesktopPlatform.isMac) return
+        val o = objc ?: return
+        val send = msgSend ?: return
+        runCatching {
+            val nsAppClass = o.objc_getClass("NSApplication") ?: return
+            val selSharedApp = o.sel_registerName("sharedApplication")
+            val app = send.invokePointer(arrayOf(nsAppClass, selSharedApp)) ?: return
+            val selActivate = o.sel_registerName("activateIgnoringOtherApps:")
+            send.invoke(arrayOf(app, selActivate, true))
+        }
+    }
+
     private fun activateAppOnMainThread() {
         val o = objc ?: return
         val send = msgSend ?: return

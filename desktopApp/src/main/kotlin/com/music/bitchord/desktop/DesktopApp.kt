@@ -1774,6 +1774,11 @@ fun BitChordDesktopApp() {
                         partySync.onLocalIntent()
                     }
                 },
+                onSpotlight = {
+                    java.awt.EventQueue.invokeLater {
+                        DesktopSpotlightState.toggle()
+                    }
+                },
             ),
         )
         DesktopMacDockMenu.start(
@@ -2776,6 +2781,64 @@ fun BitChordDesktopApp() {
             DesktopWindowVisibility.show()
             openMenu(song)
         }
+
+        DesktopSpotlightState.onPlaySong = { song ->
+            playSong(song, startPlaying = true, source = DesktopQueueSource("⌘K Spotlight", PlaybackSourceType.SEARCH))
+        }
+        DesktopSpotlightState.onOpenCollection = { id, type ->
+            DesktopWindowVisibility.show()
+            openCollection(id, BrowseItem(id, "", "", null, type))
+        }
+        DesktopSpotlightState.onOpenArtist = { id, name ->
+            DesktopWindowVisibility.show()
+            openArtist(id, name)
+        }
+        DesktopSpotlightState.onPlayLucky = ::playFeelingLucky
+        DesktopSpotlightState.onTogglePlayPause = ::togglePlayPauseFromUser
+        DesktopSpotlightState.onPlayNext = ::playNext
+        DesktopSpotlightState.onPlayPrevious = ::playPrevious
+        DesktopSpotlightState.onToggleShuffle = { setShuffle(!shuffle) }
+        DesktopSpotlightState.onOpenDownloads = {
+            DesktopWindowVisibility.show()
+            overlays.downloadManager = true
+        }
+        DesktopSpotlightState.onOpenSettings = {
+            DesktopWindowVisibility.show()
+            openSettings()
+        }
+        DesktopSpotlightState.onOpenLyrics = {
+            DesktopWindowVisibility.show()
+            overlays.sidePanel = DesktopSidePanel.LYRICS
+        }
+        DesktopSpotlightState.onOpenQueue = {
+            DesktopWindowVisibility.show()
+            overlays.sidePanel = DesktopSidePanel.QUEUE
+        }
+        DesktopSpotlightState.onNavigate = { dest ->
+            DesktopWindowVisibility.show()
+            destination = dest
+            openedCollection = null
+            openedArtist = null
+            overlays.replay = false
+            overlays.settingsPage = null
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val dispatcher = java.awt.KeyEventDispatcher { e ->
+            if (e.id == java.awt.event.KeyEvent.KEY_PRESSED) {
+                val isMetaOrCtrl = if (DesktopPlatform.isMac) e.isMetaDown else e.isControlDown
+                if (isMetaOrCtrl && e.keyCode == java.awt.event.KeyEvent.VK_K) {
+                    DesktopSpotlightState.toggle()
+                    return@KeyEventDispatcher true
+                }
+            }
+            false
+        }
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(dispatcher)
+        onDispose {
+            java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(dispatcher)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -3433,7 +3496,7 @@ fun BitChordDesktopApp() {
                             true
                         }
                         (event.isMetaPressed || event.isCtrlPressed) && event.key == Key.K -> {
-                            overlays.commandPalette = !overlays.commandPalette
+                            DesktopSpotlightState.toggle()
                             true
                         }
                         // One layer at a time, innermost first: the player's own side panel, then
@@ -3491,7 +3554,7 @@ fun BitChordDesktopApp() {
                         onSearchFocused = { searchFocusRequested = false },
                         onToggleMiniPlayer = { overlays.miniPlayer = !overlays.miniPlayer },
                         onFeelingLucky = ::playFeelingLucky,
-                        onOpenCommandPalette = { overlays.commandPalette = true },
+                        onOpenCommandPalette = { DesktopSpotlightState.show() },
                         downloadingCount = downloadInProgress.size,
                         onOpenDownloads = { overlays.downloadManager = true },
                     )

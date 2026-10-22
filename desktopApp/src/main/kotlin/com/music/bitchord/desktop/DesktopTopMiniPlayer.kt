@@ -333,6 +333,13 @@ internal fun DesktopTopMiniPlayer(
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("🔍 Spotlight / Buscar (⌘K)") },
+                                onClick = {
+                                    moreMenuOpen = false
+                                    DesktopSpotlightState.show()
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("⚙ Ajustes") },
                                 onClick = {
                                     moreMenuOpen = false

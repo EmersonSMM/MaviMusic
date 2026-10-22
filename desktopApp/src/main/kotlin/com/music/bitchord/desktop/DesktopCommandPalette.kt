@@ -141,6 +141,7 @@ internal sealed interface PaletteItem {
  */
 @Composable
 internal fun DesktopCommandPalette(
+    isStandaloneWindow: Boolean = false,
     onDismiss: () -> Unit,
     onNavigate: (DesktopDestination) -> Unit,
     onOpenSettings: () -> Unit,
@@ -326,24 +327,9 @@ internal fun DesktopCommandPalette(
         selectedIndex = 0
     }
 
-    // Semi-transparent backdrop scrim (clicking closes the palette)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.65f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss,
-            )
-            .padding(top = 70.dp, bottom = 40.dp, start = 20.dp, end = 20.dp),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        // Modal card surface
+    val cardContent: @Composable () -> Unit = {
         Surface(
-            modifier = Modifier
-                .widthIn(min = 400.dp, max = 660.dp)
-                .fillMaxWidth()
+            modifier = (if (isStandaloneWindow) Modifier.fillMaxSize() else Modifier.widthIn(min = 400.dp, max = 660.dp).fillMaxWidth())
                 .clip(RoundedCornerShape(16.dp))
                 .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(16.dp))
                 .clickable(
@@ -482,7 +468,8 @@ internal fun DesktopCommandPalette(
                     state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 440.dp)
+                        .weight(1f, fill = false)
+                        .heightIn(max = if (isStandaloneWindow) 400.dp else 440.dp)
                         .padding(vertical = 6.dp),
                 ) {
                     if (displayItems.isEmpty()) {
@@ -551,6 +538,25 @@ internal fun DesktopCommandPalette(
                     )
                 }
             }
+        }
+    }
+
+    if (isStandaloneWindow) {
+        cardContent()
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.65f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                )
+                .padding(top = 70.dp, bottom = 40.dp, start = 20.dp, end = 20.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            cardContent()
         }
     }
 

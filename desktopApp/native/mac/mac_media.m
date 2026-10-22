@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <MediaPlayer/MediaPlayer.h>
 #import <AppKit/AppKit.h>
+#import <Carbon/Carbon.h>
 #include <jni.h>
 
 static JavaVM *g_jvm = NULL;
@@ -14,6 +15,22 @@ static BOOL g_isPlaying = NO;
 #define BUTTON_NEXT 2
 #define BUTTON_PREVIOUS 3
 #define BUTTON_STOP 4
+#define BUTTON_SPOTLIGHT 5
+
+static EventHotKeyRef g_spotlightHotKey1 = NULL;
+static EventHotKeyRef g_spotlightHotKey2 = NULL;
+static EventHandlerRef g_hotKeyHandlerRef = NULL;
+
+static void dispatchButton(int button);
+
+static OSStatus spotlightHotKeyHandler(EventHandlerCallRef nextHandler, EventRef anEvent, void *userData) {
+    EventHotKeyID hotKeyID;
+    GetEventParameter(anEvent, kEventParamDirectObject, typeEventHotKeyID, NULL, sizeof(hotKeyID), NULL, &hotKeyID);
+    if (hotKeyID.signature == 'MVL1' || hotKeyID.signature == 'MVL2') {
+        dispatchButton(BUTTON_SPOTLIGHT);
+    }
+    return noErr;
+}
 
 static void dispatchButton(int button) {
     if (!g_jvm || !g_mediaClass || !g_onButtonMethod) return;
@@ -119,10 +136,47 @@ JNIEXPORT jboolean JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativ
         return MPRemoteCommandHandlerStatusCommandFailed;
     }];
 
+    // Register global macOS Spotlight Hotkeys (Cmd + Shift + K and Cmd + K)
+    if (!g_hotKeyHandlerRef) {
+        EventTypeSpec eventType;
+        eventType.eventClass = kEventClassKeyboard;
+        eventType.eventKind = kEventHotKeyPressed;
+        InstallApplicationEventHandler(&spotlightHotKeyHandler, 1, &eventType, NULL, &g_hotKeyHandlerRef);
+    }
+
+    if (!g_spotlightHotKey1) {
+        EventHotKeyID hotKeyID1;
+        hotKeyID1.signature = 'MVL1';
+        hotKeyID1.id = 1;
+        // Cmd + Shift + K (kVK_ANSI_K is 40)
+        RegisterEventHotKey(40, cmdKey | shiftKey, hotKeyID1, GetApplicationEventTarget(), 0, &g_spotlightHotKey1);
+    }
+
+    if (!g_spotlightHotKey2) {
+        EventHotKeyID hotKeyID2;
+        hotKeyID2.signature = 'MVL2';
+        hotKeyID2.id = 2;
+        // Cmd + K (kVK_ANSI_K is 40)
+        RegisterEventHotKey(40, cmdKey, hotKeyID2, GetApplicationEventTarget(), 0, &g_spotlightHotKey2);
+    }
+
     return JNI_TRUE;
 }
 
 JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeStop(JNIEnv *env, jclass clazz) {
+    if (g_spotlightHotKey1) {
+        UnregisterEventHotKey(g_spotlightHotKey1);
+        g_spotlightHotKey1 = NULL;
+    }
+    if (g_spotlightHotKey2) {
+        UnregisterEventHotKey(g_spotlightHotKey2);
+        g_spotlightHotKey2 = NULL;
+    }
+    if (g_hotKeyHandlerRef) {
+        RemoveEventHandler(g_hotKeyHandlerRef);
+        g_hotKeyHandlerRef = NULL;
+    }
+
     MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
     [commandCenter.playCommand removeTarget:nil];
     [commandCenter.pauseCommand removeTarget:nil];

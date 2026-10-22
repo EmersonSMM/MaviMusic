@@ -15,6 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -300,6 +302,104 @@ private fun desktopMain() = application {
                     DesktopMiniPlayerState.isOpen = false
                     DesktopWindowVisibility.show()
                     DesktopMiniPlayerState.onOpenSongMenu(song)
+                },
+            )
+        }
+    }
+
+    if (DesktopSpotlightState.isOpen) {
+        val spotlightWindowState = rememberWindowState(
+            position = WindowPosition(DesktopSpotlightState.screenX.dp, DesktopSpotlightState.screenY.dp),
+            size = DpSize(660.dp, 480.dp),
+        )
+        LaunchedEffect(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY) {
+            spotlightWindowState.position = WindowPosition(DesktopSpotlightState.screenX.dp, DesktopSpotlightState.screenY.dp)
+        }
+        Window(
+            onCloseRequest = { DesktopSpotlightState.isOpen = false },
+            state = spotlightWindowState,
+            title = "MaviMusic Spotlight",
+            undecorated = true,
+            transparent = true,
+            alwaysOnTop = true,
+            resizable = false,
+            focusable = true,
+            onKeyEvent = { event ->
+                if (event.key == Key.Escape) {
+                    DesktopSpotlightState.isOpen = false
+                    true
+                } else false
+            },
+        ) {
+            val spotWindow = window
+            DisposableEffect(spotWindow) {
+                spotWindow.background = java.awt.Color(0, 0, 0, 0)
+                spotWindow.contentPane.background = java.awt.Color(0, 0, 0, 0)
+                (spotWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
+                spotWindow.rootPane.isOpaque = false
+
+                spotWindow.setLocation(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY)
+                spotWindow.toFront()
+                spotWindow.requestFocus()
+                DesktopMacFrame.activateProcess()
+
+                val focusListener = object : java.awt.event.WindowFocusListener {
+                    override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {}
+                    override fun windowLostFocus(e: java.awt.event.WindowEvent?) {
+                        DesktopSpotlightState.isOpen = false
+                    }
+                }
+                spotWindow.addWindowFocusListener(focusListener)
+                onDispose {
+                    spotWindow.removeWindowFocusListener(focusListener)
+                }
+            }
+
+            DesktopCommandPalette(
+                isStandaloneWindow = true,
+                onDismiss = { DesktopSpotlightState.isOpen = false },
+                onNavigate = { dest ->
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onNavigate(dest)
+                },
+                onOpenSettings = {
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onOpenSettings()
+                },
+                onOpenSleepTimer = {
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.isOpen = false
+                },
+                onOpenDownloads = {
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onOpenDownloads()
+                },
+                onPlayLucky = DesktopSpotlightState.onPlayLucky,
+                onTogglePlayPause = DesktopSpotlightState.onTogglePlayPause,
+                onPlayNext = DesktopSpotlightState.onPlayNext,
+                onPlayPrevious = DesktopSpotlightState.onPlayPrevious,
+                onToggleShuffle = DesktopSpotlightState.onToggleShuffle,
+                onOpenLyrics = {
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onOpenLyrics()
+                },
+                onOpenQueue = {
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onOpenQueue()
+                },
+                onOpenImmersiveLyrics = {
+                    DesktopWindowVisibility.show()
+                },
+                onToggleNormalization = {},
+                onPlaySong = { song ->
+                    DesktopSpotlightState.onPlaySong(song)
+                },
+                onOpenCollection = { id, type ->
+                    DesktopSpotlightState.onOpenCollection(id, type)
+                },
+                onOpenArtist = { id, name ->
+                    DesktopWindowVisibility.show()
+                    DesktopSpotlightState.onOpenArtist(id, name)
                 },
             )
         }

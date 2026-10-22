@@ -382,6 +382,7 @@ val buildMacNative by tasks.registering {
                 "-framework", "Foundation",
                 "-framework", "MediaPlayer",
                 "-framework", "AppKit",
+                "-framework", "Carbon",
                 "-I$javaHome/include",
                 "-I$javaHome/include/darwin",
                 "-I/opt/homebrew/opt/openjdk@21/include",
