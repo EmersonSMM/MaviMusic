@@ -16,8 +16,24 @@ import java.util.concurrent.TimeUnit
 internal object DesktopAudioTranscoder {
 
     private val ffmpegBinary: String? by lazy {
-        runCatching {
+        val candidates = listOf(
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        )
+        for (candidate in candidates) {
+            val f = File(candidate)
+            if (f.isFile && f.canExecute()) return@lazy candidate
+        }
+        val loaderPath = runCatching {
             Loader.load(org.bytedeco.ffmpeg.ffmpeg::class.java)
+        }.getOrNull()
+        if (loaderPath != null && File(loaderPath).canExecute()) return@lazy loaderPath
+
+        runCatching {
+            val proc = ProcessBuilder("which", "ffmpeg").start()
+            val path = proc.inputStream.bufferedReader().readLine()?.trim()
+            if (!path.isNullOrBlank() && File(path).canExecute()) path else null
         }.getOrNull()
     }
 

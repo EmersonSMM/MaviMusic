@@ -109,13 +109,47 @@ object QueueBuilder {
     }
 
     /**
+     * Whether two songs are variants of the same base track (e.g. original vs remix, acoustic, ft artist).
+     * Used to prevent consecutive playback of the same song in queue and autoplay.
+     */
+    fun isSameTrackOrVariant(a: Song, b: Song): Boolean {
+        if (isSameRecording(a, b)) return true
+        val coreA = coreTrackTitle(a.title)
+        val coreB = coreTrackTitle(b.title)
+        if (coreA.isNotEmpty() && coreB.isNotEmpty()) {
+            val left = artistSet(a.artist)
+            val right = artistSet(b.artist)
+            val artistMatches = left.isEmpty() || right.isEmpty() || left.any { it in right }
+            if (artistMatches && (coreA == coreB || coreA.startsWith(coreB) || coreB.startsWith(coreA))) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
      * `Kesariya (From "Brahmastra") | Official Video` and `Kesariya` are one
      * recording as far as a queue is concerned. Remix and cover markers are
-     * deliberately left in — those really are different tracks.
+     * deliberately left in for this function — those really are different tracks.
      */
     fun normalisedTitle(raw: String): String = raw.lowercase(Locale.ROOT)
         .substringBefore(" | ")
         .substringBefore(" // ")
+        .replace(NOISE, " ")
+        .replace(PUNCTUATION, " ")
+        .replace(SPACES, " ")
+        .trim()
+
+    /**
+     * Aggressively extracts the core track title by removing all parentheticals,
+     * featuring clauses, remixes, versions, and subtitles for consecutive track duplicate prevention.
+     */
+    fun coreTrackTitle(raw: String): String = raw.lowercase(Locale.ROOT)
+        .substringBefore(" | ")
+        .substringBefore(" // ")
+        .substringBefore(" - ")
+        .replace(Regex("""\([^)]*\)|\[[^]]*]"""), " ")
+        .replace(Regex("""\b(?:feat\.?|ft\.?|featuring|with|remix|version|deluxe|radio edit|edit|acoustic|en vivo|live)\b.*$""", RegexOption.IGNORE_CASE), " ")
         .replace(NOISE, " ")
         .replace(PUNCTUATION, " ")
         .replace(SPACES, " ")
@@ -130,10 +164,11 @@ object QueueBuilder {
         .toSet()
 
     private val NOISE = Regex(
-        """\((?:official|video oficial|audio oficial|letra|lyric|lyrics|lyrical|audio|video|visuali[sz]er|full song|hd|4k|clip oficial|en vivo|live)[^)]*\)""" +
+        """\((?:official|video oficial|audio oficial|letra|lyric|lyrics|lyrical|audio|video|visuali[sz]er|full song|hd|4k|clip oficial|en vivo|live|feat\.?|ft\.?|featuring|with)[^)]*\)""" +
             """|\(from[^)]*\)""" +
-            """|\[(?:official|video oficial|audio oficial|letra|lyric|lyrics|audio|video|visuali[sz]er|hd|4k|clip oficial)[^]]*]""" +
-            """|\b(?:official (?:video|audio|music video)|video oficial|audio oficial|video musical|lyrical video|full video|4k video|clip oficial)\b""",
+            """|\[(?:official|video oficial|audio oficial|letra|lyric|lyrics|audio|video|visuali[sz]er|hd|4k|clip oficial|feat\.?|ft\.?|featuring|with)[^]]*]""" +
+            """|\b(?:official (?:video|audio|music video)|video oficial|audio oficial|video musical|lyrical video|full video|4k video|clip oficial)\b""" +
+            """|\s+(?:feat\.?|ft\.?|featuring|with)\s+.*$""",
         RegexOption.IGNORE_CASE,
     )
     private val TOPIC = Regex("""\s*-\s*topic\b""", RegexOption.IGNORE_CASE)

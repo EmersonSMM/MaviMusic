@@ -170,6 +170,9 @@ val analysisNativeDir = layout.buildDirectory.dir("native/$targetOs")
 /** The tiny Windows frame bridge is independent of the optional analyser and SMTC libraries. */
 val windowNativeDir = layout.buildDirectory.dir("native-window/$targetOs")
 
+/** Native macOS media integration (MPRemoteCommandCenter and MPNowPlayingInfoCenter for AirPods and media keys). */
+val macNativeDir = layout.buildDirectory.dir("native-mac/$targetOs")
+
 /**
  * Whether this build is producing the analyser for a platform that is not the one running the
  * build.
@@ -356,14 +359,52 @@ val buildWindowNative by tasks.registering {
     }
 }
 
+/** Builds the macOS MPRemoteCommandCenter / MPNowPlayingInfoCenter native library for AirPods and media keys. */
+val buildMacNative by tasks.registering {
+    val sourceFile = project.file("native/mac/mac_media.m")
+    val outputDir = macNativeDir.get().asFile
+    inputs.file(sourceFile)
+    inputs.property("target", targetOs)
+    outputs.dir(outputDir)
+    onlyIf {
+        targetOs == "macos" && sourceFile.exists()
+    }
+    doLast {
+        outputDir.mkdirs()
+        val outputFile = File(outputDir, "libbitchord_mac_media.dylib")
+        val javaHome = System.getProperty("java.home")
+        providers.exec {
+            commandLine(
+                "clang",
+                "-O2",
+                "-dynamiclib",
+                "-fobjc-arc",
+                "-framework", "Foundation",
+                "-framework", "MediaPlayer",
+                "-framework", "AppKit",
+                "-I$javaHome/include",
+                "-I$javaHome/include/darwin",
+                "-I/opt/homebrew/opt/openjdk@21/include",
+                "-I/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/include/darwin",
+                sourceFile.absolutePath,
+                "-o", outputFile.absolutePath,
+            )
+        }.result.get().assertNormalExitValue()
+    }
+}
+
 tasks.named<ProcessResources>("processResources") {
-    dependsOn(buildAnalysisNative, buildWindowNative)
+    dependsOn(buildAnalysisNative, buildWindowNative, buildMacNative)
     from(analysisNativeDir) {
         include("*.so", "*.dll", "*.dylib")
         into("native")
     }
     from(windowNativeDir) {
         include("*.dll")
+        into("native")
+    }
+    from(macNativeDir) {
+        include("*.dylib")
         into("native")
     }
     // The Automix models, taken from the Android module rather than copied into this one.

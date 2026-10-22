@@ -397,14 +397,6 @@ internal fun DesktopBottomPlayerBar(
                         )
                     }
 
-                    DesktopToolbarButton(onClick = onToggleMiniPlayer, size = 32.dp) {
-                        Icon(
-                            Icons.Rounded.NorthWest,
-                            contentDescription = DesktopStrings["mini_player", "Mini Reproductor"],
-                            tint = DesktopSecondary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
 
                     DesktopToolbarButton(onClick = onOpenNowPlaying, size = 32.dp) {
                         Icon(

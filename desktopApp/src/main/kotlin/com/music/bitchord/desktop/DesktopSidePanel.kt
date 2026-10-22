@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,24 +64,24 @@ internal fun DesktopSidePanelColumn(
             fadeOut(tween(SLIDE_MS / 2)),
     ) {
         Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight()) {
-            Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
+            Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.08f)))
             Crossfade(
                 targetState = shown ?: return@Row,
                 animationSpec = tween(CROSSFADE_MS),
                 label = "sidePanel",
             ) { which ->
                 Box(Modifier.fillMaxSize()) {
-                    // Apple Music aesthetic: blurred cover behind the lyrics side panel!
-                    if (which == DesktopSidePanel.QUEUE) {
-                        Box(Modifier.fillMaxSize().desktopChromeGlass())
-                    } else if (which == DesktopSidePanel.LYRICS) {
+                    // Apple Music authentic frosted glass with smooth artwork tint
+                    Box(Modifier.fillMaxSize().desktopChromeGlass())
+                    if (which == DesktopSidePanel.LYRICS) {
                         val currentSong = LocalNowPlaying.current
                         val artworkUrl = currentSong?.thumbnailUrl
                         if (artworkUrl != null) {
                             val blurImage = rememberFullArtworkBlurImage(imageUrl = artworkUrl)
-                            FullArtworkBlurBackdrop(image = blurImage, modifier = Modifier.fillMaxSize())
-                        } else {
-                            Box(Modifier.fillMaxSize().desktopChromeGlass())
+                            FullArtworkBlurBackdrop(
+                                image = blurImage,
+                                modifier = Modifier.fillMaxSize().alpha(0.60f),
+                            )
                         }
                     }
                     Column(Modifier.fillMaxSize()) {
@@ -88,13 +89,11 @@ internal fun DesktopSidePanelColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(if (which == DesktopSidePanel.LYRICS) HEADER_HEIGHT else QUEUE_HEADER_HEIGHT)
-                                .padding(start = 18.dp, end = 8.dp),
+                                .padding(start = 16.dp, end = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // The queue heads itself ("Queue", then its sections); only the lyrics
-                            // need a name over them.
                             Text(
-                                text = if (which == DesktopSidePanel.LYRICS) DesktopStrings["lyrics", "Lyrics"] else "",
+                                text = if (which == DesktopSidePanel.LYRICS) DesktopStrings["lyrics", "Letras"] else "",
                                 color = Color.White,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,

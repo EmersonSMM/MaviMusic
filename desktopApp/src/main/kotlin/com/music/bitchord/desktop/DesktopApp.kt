@@ -822,6 +822,25 @@ fun BitChordDesktopApp() {
         playbackEngine.load(song, startPlaying)
         partySyncHolder[0]?.onLocalIntent(song.videoId)
         scope.launch { DesktopScrobbling.updateNowPlaying(song) }
+
+        // Prefer songs over videos using YouTube Music's track matching engine
+        if (song.isVideo) {
+            scope.launch {
+                runCatching {
+                    val resolvedAudio = YtMusicRepository.resolveAudio(song)
+                    if (resolvedAudio.videoId != song.videoId && !resolvedAudio.isVideo) {
+                        DesktopTrackLog.log("audio prefer: resolved video '${song.title}' to official song '${resolvedAudio.title}' (${resolvedAudio.videoId})")
+                        if (selectedSong?.videoId == song.videoId) {
+                            selectedSong = resolvedAudio
+                            liveQueue = liveQueue.copy(
+                                songs = liveQueue.songs.map { if (it.videoId == song.videoId) resolvedAudio else it },
+                            )
+                            playbackEngine.load(resolvedAudio, playbackEngine.state.value.isPlaying)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun partyTrackChangeBlocked(): Boolean {
@@ -1385,8 +1404,11 @@ fun BitChordDesktopApp() {
                 var nextQueue = liveQueue.next()
                 val current = selectedSong
                 if (repeatMode != DesktopRepeatMode.ONE && current != null) {
-                    while (nextQueue.hasNext && nextQueue.current?.let { com.music.bitchord.playback.QueueBuilder.isSameRecording(current, it) } == true) {
-                        DesktopTrackLog.log("queue: skipping duplicate recording '${nextQueue.current?.title}' by '${nextQueue.current?.artist}'")
+                    val recentSongs = (listOf(current) + history.take(6)).distinctBy { it.videoId }
+                    while (nextQueue.hasNext && nextQueue.current?.let { candidate ->
+                        recentSongs.any { com.music.bitchord.playback.QueueBuilder.isSameTrackOrVariant(it, candidate) }
+                    } == true) {
+                        DesktopTrackLog.log("queue: skipping duplicate recording/variant '${nextQueue.current?.title}' by '${nextQueue.current?.artist}'")
                         nextQueue = nextQueue.next()
                     }
                 }
@@ -1736,7 +1758,25 @@ fun BitChordDesktopApp() {
                 },
             ),
         )
-        onDispose { DesktopWindowsMedia.stop() }
+        DesktopMacMedia.start(
+            DesktopMacMedia.Controller(
+                onPlay = ::playFromUser,
+                onPause = ::pauseFromUser,
+                onNext = ::playNext,
+                onPrevious = ::playPrevious,
+                onStop = ::pauseFromUser,
+                onSeek = { positionMs ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(positionMs)
+                        partySync.onLocalIntent()
+                    }
+                },
+            ),
+        )
+        onDispose {
+            DesktopWindowsMedia.stop()
+            DesktopMacMedia.stop()
+        }
     }
 
     LaunchedEffect(playbackSpeed) { playbackEngine.setPlaybackSpeed(playbackSpeed) }
@@ -1992,6 +2032,7 @@ fun BitChordDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs) {
         DesktopScrobbling.onPlaybackStateChanged(playback)
         DesktopWindowsMedia.publish(playback)
+        DesktopMacMedia.publish(playback)
     }
     // Refetched on opening the page rather than cached for the session: the
     // point of it is that something played elsewhere shows up here.
@@ -2610,6 +2651,7 @@ fun BitChordDesktopApp() {
                 // WASAPI and WinRT, and exitProcess would unload those libraries under them.
                 playbackEngine.shutdown()
                 DesktopWindowsMedia.stop()
+                DesktopMacMedia.stop()
                 exitProcess(0)
             },
         )
@@ -3724,56 +3766,6 @@ fun BitChordDesktopApp() {
                         )
                     }
 
-                    AnimatedVisibility(
-                        visible = overlays.miniPlayer,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 58.dp, end = 20.dp),
-                            contentAlignment = Alignment.TopEnd,
-                        ) {
-                            DesktopTopMiniPlayer(
-                                song = selectedSong,
-                                isPlaying = playback.isPlaying,
-                                isLoading = playback.isLoading,
-                                previousEnabled = liveQueue.hasPrevious ||
-                                    playback.positionMs > BACK_RESTARTS_AFTER_MS,
-                                progress = if (playback.durationMs > 0L) {
-                                    playback.positionMs.toFloat() / playback.durationMs.toFloat()
-                                } else {
-                                    0f
-                                },
-                                positionMs = playback.positionMs,
-                                durationMs = playback.durationMs,
-                                volume = playback.volume,
-                                onVolumeChange = {
-                                    volume = it
-                                    persistence.saveString("volume", it.toString())
-                                },
-                                onSeek = { playbackEngine.seekTo(it) },
-                                onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
-                                onPrevious = ::playPrevious,
-                                onNext = ::playNext,
-                                onOpenNowPlaying = {
-                                    overlays.miniPlayer = false
-                                    overlays.nowPlaying = true
-                                },
-                                onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
-                                onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
-                                onMinimize = {
-                                    overlays.miniPlayer = false
-                                },
-                                onToggleExpand = {
-                                    overlays.miniPlayer = false
-                                    overlays.nowPlaying = true
-                                },
-                                onClose = { overlays.miniPlayer = false },
-                            )
-                        }
-                    }
 
                     if (spotifyImportOpen) {
                         DesktopSpotifyImportDialog(
@@ -4656,18 +4648,6 @@ private fun DesktopTopBar(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    DesktopToolbarButton(
-                        onClick = onToggleMiniPlayer,
-                        size = 32.dp,
-                    ) {
-                        Icon(
-                            Icons.Rounded.NorthWest,
-                            contentDescription = DesktopStrings["mini_player", "Mini Reproductor"],
-                            tint = DesktopSecondary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
                     DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
                 }
             }
@@ -6591,19 +6571,99 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.DOWNLOADS) item {
                 SettingsGroup(DesktopStrings["download_channel_name", "Downloads"]) {
                     if (settingsRowVisible(DesktopStrings["download_channel_name", "Downloads"])) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->
-                            FilterChip(
-                                colors = desktopChipColors(),
-                                selected = downloadQuality == value,
-                                onClick = { onDownloadQualityChange(value) },
-                                label = { Text(label) },
+                        var downloadFolder by remember {
+                            mutableStateOf(DesktopDownloadManager.getDownloadDirectory().toString())
+                        }
+                        val isDefaultFolder = downloadFolder == DesktopDownloadManager.defaultDownloadDirectory().toString()
+
+                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Text("Calidad de audio", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = downloadQuality == value,
+                                        onClick = { onDownloadQualityChange(value) },
+                                        label = { Text(label) },
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Formato de salida: MP3 a 320 kbps con carátula incrustada y metadatos ID3.",
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                    }
+
+                        HorizontalDivider(color = DesktopDivider)
+
+                        SettingsRow(
+                            Icons.Rounded.Folder,
+                            "Carpeta de descargas",
+                            downloadFolder,
+                        ) {
+                            DesktopFolderPicker.pickFolder(downloadFolder)?.let { chosen ->
+                                DesktopPersistence().saveString("download_folder", chosen)
+                                downloadFolder = chosen
+                            }
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 56.dp, top = 4.dp, bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick = {
+                                    DesktopFolderPicker.pickFolder(downloadFolder)?.let { chosen ->
+                                        DesktopPersistence().saveString("download_folder", chosen)
+                                        downloadFolder = chosen
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = DesktopSurfaceRaised,
+                                    contentColor = Color.White,
+                                ),
+                            ) {
+                                Text("Cambiar carpeta...", style = MaterialTheme.typography.labelMedium)
+                            }
+
+                            if (!isDefaultFolder) {
+                                Button(
+                                    onClick = {
+                                        DesktopPersistence().saveString("download_folder", "")
+                                        downloadFolder = DesktopDownloadManager.defaultDownloadDirectory().toString()
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = DesktopSurfaceRaised,
+                                        contentColor = Color.White,
+                                    ),
+                                ) {
+                                    Text("Restablecer", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    runCatching {
+                                        java.awt.Desktop.getDesktop().open(java.io.File(downloadFolder))
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = DesktopSurfaceRaised,
+                                    contentColor = Color.White,
+                                ),
+                            ) {
+                                Text(if (DesktopPlatform.isMac) "Abrir en Finder" else "Abrir carpeta", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
                     }
                 }
             }

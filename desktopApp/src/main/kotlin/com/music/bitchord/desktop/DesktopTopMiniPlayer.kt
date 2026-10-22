@@ -149,21 +149,12 @@ internal fun DesktopTopMiniPlayer(
                         }
                     }
 
-                    // Window control buttons at top right (—, ⤢, ✕)
+                    // Window control buttons at top right (⤢, ✕)
                     Row(
                         modifier = Modifier.align(Alignment.TopEnd),
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        DesktopMiniControlButton(onClick = onMinimize, size = 20.dp) {
-                            Icon(
-                                Icons.Rounded.HorizontalRule,
-                                contentDescription = "Minimizar",
-                                tint = Color.White.copy(alpha = 0.65f),
-                                modifier = Modifier.size(12.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(6.dp))
                         DesktopMiniControlButton(onClick = onToggleExpand, size = 20.dp) {
                             Icon(
                                 Icons.Rounded.OpenInFull,
