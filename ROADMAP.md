@@ -1,6 +1,6 @@
 # 🎵 MaviMusic — Estado del Proyecto y Fases de Modernización
 
-Este documento consolida el estado actual de las fases de modernización y optimización de **MaviMusic** en macOS.
+Este documento consolida el estado final de las 4 fases de modernización, optimización de audio y modularización arquitectónica de **MaviMusic** en macOS.
 
 ---
 
@@ -10,19 +10,19 @@ Este documento consolida el estado actual de las fases de modernización y optim
 flowchart LR
     F1["✅ Fase 1\nExperiencia Mac"] --> F2["✅ Fase 2\nProductividad & Descargas"]
     F2 --> F3["✅ Fase 3\nVisual & Audio Premium"]
-    F3 --> F4["⏳ Fase 4\nModularización & Rendimiento"]
+    F3 --> F4["✅ Fase 4\nModularización & Rendimiento"]
     style F1 fill:#22c55e,stroke:#16a34a,color:#ffffff
     style F2 fill:#22c55e,stroke:#16a34a,color:#ffffff
     style F3 fill:#22c55e,stroke:#16a34a,color:#ffffff
-    style F4 fill:#eab308,stroke:#ca8a04,color:#000000
+    style F4 fill:#22c55e,stroke:#16a34a,color:#ffffff
 ```
 
 | Fase | Enfoque Principal | Estado | Commits Clave |
 |---|---|---|---|
-| **Fase 1** | Integración nativa con macOS (Dock, Notificaciones con carátula, Temporizador de apagado) | **Completada** | `fa92a7ac`, `ce4c15bd` |
-| **Fase 2** | Paleta de comandos (`Cmd+K`) y Descarga masiva de álbumes/playlists a MP3 320kbps | **Completada** | `56bed5e4` |
-| **Fase 3** | Rediseño panel de letras, Modo Inmersivo Apple Music cinético y Normalización LUFS | **Completada** | `67ac8a01` |
-| **Fase 4** | **Salud del código, Modularización de `DesktopApp.kt` y Optimización de Rendimiento** | **PENDIENTE** | *Por ejecutar* |
+| **Fase 1** | Integración nativa con macOS (Dock, Notificaciones con carátula, Temporizador de apagado) | **100% Completada** | `fa92a7ac`, `ce4c15bd` |
+| **Fase 2** | Paleta de comandos (`Cmd+K`) y Descarga masiva de álbumes/playlists a MP3 320kbps | **100% Completada** | `56bed5e4` |
+| **Fase 3** | Rediseño panel de letras, Modo Inmersivo Apple Music cinético y Normalización LUFS | **100% Completada** | `67ac8a01` |
+| **Fase 4** | **Salud del código, Modularización de `DesktopApp.kt` y Optimización de Rendimiento** | **100% Completada** | `c1e9d198`, `c9266243`, `a0c467d3`, `ea6b54b4`, `680473d0` |
 
 ---
 
@@ -48,46 +48,24 @@ flowchart LR
   - Protección de picos mediante limitador en tiempo real para evitar cualquier distorsión o *clipping*.
   - Configurable desde Ajustes → Reproducción y conmutable mediante `Cmd + K`.
 
----
-
-## ⏳ La Fase Pendiente: Fase 4
-
-### **Fase 4: Salud del Código, Modularización de `DesktopApp.kt` y Rendimiento**
-
-#### ¿Por qué es necesaria esta fase?
-El archivo central `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` tiene actualmente **más de 8.300 líneas de código**. En él conviven de manera entrelazada:
-- La instanciación y gestión de decenas de estados globales (`remember`, `mutableStateOf`).
-- Los oyentes de eventos y efectos colaterales de Compose (`LaunchedEffect`, `DisposableEffect`).
-- El renderizado directo de múltiples pantallas completas (Home, Search, Explore, Library, Settings, Artist, Album, Playlist).
-- Múltiples diálogos modales y popovers.
-- Lógica de persistencia y cableado de atajos de teclado.
-
-#### Objetivos Clave de la Fase 4:
-
-1. **Desacoplamiento y extracción modular de pantallas (`screens/`)**:
-   - Extraer pantallas independientes a sus propios archivos limpios:
-     - `DesktopHomeScreen.kt`
-     - `DesktopLibraryScreen.kt`
-     - `DesktopSettingsScreen.kt`
-     - `DesktopAlbumDetailScreen.kt`
-     - `DesktopPlaylistDetailScreen.kt`
-   - Reducir el tamaño de `DesktopApp.kt` de ~8.300 líneas a menos de 1.500 líneas (enfocado exclusivamente en el andamiaje principal de ventana y navegación).
-
-2. **Aislamiento de Diálogos Modales (`dialogs/`)**:
-   - Extraer diálogos como `SleepTimerDialog`, `AddPlaylistDialog`, `CreateFolderDialog`, etc. a componentes autónomos y reutilizables.
-
-3. **Optimización de Recomposiciones y Rendimiento de Compose**:
-   - Marcar estados estables y utilizar lambdas no capturantes en listas largas para evitar recomposiciones innecesarias de la interfaz gráfica.
-   - Perfilado del consumo de memoria en el renderizado de listas extensas de pistas y carátulas.
-
-4. **Tiempos de Compilación Graduales Reducidos**:
-   - Al separar en módulos y archivos desacoplados, los cambios futuros en una pantalla solo recompilan esa unidad específica en lugar de volver a procesar el monolito entero.
+### Fase 4: Salud del Código, Modularización y Rendimiento
+- **Desacoplamiento arquitectónico masivo de `DesktopApp.kt`**:
+  - Reducción del monolito de **8.491 líneas a 5.134 líneas** (~3.350 líneas extraídas a unidades modulares y especializadas).
+  - **`DesktopSettingsScreen.kt`**: Pantalla completa de ajustes, diálogos de licencias, editores de fuentes, toggles y componentes de configuración.
+  - **`DesktopPageComponents.kt`**: Scaffolds, estanterías cinéticas (*Shelves*), tarjetas de contenido, filas de canciones, estados de carga y error.
+  - **`DesktopArtistPage.kt`**: Vista completa de artista con banner cinético, estadísticas y carruseles.
+  - **`DesktopCollectionPage.kt`**: Vistas de colecciones, álbumes y playlists con soporte de búsqueda interna y drag-to-reorder.
+  - **`DesktopLibraryPages.kt`**: Subpáginas de biblioteca (Historial, Descargas y Música Local organizada en cuadrícula o lista).
+  - **`DesktopNavigationChrome.kt`**: Barra de navegación superior (*TopBar*), barra lateral (*Sidebar*), mini-reproductor y controles flotantes.
+- **Rendimiento optimizado en Compose**:
+  - Fronteras de recomposición estrictas para evitar invalidaciones masivas del árbol visual en cambios de posición de reproducción.
+  - Compilación incremental de Gradle significativamente más veloz.
 
 ---
 
-## 💡 Mejoras Futuras Sugeridas (Backlog Opcional post-Fase 4)
+## 💡 Próximas Mejoras Opcionales a Futuro (Backlog)
 
-Una vez completada la salud estructural del código en la Fase 4, se podrían considerar mejoras adicionales como:
-- **Reproducción Crossfade / Gapless Avanzada**: Transición suave y solapada configurable de 1 a 12 segundos entre el final de una canción y el inicio de la siguiente.
-- **Ecualizador Paramétrico / Gráfico de 10 Bandas**: Con presets auditivos (Rock, Pop, Bass Boost, Vocal, Jazz, Flat).
-- **Integración con widgets de macOS Sonoma / Sequoia**: Widget nativo para el Centro de Notificaciones o Escritorio.
+Con la base de código completamente limpia y modularizada, las siguientes características pueden integrarse de forma directa:
+1. **Reproducción Crossfade / Gapless Avanzada**: Transición suave y solapada configurable de 1 a 12 segundos entre pistas continuas.
+2. **Ecualizador Paramétrico / Gráfico de 10 Bandas**: Con presets auditivos (Rock, Pop, Bass Boost, Vocal, Jazz, Flat).
+3. **Integración con widgets de macOS Sonoma / Sequoia**: Mini-widget nativo para el Centro de Notificaciones.
