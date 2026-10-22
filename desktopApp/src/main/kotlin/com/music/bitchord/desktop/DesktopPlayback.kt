@@ -57,6 +57,10 @@ data class DesktopPlaybackState(
     /** How far Automix has got on this track and the next — see the player's line. */
     val smartAnalysis: com.music.bitchord.data.settings.SmartAnalysis =
         com.music.bitchord.data.settings.SmartAnalysis(),
+    /** YouTube's LUFS normalization figure in dB relative to -14 LUFS, or null. */
+    val loudnessDb: Double? = null,
+    /** Whether loudness normalization is actively applied to the current track. */
+    val volumeNormalizationActive: Boolean = false,
 )
 
 internal data class DesktopStream(

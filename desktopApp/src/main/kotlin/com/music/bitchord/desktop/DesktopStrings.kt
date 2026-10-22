@@ -138,6 +138,14 @@ object DesktopStrings {
         "command_shuffle" to "Alternar modo aleatorio",
         "command_lyrics" to "Ver letras sincronizadas",
         "command_queue" to "Ver cola de reproducción",
+        "command_immersive_lyrics" to "Modo inmersivo de letras (Apple Music)",
+        "command_volume_normalization" to "Normalización de volumen (LUFS -14 dB)",
+        "immersive_lyrics" to "Modo inmersivo de letras",
+        "fullscreen_lyrics" to "Pantalla completa de letras",
+        "exit_immersive_lyrics" to "Salir del modo inmersivo",
+        "loudness_normalization" to "Normalización de volumen",
+        "loudness_normalization_desc" to "Iguala el volumen entre canciones (LUFS estándar -14 dB) para evitar cambios bruscos",
+        "normalized_lufs_badge" to "✓ -14 LUFS",
     )
 
     init {

@@ -14,6 +14,9 @@ import com.music.bitchord.playback.smart.TransitionStyle
 import com.music.bitchord.playback.smart.TransitionTrackInfo
 import com.music.bitchord.playback.smart.echoTailSeconds
 import com.music.bitchord.playback.smart.planTransition
+import com.music.bitchord.playback.PeakLimiter
+import com.music.bitchord.data.innertube.StreamResolver
+import kotlin.math.pow
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -129,6 +132,9 @@ class DesktopPlaybackEngine(
      */
     @Volatile private var automixPhraseBars = 0
     @Volatile private var nextSong: Song? = null
+    @Volatile private var volumeNormalizationEnabled = true
+    @Volatile private var currentNormGain = 1.0f
+    private val normLimiter = PeakLimiter()
 
     /** [nextSong]'s downloaded file, when it has one, for its analysis. */
     @Volatile private var nextLocalStream: DesktopStream? = null
@@ -857,9 +863,47 @@ class DesktopPlaybackEngine(
                 skippedUs = skippedFrames.coerceAtLeast(0L) * 1_000_000.0 / rate * deck,
             )
         }
+        applyVolumeNormalization(track, samples, count)
         sink.write(samples, count)
         framesWritten += count / sink.format.channels.coerceAtLeast(1)
         if (count > 0 && _state.value.awaitingAudio) _state.update { it.copy(awaitingAudio = false) }
+    }
+
+    /**
+     * Applies loudness normalization relative to the YouTube -14 LUFS standard.
+     * Overly loud tracks are attenuated, quiet tracks are boosted up to +3 dB, and
+     * peaks are transparently held under ceiling via [PeakLimiter] without clipping.
+     */
+    private fun applyVolumeNormalization(track: Track, samples: FloatArray, count: Int) {
+        if (count <= 0) return
+        val loudness = StreamResolver.loudnessDbFor(track.song.videoId)
+        val targetGain = if (volumeNormalizationEnabled && loudness != null) {
+            10.0.pow(-loudness / 20.0).toFloat().coerceIn(0.25f, 1.41f)
+        } else {
+            1.0f
+        }
+
+        if (!volumeNormalizationEnabled && kotlin.math.abs(currentNormGain - 1f) < 0.001f) {
+            currentNormGain = 1f
+            return
+        }
+
+        val channels = sink.format.channels.coerceAtLeast(1)
+        var index = 0
+        while (index < count) {
+            currentNormGain += (targetGain - currentNormGain) * 0.005f
+            var framePeak = 0f
+            for (c in 0 until channels) {
+                val absVal = kotlin.math.abs(samples[index + c] * currentNormGain)
+                if (absVal > framePeak) framePeak = absVal
+            }
+            val limiter = normLimiter.gainFor(framePeak)
+            val effectiveGain = currentNormGain * limiter
+            for (c in 0 until channels) {
+                samples[index + c] *= effectiveGain
+            }
+            index += channels
+        }
     }
 
     /** The beatmatch stretch [track] is actually rendered at — [DesktopTempoBuffer]'s clamp included. */
@@ -1417,6 +1461,7 @@ class DesktopPlaybackEngine(
             .apply { enabled = skipSilenceEnabled }
         outgoingFilter.configure(sink.format.channels, sink.format.sampleRate)
         incomingFilter.configure(sink.format.channels, sink.format.sampleRate)
+        normLimiter.configure(sink.format.sampleRate)
         resetPlayhead(track, track.startUs)
         paused = !playWhenReady
         publishTrack(track, isPlaying = playWhenReady)
@@ -1453,6 +1498,7 @@ class DesktopPlaybackEngine(
             .apply { enabled = skipSilenceEnabled }
         outgoingFilter.configure(sink.format.channels, sink.format.sampleRate)
         incomingFilter.configure(sink.format.channels, sink.format.sampleRate)
+        normLimiter.configure(sink.format.sampleRate)
     }
 
     /** Asks for a track to be analysed, if Automix is on and there is anything to analyse. */
@@ -1528,6 +1574,7 @@ class DesktopPlaybackEngine(
         (incomingSourceFrames * 1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1)).toLong()
 
     private fun publishTrack(track: Track, isPlaying: Boolean, positionUs: Long = track.startUs) {
+        val loudness = StreamResolver.loudnessDbFor(track.song.videoId)
         _state.value = DesktopPlaybackState(
             song = track.song,
             isPlaying = isPlaying,
@@ -1544,6 +1591,8 @@ class DesktopPlaybackEngine(
             streamSourceId = track.stream.sourceId,
             searchingBetter = track.song.videoId.let { it == searchingBetterFor || it == incomingSearchingFor },
             smartAnalysis = analysisStatus(track),
+            loudnessDb = loudness,
+            volumeNormalizationActive = volumeNormalizationEnabled && loudness != null,
         )
     }
 
@@ -1551,6 +1600,7 @@ class DesktopPlaybackEngine(
     private fun publishPosition(track: Track) {
         val format = sink.format
         if (format.sampleRate == 0) return
+        val loudness = StreamResolver.loudnessDbFor(track.song.videoId)
         if (displaySwitched) {
             val incoming = upcoming ?: return
             val positionMs = incomingHeardUs(incoming) / 1_000
@@ -1562,6 +1612,8 @@ class DesktopPlaybackEngine(
                     positionSampledAtNanos = sampledAt,
                     isPlaying = !paused,
                     mixing = isSmartMixInProgress(),
+                    loudnessDb = loudness,
+                    volumeNormalizationActive = volumeNormalizationEnabled && loudness != null,
                 )
             }
             return
@@ -1582,6 +1634,8 @@ class DesktopPlaybackEngine(
                 isPlaying = !paused,
                 smartAnalysis = status,
                 mixing = isSmartMixInProgress(),
+                loudnessDb = loudness,
+                volumeNormalizationActive = volumeNormalizationEnabled && loudness != null,
             )
         }
 
@@ -1855,6 +1909,11 @@ class DesktopPlaybackEngine(
 
     fun setSpatialAudio(enabled: Boolean) {
         spatialEnabled = enabled
+    }
+
+    /** Automatic loudness normalization relative to -14 LUFS target. */
+    fun setVolumeNormalization(enabled: Boolean) {
+        volumeNormalizationEnabled = enabled
     }
 
     /** Android's "Skip silence", on the same terms. */

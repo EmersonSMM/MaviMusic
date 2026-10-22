@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -151,6 +153,8 @@ internal fun DesktopCommandPalette(
     onToggleShuffle: () -> Unit,
     onOpenLyrics: () -> Unit,
     onOpenQueue: () -> Unit,
+    onOpenImmersiveLyrics: () -> Unit = {},
+    onToggleNormalization: () -> Unit = {},
     onPlaySong: (Song) -> Unit,
     onOpenCollection: (String, BrowseType) -> Unit,
     onOpenArtist: (String, String) -> Unit,
@@ -183,6 +187,18 @@ internal fun DesktopCommandPalette(
                 subtitle = "Ver descargas activas a MP3 y progreso en tiempo real",
                 icon = Icons.Rounded.Download,
                 action = { onOpenDownloads(); onDismiss() },
+            ),
+            PaletteItem.Command(
+                title = DesktopStrings["command_immersive_lyrics", "Modo inmersivo de letras (Apple Music)"],
+                subtitle = "Pantalla completa de letras con fondo animado Mesh y tipografía cinética",
+                icon = Icons.Rounded.OpenInFull,
+                action = { onOpenImmersiveLyrics(); onDismiss() },
+            ),
+            PaletteItem.Command(
+                title = DesktopStrings["command_volume_normalization", "Normalización de volumen (LUFS -14 dB)"],
+                subtitle = "Nivelación automática de volumen entre pistas para evitar saltos",
+                icon = Icons.Rounded.VolumeUp,
+                action = { onToggleNormalization(); onDismiss() },
             ),
             PaletteItem.Command(
                 title = DesktopStrings["command_play_pause", "Reproducir / Pausar"],

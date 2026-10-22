@@ -669,6 +669,7 @@ fun BitChordDesktopApp() {
     var spatialAudio by remember { mutableStateOf(persistence.boolean("spatial_audio", false)) }
     var dolbyAtmos by remember { mutableStateOf(persistence.boolean("dolby_atmos", true)) }
     var skipSilence by remember { mutableStateOf(persistence.boolean("skip_silence", false)) }
+    var volumeNormalization by remember { mutableStateOf(persistence.boolean("volume_normalization", true)) }
     var outputPrecision by remember { mutableStateOf(persistence.string("output_precision", "PCM_16")) }
     // The blob backdrop the mesh replaced, kept as an opt-out.
     var legacyMeshGradient by remember { mutableStateOf(persistence.boolean("legacy_mesh_gradient", false)) }
@@ -1811,10 +1812,11 @@ fun BitChordDesktopApp() {
     LaunchedEffect(eqEnabled, eqMode, eqToneX, eqToneY, eqFocused, eqBalance, eqBands) {
         playbackEngine.setEqualizer(eqEnabled, DesktopEqualizerSettings.curve(), eqBalance)
     }
-    LaunchedEffect(spatialAudio, skipSilence, outputPrecision) {
+    LaunchedEffect(spatialAudio, skipSilence, outputPrecision, volumeNormalization) {
         playbackEngine.setSpatialAudio(spatialAudio)
         playbackEngine.setSkipSilence(skipSilence)
         playbackEngine.setOutputPrecision(outputPrecision)
+        playbackEngine.setVolumeNormalization(volumeNormalization)
     }
     // Not while listening together, exactly as on the phone: a blend starts the next track early,
     // by a length this computer decides from its own copy of the audio, so every member would begin
@@ -3411,6 +3413,10 @@ fun BitChordDesktopApp() {
                                 overlays.commandPalette = false
                                 true
                             }
+                            overlays.immersiveLyrics -> {
+                                overlays.immersiveLyrics = false
+                                true
+                            }
                             // The player's own layers first — the lyrics, the queue, a
                             // drawer — in the order Android's back reaches them.
                             overlays.nowPlaying && PlayerBack.dispatch() -> true
@@ -3540,6 +3546,7 @@ fun BitChordDesktopApp() {
                     DesktopSidePanelColumn(
                         panel = overlays.sidePanel.takeIf { current != null },
                         onClose = { overlays.sidePanel = null },
+                        onExpandImmersive = { overlays.immersiveLyrics = true },
                     ) { which ->
                         if (current == null) return@DesktopSidePanelColumn
                         when (which) {
@@ -3789,6 +3796,44 @@ fun BitChordDesktopApp() {
                             )
                         }
                     }
+                    AnimatedVisibility(
+                        visible = overlays.immersiveLyrics && selectedSong != null,
+                        enter = fadeIn(tween(250)),
+                        exit = fadeOut(tween(200)),
+                    ) {
+                        val current = selectedSong ?: return@AnimatedVisibility
+                        DesktopImmersiveLyricsScreen(
+                            song = current,
+                            isPlaying = playback.isPlaying,
+                            isLoading = playback.isLoading,
+                            position = playerPosition,
+                            durationMs = playback.durationMs,
+                            volume = playback.volume,
+                            onVolumeChange = {
+                                volume = it
+                                persistence.saveString("volume", it.toString())
+                            },
+                            onSeek = ::seekPlayer,
+                            onPlayPause = { togglePlayPauseFromUser() },
+                            onPrevious = ::playPrevious,
+                            onNext = ::playNext,
+                            shuffle = shuffle,
+                            onShuffleChange = ::setShuffle,
+                            repeatMode = repeatMode,
+                            onRepeatModeChange = {
+                                repeatMode = it
+                                persistence.saveString("repeat_mode", it.name)
+                            },
+                            lyrics = sharedLyrics,
+                            lyricsSource = sharedLyricsSource,
+                            lyricsProviderStates = providerStates,
+                            onSelectLyricsProvider = { source -> lyricsOnly = source.label },
+                            lyricsUnavailable = sharedLyricsUnavailable,
+                            volumeNormalizationActive = volumeNormalization && (playback.volumeNormalizationActive || playback.loudnessDb != null),
+                            onClose = { overlays.immersiveLyrics = false },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                     if (overlays.accounts) {
                         DesktopAccountSelector(
                             accounts = accounts,
@@ -3993,6 +4038,14 @@ fun BitChordDesktopApp() {
                             onOpenQueue = {
                                 overlays.sidePanel = DesktopSidePanel.QUEUE
                             },
+                            onOpenImmersiveLyrics = {
+                                overlays.immersiveLyrics = true
+                            },
+                            onToggleNormalization = {
+                                volumeNormalization = !volumeNormalization
+                                persistence.saveBoolean("volume_normalization", volumeNormalization)
+                                playbackEngine.setVolumeNormalization(volumeNormalization)
+                            },
                             onPlaySong = { song ->
                                 playSong(song, startPlaying = true, source = DesktopQueueSource("⌘K Búsqueda", PlaybackSourceType.SEARCH))
                             },
@@ -4165,6 +4218,12 @@ fun BitChordDesktopApp() {
                                     onSkipSilenceChange = {
                                         skipSilence = it
                                         persistence.saveBoolean("skip_silence", it)
+                                    },
+                                    volumeNormalization = volumeNormalization,
+                                    onVolumeNormalizationChange = {
+                                        volumeNormalization = it
+                                        persistence.saveBoolean("volume_normalization", it)
+                                        playbackEngine.setVolumeNormalization(it)
                                     },
                                     outputPrecision = outputPrecision,
                                     onOutputPrecisionChange = {
@@ -6048,6 +6107,8 @@ private fun DesktopSettingsScreen(
     onDolbyAtmosChange: (Boolean) -> Unit,
     skipSilence: Boolean,
     onSkipSilenceChange: (Boolean) -> Unit,
+    volumeNormalization: Boolean = true,
+    onVolumeNormalizationChange: (Boolean) -> Unit = {},
     outputPrecision: String,
     onOutputPrecisionChange: (String) -> Unit,
     outputSummary: String,
@@ -6210,6 +6271,12 @@ private fun DesktopSettingsScreen(
                         DesktopStrings["d_shorten_long_gaps_rather_than_playing_them_out", "Shorten long gaps rather than playing them out"],
                         skipSilence,
                         onSkipSilenceChange,
+                    )
+                    SettingsToggle(
+                        DesktopStrings["loudness_normalization", "Normalización de volumen"],
+                        DesktopStrings["loudness_normalization_desc", "Iguala el volumen entre canciones (LUFS estándar -14 dB) para evitar cambios bruscos"],
+                        volumeNormalization,
+                        onVolumeNormalizationChange,
                     )
                     SettingsToggle(
                         DesktopStrings["spatial_audio", "Spatial audio"],
