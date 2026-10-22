@@ -215,3 +215,68 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeUpd
         }
     }
 }
+
+@interface MaviNotificationDelegate : NSObject <NSUserNotificationCenterDelegate>
+@end
+
+@implementation MaviNotificationDelegate
+- (BOOL)userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
+    return YES;
+}
+@end
+
+static MaviNotificationDelegate *g_notifDelegate = nil;
+
+JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativePostNotification(
+    JNIEnv *env,
+    jclass clazz,
+    jstring title,
+    jstring subtitle,
+    jstring body,
+    jstring imagePath
+) {
+    @autoreleasepool {
+        if (!g_notifDelegate) {
+            g_notifDelegate = [[MaviNotificationDelegate alloc] init];
+            [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:g_notifDelegate];
+        }
+
+        NSUserNotification *notification = [[NSUserNotification alloc] init];
+        if (title) {
+            const char *cTitle = (*env)->GetStringUTFChars(env, title, NULL);
+            if (cTitle) {
+                notification.title = [NSString stringWithUTF8String:cTitle];
+                (*env)->ReleaseStringUTFChars(env, title, cTitle);
+            }
+        }
+        if (subtitle) {
+            const char *cSub = (*env)->GetStringUTFChars(env, subtitle, NULL);
+            if (cSub) {
+                notification.subtitle = [NSString stringWithUTF8String:cSub];
+                (*env)->ReleaseStringUTFChars(env, subtitle, cSub);
+            }
+        }
+        if (body) {
+            const char *cBody = (*env)->GetStringUTFChars(env, body, NULL);
+            if (cBody) {
+                notification.informativeText = [NSString stringWithUTF8String:cBody];
+                (*env)->ReleaseStringUTFChars(env, body, cBody);
+            }
+        }
+        if (imagePath) {
+            const char *cImg = (*env)->GetStringUTFChars(env, imagePath, NULL);
+            if (cImg) {
+                if (strlen(cImg) > 0) {
+                    NSString *path = [NSString stringWithUTF8String:cImg];
+                    NSImage *image = [[NSImage alloc] initWithContentsOfFile:path];
+                    if (image) {
+                        notification.contentImage = image;
+                    }
+                }
+                (*env)->ReleaseStringUTFChars(env, imagePath, cImg);
+            }
+        }
+
+        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+    }
+}

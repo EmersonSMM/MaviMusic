@@ -106,6 +106,7 @@ object DesktopStrings {
         "like" to "Me gusta",
         "unlike" to "Ya no me gusta",
         "feeling_lucky" to "Tener suerte",
+        "sleep_timer" to "Temporizador de apagado",
         "auto_quick_picks" to "Selección rápida",
         "auto_recents" to "Recientes",
         "shelf_quick_picks" to "Selección rápida",

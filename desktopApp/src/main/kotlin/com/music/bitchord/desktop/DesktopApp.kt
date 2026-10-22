@@ -1773,9 +1773,20 @@ fun BitChordDesktopApp() {
                 },
             ),
         )
+        DesktopMacDockMenu.start(
+            DesktopMacDockMenu.Controller(
+                onPlay = ::playFromUser,
+                onPause = ::pauseFromUser,
+                onNext = ::playNext,
+                onPrevious = ::playPrevious,
+                onToggleLike = { selectedSong?.let { toggleLike(it) } },
+                onCancelSleepTimer = { DesktopSleepTimer.cancel() },
+            ),
+        )
         onDispose {
             DesktopWindowsMedia.stop()
             DesktopMacMedia.stop()
+            DesktopMacDockMenu.stop()
         }
     }
 
@@ -2033,6 +2044,29 @@ fun BitChordDesktopApp() {
         DesktopScrobbling.onPlaybackStateChanged(playback)
         DesktopWindowsMedia.publish(playback)
         DesktopMacMedia.publish(playback)
+    }
+    var lastNotifiedTrackId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(selectedSong, playback.isPlaying, likedIds, sleepRemainingMs, sleepAfterTrack) {
+        DesktopMacDockMenu.update(
+            song = selectedSong,
+            isPlaying = playback.isPlaying,
+            isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
+            sleepTimerRemainingMs = sleepRemainingMs,
+            sleepAfterTrack = sleepAfterTrack,
+        )
+        if (playback.isPlaying && selectedSong != null && selectedSong?.videoId != lastNotifiedTrackId) {
+            lastNotifiedTrackId = selectedSong?.videoId
+            val artPath = selectedSong?.thumbnailUrl?.let { url ->
+                DesktopMediaCache.existing(url, "jpg")?.toString()
+                    ?: DesktopMediaCache.existing(url, "png")?.toString()
+            }.orEmpty()
+            DesktopMacMedia.postNotification(
+                title = selectedSong?.title.orEmpty(),
+                subtitle = selectedSong?.artist.orEmpty(),
+                body = selectedSong?.albumName ?: "MaviMusic",
+                imagePath = artPath,
+            )
+        }
     }
     // Refetched on opening the page rather than cached for the session: the
     // point of it is that something played elsewhere shows up here.
@@ -2652,6 +2686,7 @@ fun BitChordDesktopApp() {
                 playbackEngine.shutdown()
                 DesktopWindowsMedia.stop()
                 DesktopMacMedia.stop()
+                DesktopMacDockMenu.stop()
                 exitProcess(0)
             },
         )
@@ -3477,6 +3512,8 @@ fun BitChordDesktopApp() {
                                 onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
                                 onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
                                 onOpenAudioOutput = { overlays.audioOutput = true },
+                                onOpenSleepTimer = { overlays.sleepTimer = true },
+                                isSleepTimerActive = sleepTimerMinutes != null || sleepAfterTrack,
                                 sidePanel = overlays.sidePanel,
                                 isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
                                 onToggleLike = { selectedSong?.let { toggleLike(it) } },
@@ -3902,6 +3939,12 @@ fun BitChordDesktopApp() {
                     }
                     if (overlays.audioOutput) {
                         DesktopAudioOutputDialog(onDismiss = { overlays.audioOutput = false })
+                    }
+                    if (overlays.sleepTimer) {
+                        DesktopSleepTimerDialog(
+                            sleepRemainingMs = sleepRemainingMs,
+                            onDismiss = { overlays.sleepTimer = false },
+                        )
                     }
                     if (overlays.pipeline) {
                         DesktopAudioPipelineDialog(

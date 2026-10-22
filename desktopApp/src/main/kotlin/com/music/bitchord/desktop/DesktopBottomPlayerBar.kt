@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.OpenInFull
@@ -81,6 +82,8 @@ internal fun DesktopBottomPlayerBar(
     onOpenLyrics: () -> Unit,
     onOpenQueue: () -> Unit,
     onOpenAudioOutput: () -> Unit,
+    onOpenSleepTimer: () -> Unit = {},
+    isSleepTimerActive: Boolean = false,
     sidePanel: DesktopSidePanel?,
     isLiked: Boolean,
     onToggleLike: () -> Unit,
@@ -363,6 +366,15 @@ internal fun DesktopBottomPlayerBar(
                             BitChordIcons.Queue,
                             DesktopStrings["queue", "Cola de reproducción"],
                             tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    DesktopToolbarButton(onClick = onOpenSleepTimer, size = 32.dp) {
+                        Icon(
+                            Icons.Rounded.Bedtime,
+                            DesktopStrings["sleep_timer", "Temporizador de apagado"],
+                            tint = if (isSleepTimerActive) Color.White else DesktopSecondary,
                             modifier = Modifier.size(18.dp),
                         )
                     }

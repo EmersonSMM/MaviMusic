@@ -111,6 +111,19 @@ internal object DesktopMacMedia {
     @JvmStatic
     private external fun nativeStop()
 
+    /** Displays a rich native macOS banner notification with album artwork. */
+    fun postNotification(
+        title: String,
+        subtitle: String,
+        body: String,
+        imagePath: String = "",
+    ) {
+        if (!started.get() && !available) return
+        runCatching {
+            nativePostNotification(title, subtitle, body, imagePath)
+        }
+    }
+
     @JvmStatic
     private external fun nativeUpdate(
         title: String,
@@ -120,5 +133,13 @@ internal object DesktopMacMedia {
         playing: Boolean,
         positionMs: Long,
         durationMs: Long,
+    )
+
+    @JvmStatic
+    private external fun nativePostNotification(
+        title: String,
+        subtitle: String,
+        body: String,
+        imagePath: String,
     )
 }
