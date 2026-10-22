@@ -22,13 +22,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -36,12 +39,19 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeMute
 import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -122,7 +132,8 @@ internal fun DesktopImmersiveLyricsScreen(
 ) {
     val artworkPalette = rememberArtworkColors(song.thumbnailUrl, null)
     var visualMode by remember { mutableStateOf(ImmersiveVisualMode.WINAMP_WAVES) }
-    var showLyricsInWinamp by remember { mutableStateOf(true) }
+    var showLyricsInWinamp by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF06060C))) {
         if (visualMode == ImmersiveVisualMode.APPLE_LYRICS) {
@@ -156,23 +167,32 @@ internal fun DesktopImmersiveLyricsScreen(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            listOf(
-                                Color.Black.copy(alpha = 0.35f),
-                                Color.Black.copy(alpha = 0.20f),
-                                Color.Black.copy(alpha = 0.55f),
-                            ),
+                            if (showLyricsInWinamp) {
+                                listOf(
+                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Black.copy(alpha = 0.20f),
+                                    Color.Black.copy(alpha = 0.55f),
+                                )
+                            } else {
+                                listOf(
+                                    Color.Black.copy(alpha = 0.20f),
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.30f),
+                                )
+                            },
                         ),
                     ),
             )
         }
 
         Column(Modifier.fillMaxSize()) {
-            // Header with Exit, Mode Switcher Pills, Winamp Badge, and Close
+            val topStartPadding = if (DesktopPlatform.isMac) 84.dp else 24.dp
+            // Header with Exit, compact mode selector dropdown, and sober technical spec badge
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp)
-                    .padding(horizontal = 24.dp),
+                    .padding(start = topStartPadding, end = 24.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Surface(
@@ -183,7 +203,7 @@ internal fun DesktopImmersiveLyricsScreen(
                     modifier = Modifier.height(34.dp),
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
@@ -204,118 +224,127 @@ internal fun DesktopImmersiveLyricsScreen(
 
                 Spacer(Modifier.width(14.dp))
 
-                // Visual Mode Selector Pills
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ImmersiveVisualMode.entries.forEach { mode ->
-                        val selected = visualMode == mode
-                        Surface(
-                            onClick = { visualMode = mode },
-                            shape = RoundedCornerShape(18.dp),
-                            color = if (selected) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f),
-                            border = BorderStroke(
-                                1.dp,
-                                if (selected) Color(0xFF00E5FF).copy(alpha = 0.75f) else Color.White.copy(alpha = 0.14f),
-                            ),
-                            modifier = Modifier.height(32.dp),
+                // Compact corner dropdown selector for visual modes and lyrics toggle
+                Box {
+                    Surface(
+                        onClick = { menuExpanded = true },
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                        modifier = Modifier.height(34.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Box(
-                                modifier = Modifier.padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = mode.label,
-                                    color = if (selected) Color(0xFF80F8FF) else Color.White.copy(alpha = 0.78f),
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                )
-                            }
+                            Icon(
+                                Icons.Rounded.Tune,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = visualMode.label,
+                                color = Color.White,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                     }
 
-                    if (visualMode != ImmersiveVisualMode.APPLE_LYRICS) {
-                        Surface(
-                            onClick = { showLyricsInWinamp = !showLyricsInWinamp },
-                            shape = RoundedCornerShape(18.dp),
-                            color = if (showLyricsInWinamp) Color(0xFF00FF66).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f),
-                            border = BorderStroke(
-                                1.dp,
-                                if (showLyricsInWinamp) Color(0xFF00FF66).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.12f),
-                            ),
-                            modifier = Modifier.height(32.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(horizontal = 11.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = if (showLyricsInWinamp) "Letras: ON" else "Solo Visualizador",
-                                    color = if (showLyricsInWinamp) Color(0xFF69F0AE) else Color.White.copy(alpha = 0.7f),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier
+                            .background(Color(0xFF141418))
+                            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                    ) {
+                        ImmersiveVisualMode.entries.forEach { mode ->
+                            val selected = visualMode == mode
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        mode.label,
+                                        color = if (selected) Color(0xFF00E5FF) else Color.White,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.5.sp,
+                                    )
+                                },
+                                onClick = {
+                                    visualMode = mode
+                                    menuExpanded = false
+                                },
+                                trailingIcon = if (selected) {
+                                    {
+                                        Icon(
+                                            Icons.Rounded.Check,
+                                            contentDescription = null,
+                                            tint = Color(0xFF00E5FF),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                } else null,
+                            )
                         }
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.12f),
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (showLyricsInWinamp) "Letras sincronizadas" else "Solo visualizador",
+                                    color = Color.White,
+                                    fontSize = 12.5.sp,
+                                )
+                            },
+                            onClick = {
+                                showLyricsInWinamp = !showLyricsInWinamp
+                                menuExpanded = false
+                            },
+                            trailingIcon = {
+                                Switch(
+                                    checked = showLyricsInWinamp,
+                                    onCheckedChange = { showLyricsInWinamp = it },
+                                    modifier = Modifier.scale(0.8f),
+                                )
+                            },
+                        )
                     }
                 }
 
                 Spacer(Modifier.weight(1f))
 
-                // Retro Winamp Digital Readout Badge
-                if (visualMode != ImmersiveVisualMode.APPLE_LYRICS) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xCC0A140E),
-                        border = BorderStroke(1.dp, Color(0x6600FF66)),
-                        modifier = Modifier.height(28.dp),
+                // Discreet, sober dark-gray technical audio spec readout
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.height(26.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "WINAMP DSP • 320 kbps • 48 kHz • STEREO",
-                                color = Color(0xFF00FF66),
-                                fontSize = 10.5.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
+                        Text(
+                            text = "320 kbps • 48 kHz • STEREO",
+                            color = Color.White.copy(alpha = 0.60f),
+                            fontSize = 10.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.3.sp,
+                        )
                     }
-                    Spacer(Modifier.width(10.dp))
-                }
-
-                if (volumeNormalizationActive) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.White.copy(alpha = 0.10f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                        modifier = Modifier.height(26.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = DesktopStrings["normalized_lufs_badge", "✓ -14 LUFS"],
-                                color = DesktopAccent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(10.dp))
-                }
-
-                DesktopToolbarButton(onClick = onClose, size = 32.dp) {
-                    Icon(
-                        Icons.Rounded.Close,
-                        contentDescription = DesktopStrings["close", "Cerrar"],
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(18.dp),
-                    )
                 }
             }
 
@@ -764,8 +793,9 @@ private fun ImmersiveHeroPlayer(
         Box(
             modifier = Modifier
                 .size(290.dp)
-                .shadow(28.dp, artShape, spotColor = Color.Black.copy(alpha = 0.7f))
-                .clip(artShape),
+                .shadow(24.dp, artShape, spotColor = Color.Black.copy(alpha = 0.5f))
+                .clip(artShape)
+                .graphicsLayer { alpha = 0.78f },
         ) {
             DesktopArtwork(
                 url = song.thumbnailUrl,

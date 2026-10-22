@@ -31,12 +31,14 @@ static OSStatus spotlightHotKeyHandler(EventHandlerCallRef nextHandler, EventRef
         BOOL appActive = [NSApp isActive];
         if (!appActive) {
             // User triggered Spotlight from outside MaviMusic: keep the main window hidden
-            for (NSWindow *win in [NSApp windows]) {
-                NSString *title = [win title] ?: @"";
-                if (![title isEqualToString:@"MaviMusic Spotlight"] && win.level == NSNormalWindowLevel) {
-                    [win orderOut:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                for (NSWindow *win in [NSApp windows]) {
+                    NSString *title = [win title] ?: @"";
+                    if (![title isEqualToString:@"MaviMusic Spotlight"] && win.level == NSNormalWindowLevel) {
+                        [win orderOut:nil];
+                    }
                 }
-            }
+            });
             dispatchButton(BUTTON_SPOTLIGHT_EXTERNAL);
         } else {
             dispatchButton(BUTTON_SPOTLIGHT);
@@ -459,23 +461,26 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeCon
     jboolean keepMainHidden
 ) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSWindow *spotWin = nil;
-        for (NSWindow *win in [NSApp windows]) {
-            NSString *title = [win title] ?: @"";
-            if ([title isEqualToString:@"MaviMusic Spotlight"]) {
-                spotWin = win;
-            } else if (keepMainHidden && win.level == NSNormalWindowLevel) {
-                [win orderOut:nil];
+        @try {
+            NSWindow *spotWin = nil;
+            for (NSWindow *win in [NSApp windows]) {
+                NSString *title = [win title] ?: @"";
+                if ([title isEqualToString:@"MaviMusic Spotlight"]) {
+                    spotWin = win;
+                } else if (keepMainHidden && win.level == NSNormalWindowLevel) {
+                    [win orderOut:nil];
+                }
             }
-        }
-        if (spotWin) {
-            [spotWin setLevel:NSStatusWindowLevel];
-            [spotWin setCollectionBehavior:(NSWindowCollectionBehaviorCanJoinAllSpaces |
-                                            NSWindowCollectionBehaviorFullScreenAuxiliary |
-                                            NSWindowCollectionBehaviorMoveToActiveSpace)];
-            [spotWin setMovableByWindowBackground:YES];
-            [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
-            [spotWin makeKeyAndOrderFront:nil];
+            if (spotWin) {
+                [spotWin setLevel:NSStatusWindowLevel];
+                [spotWin setCollectionBehavior:(NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                                NSWindowCollectionBehaviorFullScreenAuxiliary)];
+                [spotWin setMovableByWindowBackground:YES];
+                [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+                [spotWin makeKeyAndOrderFront:nil];
+            }
+        } @catch (NSException *e) {
+            NSLog(@"[MaviMusic] Error configuring spotlight window: %@", e);
         }
     });
 }
