@@ -23,11 +23,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
@@ -93,16 +97,17 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 internal enum class ImmersiveVisualMode(val label: String) {
-    WINAMP_WAVES("🌊 Ondas Winamp"),
-    WINAMP_SPECTRUM("📊 Espectro Winamp"),
-    WINAMP_MILKDROP("🌀 MilkDrop Plasma"),
-    APPLE_LYRICS("🎤 Letras Mesh"),
+    WINAMP_WAVES("Ondas Winamp"),
+    WINAMP_SPECTRUM("Espectro Winamp"),
+    WINAMP_MILKDROP("Plasma MilkDrop"),
+    WINAMP_TUNNEL("Túnel Retro 3D"),
+    APPLE_LYRICS("Letras Mesh"),
 }
 
 /**
  * Full-window / fullscreen immersive visualizer & lyrics experience.
  * Includes classic Winamp Oscilloscope waves, LED Spectrum Analyzer with falling peak-hold dots,
- * MilkDrop psychedelic plasma waves, and Apple Music synchronized kinetic lyrics.
+ * MilkDrop psychedelic plasma waves, 3D Retro Warp Tunnel, and Apple Music synchronized kinetic lyrics.
  */
 @Composable
 internal fun DesktopImmersiveLyricsScreen(
@@ -127,15 +132,28 @@ internal fun DesktopImmersiveLyricsScreen(
     onSelectLyricsProvider: (LyricsSource) -> Unit,
     lyricsUnavailable: Boolean,
     volumeNormalizationActive: Boolean,
+    queue: List<Song> = emptyList(),
+    queueIndex: Int = 0,
+    onPlayQueueIndex: (Int) -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val artworkPalette = rememberArtworkColors(song.thumbnailUrl, null)
     var visualMode by remember { mutableStateOf(ImmersiveVisualMode.WINAMP_WAVES) }
     var showLyricsInWinamp by remember { mutableStateOf(false) }
+    var showQueuePanel by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
 
-    Box(modifier = modifier.fillMaxSize().background(Color(0xFF06060C))) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF06060C))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}, // Consumes all clicks so they never skip tracks or leak underneath
+            ),
+    ) {
         if (visualMode == ImmersiveVisualMode.APPLE_LYRICS) {
             MeshGradientBackground(
                 palette = artworkPalette,
@@ -187,7 +205,7 @@ internal fun DesktopImmersiveLyricsScreen(
 
         Column(Modifier.fillMaxSize()) {
             val topStartPadding = if (DesktopPlatform.isMac) 84.dp else 24.dp
-            // Header with Exit, compact mode selector dropdown, and sober technical spec badge
+            // Header with Exit on left and sober technical spec badge on right
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -218,107 +236,6 @@ internal fun DesktopImmersiveLyricsScreen(
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(14.dp))
-
-                // Compact corner dropdown selector for visual modes and lyrics toggle
-                Box {
-                    Surface(
-                        onClick = { menuExpanded = true },
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
-                        modifier = Modifier.height(34.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Rounded.Tune,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier.size(15.dp),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = visualMode.label,
-                                color = Color.White,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                        modifier = Modifier
-                            .background(Color(0xFF141418))
-                            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
-                    ) {
-                        ImmersiveVisualMode.entries.forEach { mode ->
-                            val selected = visualMode == mode
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        mode.label,
-                                        color = if (selected) Color(0xFF00E5FF) else Color.White,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 12.5.sp,
-                                    )
-                                },
-                                onClick = {
-                                    visualMode = mode
-                                    menuExpanded = false
-                                },
-                                trailingIcon = if (selected) {
-                                    {
-                                        Icon(
-                                            Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = Color(0xFF00E5FF),
-                                            modifier = Modifier.size(16.dp),
-                                        )
-                                    }
-                                } else null,
-                            )
-                        }
-
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.12f),
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        )
-
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    if (showLyricsInWinamp) "Letras sincronizadas" else "Solo visualizador",
-                                    color = Color.White,
-                                    fontSize = 12.5.sp,
-                                )
-                            },
-                            onClick = {
-                                showLyricsInWinamp = !showLyricsInWinamp
-                                menuExpanded = false
-                            },
-                            trailingIcon = {
-                                Switch(
-                                    checked = showLyricsInWinamp,
-                                    onCheckedChange = { showLyricsInWinamp = it },
-                                    modifier = Modifier.scale(0.8f),
-                                )
-                            },
                         )
                     }
                 }
@@ -386,6 +303,8 @@ internal fun DesktopImmersiveLyricsScreen(
                                 onShuffleChange = onShuffleChange,
                                 repeatMode = repeatMode,
                                 onRepeatModeChange = onRepeatModeChange,
+                                isQueueVisible = showQueuePanel,
+                                onToggleQueue = { showQueuePanel = !showQueuePanel },
                             )
                         }
 
@@ -431,7 +350,249 @@ internal fun DesktopImmersiveLyricsScreen(
                                 onShuffleChange = onShuffleChange,
                                 repeatMode = repeatMode,
                                 onRepeatModeChange = onRepeatModeChange,
+                                isQueueVisible = showQueuePanel,
+                                onToggleQueue = { showQueuePanel = !showQueuePanel },
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom-left visualizer effects selector (sober, clean, no emojis)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 24.dp, bottom = 24.dp),
+        ) {
+            Surface(
+                onClick = { menuExpanded = true },
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xCC14141A),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                modifier = Modifier.height(34.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Rounded.Tune,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = visualMode.label,
+                        color = Color.White,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+                modifier = Modifier
+                    .background(Color(0xFF141418))
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+            ) {
+                ImmersiveVisualMode.entries.forEach { mode ->
+                    val selected = visualMode == mode
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                mode.label,
+                                color = if (selected) Color(0xFF00E5FF) else Color.White,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.5.sp,
+                            )
+                        },
+                        onClick = {
+                            visualMode = mode
+                            menuExpanded = false
+                        },
+                        trailingIcon = if (selected) {
+                            {
+                                Icon(
+                                    Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E5FF),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        } else null,
+                    )
+                }
+
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.12f),
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (showLyricsInWinamp) "Letras sincronizadas" else "Solo visualizador",
+                            color = Color.White,
+                            fontSize = 12.5.sp,
+                        )
+                    },
+                    onClick = {
+                        showLyricsInWinamp = !showLyricsInWinamp
+                        menuExpanded = false
+                    },
+                    trailingIcon = {
+                        Switch(
+                            checked = showLyricsInWinamp,
+                            onCheckedChange = { showLyricsInWinamp = it },
+                            modifier = Modifier.scale(0.8f),
+                        )
+                    },
+                )
+            }
+        }
+
+        // Floating Upcoming Songs (Queue) drawer panel on the right
+        if (showQueuePanel) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 20.dp, top = 70.dp, bottom = 20.dp)
+                    .widthIn(max = 380.dp)
+                    .fillMaxHeight(),
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xE6121218),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+                shadowElevation = 24.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.QueueMusic,
+                                contentDescription = null,
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Canciones siguientes",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        IconButton(
+                            onClick = { showQueuePanel = false },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = "Cerrar",
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                    Spacer(Modifier.height(8.dp))
+
+                    val upcoming = remember(queue, queueIndex) {
+                        if (queue.isEmpty()) emptyList()
+                        else queue.drop((queueIndex + 1).coerceAtMost(queue.size))
+                    }
+
+                    if (upcoming.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "No hay más canciones en la cola",
+                                color = Color.White.copy(alpha = 0.45f),
+                                fontSize = 13.sp,
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            itemsIndexed(upcoming) { offset, songItem ->
+                                val realIndex = queueIndex + 1 + offset
+                                Surface(
+                                    onClick = { onPlayQueueIndex(realIndex) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.White.copy(alpha = 0.04f),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(6.dp)),
+                                        ) {
+                                            DesktopArtwork(
+                                                url = songItem.thumbnailUrl,
+                                                modifier = Modifier.fillMaxSize(),
+                                                px = 80,
+                                            )
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = songItem.title,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Text(
+                                                text = songItem.artist,
+                                                color = Color.White.copy(alpha = 0.6f),
+                                                fontSize = 11.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        val dur = songItem.durationText
+                                        if (!dur.isNullOrBlank()) {
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = dur,
+                                                color = Color.White.copy(alpha = 0.45f),
+                                                fontSize = 11.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -680,6 +841,16 @@ private fun WinampVisualizerBackdrop(
                 }
             }
 
+            ImmersiveVisualMode.WINAMP_TUNNEL -> {
+                drawWinampTunnel(
+                    barValues = barValues,
+                    peakValues = peakValues,
+                    timeSec = t,
+                    numBands = numBands,
+                    isPlaying = isPlaying,
+                )
+            }
+
             ImmersiveVisualMode.APPLE_LYRICS -> Unit
         }
     }
@@ -755,6 +926,126 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
     }
 }
 
+/**
+ * 3D Retro Warp Tunnel visualizer inspired by vintage Winamp AVS and MilkDrop.
+ * Features 16 concentric depth rings accelerating toward the camera, 16 radial perspective ribs,
+ * audio beat wobble, neon color cycling, and a pulsing bass singularity at the vanishing point.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
+    barValues: FloatArray,
+    peakValues: FloatArray,
+    timeSec: Float,
+    numBands: Int,
+    isPlaying: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    val cx = w * 0.5f
+    val cy = h * 0.48f
+
+    val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+    val maxR = (w.coerceAtLeast(h) * 0.75f).coerceAtLeast(200f)
+
+    val numRings = 16
+    val numSpokes = 16
+    val speed = if (isPlaying) 0.52f + bass * 0.35f else 0.12f
+    val rot = timeSec * (if (isPlaying) 0.32f else 0.08f)
+
+    val tunnelColors = listOf(
+        Color(0xFF00F0FF), // Electric Cyan
+        Color(0xFFFF007F), // Neon Magenta
+        Color(0xFF7C4DFF), // Deep Violet
+        Color(0xFF00FF66), // Classic Winamp Lime
+        Color(0xFFFFAB00), // Amber Gold
+    )
+
+    val vertexGrid = Array(numRings) { arrayOfNulls<Offset>(numSpokes) }
+
+    for (r in 0 until numRings) {
+        val baseFrac = r.toFloat() / numRings.toFloat()
+        val z = ((baseFrac - (timeSec * speed * 0.25f)) % 1f + 1f) % 1f
+        val radiusFrac = z * z
+        val radius = 18f + radiusFrac * maxR
+
+        val alpha = when {
+            z < 0.12f -> (z / 0.12f).coerceIn(0f, 1f) * 0.45f
+            z > 0.85f -> ((1f - z) / 0.15f).coerceIn(0f, 1f) * 0.85f
+            else -> 0.85f
+        }
+
+        val colorIdx = (r + (timeSec * 0.6f).toInt()) % tunnelColors.size
+        val ringColor = tunnelColors[colorIdx]
+
+        val ringPath = Path()
+        for (s in 0 until numSpokes) {
+            val angle = (s.toFloat() / numSpokes.toFloat()) * (2f * PI.toFloat()) + rot
+            val bandIdx = ((s.toFloat() / numSpokes.toFloat()) * (numBands - 1)).toInt().coerceIn(0, numBands - 1)
+            val audioLevel = barValues[bandIdx]
+
+            val wobble = 1f + (if (isPlaying) 0.22f * audioLevel * sin(angle * 4f + timeSec * 6f) else 0.04f * sin(angle * 2f))
+            val px = cx + cos(angle) * radius * wobble
+            val py = cy + sin(angle) * radius * wobble
+
+            val pt = Offset(px, py)
+            vertexGrid[r][s] = pt
+            if (s == 0) ringPath.moveTo(px, py) else ringPath.lineTo(px, py)
+        }
+        ringPath.close()
+
+        drawPath(
+            path = ringPath,
+            color = ringColor.copy(alpha = alpha * 0.28f),
+            style = Stroke(width = (4f + radiusFrac * 6f), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+        drawPath(
+            path = ringPath,
+            color = ringColor.copy(alpha = alpha),
+            style = Stroke(width = (1.5f + radiusFrac * 2.2f), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
+
+    for (s in 0 until numSpokes) {
+        val spokePath = Path()
+        var started = false
+        for (r in 0 until numRings) {
+            val pt = vertexGrid[r][s] ?: continue
+            if (!started) {
+                spokePath.moveTo(pt.x, pt.y)
+                started = true
+            } else {
+                spokePath.lineTo(pt.x, pt.y)
+            }
+        }
+        val spokeColor = tunnelColors[s % tunnelColors.size]
+        drawPath(
+            path = spokePath,
+            color = spokeColor.copy(alpha = 0.22f + bass * 0.25f),
+            style = Stroke(width = 1.4f, cap = StrokeCap.Round),
+        )
+    }
+
+    val coreRadius = (16f + bass * 38f).coerceAtLeast(10f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.95f),
+                Color(0xFF00F0FF).copy(alpha = 0.65f),
+                Color(0xFFFF007F).copy(alpha = 0.25f),
+                Color.Transparent,
+            ),
+            center = Offset(cx, cy),
+            radius = coreRadius * 2.5f,
+        ),
+        radius = coreRadius * 2.5f,
+        center = Offset(cx, cy),
+    )
+    drawCircle(
+        color = Color.White,
+        radius = (coreRadius * 0.35f).coerceAtLeast(3f),
+        center = Offset(cx, cy),
+    )
+}
+
 /** Left hero column with album art, song info, scrubber, and transport playback controls. */
 @Composable
 private fun ImmersiveHeroPlayer(
@@ -773,6 +1064,8 @@ private fun ImmersiveHeroPlayer(
     onShuffleChange: (Boolean) -> Unit,
     repeatMode: DesktopRepeatMode,
     onRepeatModeChange: (DesktopRepeatMode) -> Unit,
+    isQueueVisible: Boolean = false,
+    onToggleQueue: () -> Unit = {},
 ) {
     var draggingScrubber by remember { mutableStateOf(false) }
     var scrubFraction by remember { mutableFloatStateOf(0f) }
@@ -960,7 +1253,7 @@ private fun ImmersiveHeroPlayer(
 
         Row(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .widthIn(max = 320.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -976,6 +1269,18 @@ private fun ImmersiveHeroPlayer(
                 onValueChange = onVolumeChange,
                 modifier = Modifier.weight(1f),
             )
+            Spacer(Modifier.width(12.dp))
+            IconButton(
+                onClick = onToggleQueue,
+                modifier = Modifier.size(34.dp),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.QueueMusic,
+                    contentDescription = DesktopStrings["queue", "Canciones siguientes"],
+                    tint = if (isQueueVisible) DesktopAccent else Color.White.copy(alpha = 0.70f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

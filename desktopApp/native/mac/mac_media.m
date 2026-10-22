@@ -17,10 +17,13 @@ static BOOL g_isPlaying = NO;
 #define BUTTON_STOP 4
 #define BUTTON_SPOTLIGHT 5
 #define BUTTON_SPOTLIGHT_EXTERNAL 6
+#define BUTTON_SPOTLIGHT_DISMISS 7
 
 static EventHotKeyRef g_spotlightHotKey1 = NULL;
 static EventHotKeyRef g_spotlightHotKey2 = NULL;
 static EventHandlerRef g_hotKeyHandlerRef = NULL;
+static id g_globalClickMonitor = nil;
+static id g_resignKeyObserver = nil;
 
 static void dispatchButton(int button);
 
@@ -478,6 +481,31 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeCon
                 [spotWin setMovableByWindowBackground:YES];
                 [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
                 [spotWin makeKeyAndOrderFront:nil];
+                [spotWin makeFirstResponder:spotWin.contentView];
+
+                if (g_globalClickMonitor) {
+                    [NSEvent removeMonitor:g_globalClickMonitor];
+                    g_globalClickMonitor = nil;
+                }
+                g_globalClickMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:(NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown)
+                                                                             handler:^(NSEvent *event) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        dispatchButton(BUTTON_SPOTLIGHT_DISMISS);
+                    });
+                }];
+
+                if (g_resignKeyObserver) {
+                    [[NSNotificationCenter defaultCenter] removeObserver:g_resignKeyObserver];
+                    g_resignKeyObserver = nil;
+                }
+                g_resignKeyObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidResignKeyNotification
+                                                                                        object:spotWin
+                                                                                         queue:[NSOperationQueue mainQueue]
+                                                                                    usingBlock:^(NSNotification *note) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        dispatchButton(BUTTON_SPOTLIGHT_DISMISS);
+                    });
+                }];
             }
         } @catch (NSException *e) {
             NSLog(@"[MaviMusic] Error configuring spotlight window: %@", e);
@@ -490,9 +518,18 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeOnS
     jclass clazz,
     jboolean hideApp
 ) {
-    if (!hideApp) return;
     dispatch_async(dispatch_get_main_queue(), ^{
-        [NSApp hide:nil];
+        if (g_globalClickMonitor) {
+            [NSEvent removeMonitor:g_globalClickMonitor];
+            g_globalClickMonitor = nil;
+        }
+        if (g_resignKeyObserver) {
+            [[NSNotificationCenter defaultCenter] removeObserver:g_resignKeyObserver];
+            g_resignKeyObserver = nil;
+        }
+        if (hideApp) {
+            [NSApp hide:nil];
+        }
     });
 }
 

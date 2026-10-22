@@ -346,6 +346,7 @@ private fun desktopMain() = application {
                 spotWindow.setLocation(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY)
                 spotWindow.toFront()
                 spotWindow.requestFocus()
+                spotWindow.requestFocusInWindow()
                 DesktopMacMedia.configureSpotlight(DesktopSpotlightState.openedExternally)
 
                 val focusListener = object : java.awt.event.WindowFocusListener {
@@ -368,11 +369,13 @@ private fun desktopMain() = application {
                 onNavigate = { dest ->
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onNavigate(dest)
                 },
                 onOpenSettings = {
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onOpenSettings()
                 },
                 onOpenSleepTimer = {
@@ -383,38 +386,60 @@ private fun desktopMain() = application {
                 onOpenDownloads = {
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onOpenDownloads()
                 },
-                onPlayLucky = DesktopSpotlightState.onPlayLucky,
-                onTogglePlayPause = DesktopSpotlightState.onTogglePlayPause,
-                onPlayNext = DesktopSpotlightState.onPlayNext,
-                onPlayPrevious = DesktopSpotlightState.onPlayPrevious,
-                onToggleShuffle = DesktopSpotlightState.onToggleShuffle,
+                onPlayLucky = {
+                    DesktopSpotlightState.onPlayLucky()
+                    DesktopSpotlightState.dismiss()
+                },
+                onTogglePlayPause = {
+                    DesktopSpotlightState.onTogglePlayPause()
+                    DesktopSpotlightState.dismiss()
+                },
+                onPlayNext = {
+                    DesktopSpotlightState.onPlayNext()
+                    DesktopSpotlightState.dismiss()
+                },
+                onPlayPrevious = {
+                    DesktopSpotlightState.onPlayPrevious()
+                    DesktopSpotlightState.dismiss()
+                },
+                onToggleShuffle = {
+                    DesktopSpotlightState.onToggleShuffle()
+                    DesktopSpotlightState.dismiss()
+                },
                 onOpenLyrics = {
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onOpenLyrics()
                 },
                 onOpenQueue = {
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onOpenQueue()
                 },
                 onOpenImmersiveLyrics = {
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onOpenImmersive()
                 },
                 onToggleNormalization = {},
                 onPlaySong = { song ->
                     DesktopSpotlightState.onPlaySong(song)
+                    DesktopSpotlightState.dismiss()
                 },
                 onOpenCollection = { id, type ->
                     DesktopSpotlightState.onOpenCollection(id, type)
+                    DesktopSpotlightState.dismiss()
                 },
                 onOpenArtist = { id, name ->
                     DesktopSpotlightState.openedExternally = false
                     DesktopWindowVisibility.show()
+                    DesktopSpotlightState.dismiss()
                     DesktopSpotlightState.onOpenArtist(id, name)
                 },
             )

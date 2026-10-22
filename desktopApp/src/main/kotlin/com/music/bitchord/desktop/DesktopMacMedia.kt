@@ -24,6 +24,7 @@ internal object DesktopMacMedia {
     private const val BUTTON_STOP = 4
     private const val BUTTON_SPOTLIGHT = 5
     private const val BUTTON_SPOTLIGHT_EXTERNAL = 6
+    private const val BUTTON_SPOTLIGHT_DISMISS = 7
 
     private val started = AtomicBoolean(false)
     private val shutdownHookAdded = AtomicBoolean(false)
@@ -44,6 +45,7 @@ internal object DesktopMacMedia {
         val onSeek: (Long) -> Unit,
         val onSpotlight: () -> Unit = {},
         val onSpotlightExternal: () -> Unit = onSpotlight,
+        val onSpotlightDismiss: () -> Unit = {},
     )
 
     private val available: Boolean by lazy {
@@ -137,6 +139,7 @@ internal object DesktopMacMedia {
             BUTTON_STOP -> target.onStop()
             BUTTON_SPOTLIGHT -> target.onSpotlight()
             BUTTON_SPOTLIGHT_EXTERNAL -> target.onSpotlightExternal()
+            BUTTON_SPOTLIGHT_DISMISS -> target.onSpotlightDismiss()
         }
     }
 
@@ -152,8 +155,8 @@ internal object DesktopMacMedia {
     }
 
     fun onSpotlightDismissed(hideApp: Boolean) {
-        if (!available || !hideApp) return
-        runCatching { nativeOnSpotlightDismissed(true) }
+        if (!available) return
+        runCatching { nativeOnSpotlightDismissed(hideApp) }
     }
 
     fun enforceMainMinSize(minW: Int, minH: Int) {

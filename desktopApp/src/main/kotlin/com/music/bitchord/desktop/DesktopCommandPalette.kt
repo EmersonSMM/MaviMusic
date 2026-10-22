@@ -171,6 +171,13 @@ internal fun DesktopCommandPalette(
     var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        delay(60)
+        runCatching { focusRequester.requestFocus() }
+        delay(120)
+        runCatching { focusRequester.requestFocus() }
+    }
+
     // Static / quick commands
     val quickCommands = remember {
         listOf(

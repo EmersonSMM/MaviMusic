@@ -1784,6 +1784,13 @@ fun BitChordDesktopApp() {
                         DesktopSpotlightState.toggle(external = true)
                     }
                 },
+                onSpotlightDismiss = {
+                    java.awt.EventQueue.invokeLater {
+                        if (!DesktopSpotlightState.isDragging) {
+                            DesktopSpotlightState.dismiss(returnFocusToExternalApp = false)
+                        }
+                    }
+                },
             ),
         )
         DesktopMacDockMenu.start(
