@@ -343,16 +343,25 @@ private fun desktopMain() = application {
                 (spotWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
                 spotWindow.rootPane.isOpaque = false
 
+                spotWindow.isAutoRequestFocus = true
+                spotWindow.isFocusable = true
+                spotWindow.focusableWindowState = true
+
                 spotWindow.setLocation(DesktopSpotlightState.screenX, DesktopSpotlightState.screenY)
-                spotWindow.toFront()
-                spotWindow.requestFocus()
-                spotWindow.requestFocusInWindow()
-                DesktopMacMedia.configureSpotlight(DesktopSpotlightState.openedExternally)
+                java.awt.EventQueue.invokeLater {
+                    spotWindow.toFront()
+                    spotWindow.requestFocus()
+                    spotWindow.requestFocusInWindow()
+                    DesktopMacMedia.configureSpotlight(DesktopSpotlightState.openedExternally)
+                }
 
                 val focusListener = object : java.awt.event.WindowFocusListener {
-                    override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {}
+                    private var hasGainedFocus = false
+                    override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {
+                        hasGainedFocus = true
+                    }
                     override fun windowLostFocus(e: java.awt.event.WindowEvent?) {
-                        if (!DesktopSpotlightState.isDragging) {
+                        if (hasGainedFocus && !DesktopSpotlightState.isDragging) {
                             DesktopSpotlightState.dismiss(returnFocusToExternalApp = false)
                         }
                     }

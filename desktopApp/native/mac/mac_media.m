@@ -2,7 +2,16 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
+#import <objc/runtime.h>
 #include <jni.h>
+
+static BOOL swizzled_canBecomeKeyWindow(id self, SEL _cmd) {
+    return YES;
+}
+
+static BOOL swizzled_canBecomeMainWindow(id self, SEL _cmd) {
+    return YES;
+}
 
 static JavaVM *g_jvm = NULL;
 static jclass g_mediaClass = NULL;
@@ -475,13 +484,33 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeCon
                 }
             }
             if (spotWin) {
-                [spotWin setLevel:NSStatusWindowLevel];
+                Class winClass = [spotWin class];
+                static dispatch_once_t onceToken;
+                dispatch_once(&onceToken, ^{
+                    Method mKey = class_getInstanceMethod(winClass, @selector(canBecomeKeyWindow));
+                    if (mKey) {
+                        method_setImplementation(mKey, (IMP)swizzled_canBecomeKeyWindow);
+                    } else {
+                        class_addMethod(winClass, @selector(canBecomeKeyWindow), (IMP)swizzled_canBecomeKeyWindow, "c@:");
+                    }
+
+                    Method mMain = class_getInstanceMethod(winClass, @selector(canBecomeMainWindow));
+                    if (mMain) {
+                        method_setImplementation(mMain, (IMP)swizzled_canBecomeMainWindow);
+                    } else {
+                        class_addMethod(winClass, @selector(canBecomeMainWindow), (IMP)swizzled_canBecomeMainWindow, "c@:");
+                    }
+                });
+
+                [spotWin setLevel:NSFloatingWindowLevel];
                 [spotWin setCollectionBehavior:(NSWindowCollectionBehaviorCanJoinAllSpaces |
                                                 NSWindowCollectionBehaviorFullScreenAuxiliary)];
                 [spotWin setMovableByWindowBackground:YES];
-                [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+                [spotWin setHidesOnDeactivate:NO];
+
+                [NSApp activateIgnoringOtherApps:YES];
                 [spotWin makeKeyAndOrderFront:nil];
-                [spotWin makeFirstResponder:spotWin.contentView];
+                [spotWin makeKeyWindow];
 
                 if (g_globalClickMonitor) {
                     [NSEvent removeMonitor:g_globalClickMonitor];
@@ -489,19 +518,6 @@ JNIEXPORT void JNICALL Java_com_music_bitchord_desktop_DesktopMacMedia_nativeCon
                 }
                 g_globalClickMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:(NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown)
                                                                              handler:^(NSEvent *event) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        dispatchButton(BUTTON_SPOTLIGHT_DISMISS);
-                    });
-                }];
-
-                if (g_resignKeyObserver) {
-                    [[NSNotificationCenter defaultCenter] removeObserver:g_resignKeyObserver];
-                    g_resignKeyObserver = nil;
-                }
-                g_resignKeyObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidResignKeyNotification
-                                                                                        object:spotWin
-                                                                                         queue:[NSOperationQueue mainQueue]
-                                                                                    usingBlock:^(NSNotification *note) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         dispatchButton(BUTTON_SPOTLIGHT_DISMISS);
                     });

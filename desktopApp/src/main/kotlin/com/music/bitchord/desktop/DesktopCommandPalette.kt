@@ -172,10 +172,10 @@ internal fun DesktopCommandPalette(
     var isSearching by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        delay(60)
-        runCatching { focusRequester.requestFocus() }
-        delay(120)
-        runCatching { focusRequester.requestFocus() }
+        repeat(8) { attempt ->
+            delay(35L * (attempt + 1))
+            runCatching { focusRequester.requestFocus() }
+        }
     }
 
     // Static / quick commands
@@ -345,7 +345,7 @@ internal fun DesktopCommandPalette(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = { /* prevent closing when clicking inside the card */ },
+                    onClick = { runCatching { focusRequester.requestFocus() } },
                 )
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
@@ -457,6 +457,11 @@ internal fun DesktopCommandPalette(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { runCatching { focusRequester.requestFocus() } },
+                        )
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -472,7 +477,36 @@ internal fun DesktopCommandPalette(
                         onValueChange = { query = it },
                         modifier = Modifier
                             .weight(1f)
-                            .focusRequester(focusRequester),
+                            .focusRequester(focusRequester)
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown) {
+                                    when (event.key) {
+                                        Key.DirectionDown -> {
+                                            if (displayItems.isNotEmpty()) {
+                                                selectedIndex = (selectedIndex + 1).coerceAtMost(displayItems.size - 1)
+                                                scope.launch { listState.animateScrollToItem(selectedIndex) }
+                                            }
+                                            true
+                                        }
+                                        Key.DirectionUp -> {
+                                            if (displayItems.isNotEmpty()) {
+                                                selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                                                scope.launch { listState.animateScrollToItem(selectedIndex) }
+                                            }
+                                            true
+                                        }
+                                        Key.Enter -> {
+                                            displayItems.getOrNull(selectedIndex)?.action?.invoke()
+                                            true
+                                        }
+                                        Key.Escape -> {
+                                            onDismiss()
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                } else false
+                            },
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
                             color = Color.White,
@@ -638,10 +672,6 @@ internal fun DesktopCommandPalette(
         ) {
             cardContent()
         }
-    }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
     }
 }
 
