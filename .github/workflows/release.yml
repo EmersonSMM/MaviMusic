@@ -8,8 +8,11 @@ on:
         description: "Version to stamp into the packages, without the leading v"
         required: true
 
+env:
+  REQUESTED_VERSION: ${{ inputs.version }}
+
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -21,6 +24,9 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -33,8 +39,9 @@ jobs:
       - name: Work out the version
         id: version
         run: |
-          version="${{ inputs.version }}"
+          version="${REQUESTED_VERSION}"
           [ -n "$version" ] || version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Use a stable MAJOR.MINOR.PATCH version"; exit 1; }
           echo "value=$version" >> "$GITHUB_OUTPUT"
           echo "Building $version"
 
@@ -54,32 +61,32 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pbitchord.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pmavimusic.version=${{ steps.version.outputs.value }}
 
       - name: Build deb, rpm and the app image
         run: |
           ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
-            -Pbitchord.version=${{ steps.version.outputs.value }}
+            -Pmavimusic.version=${{ steps.version.outputs.value }}
 
       - name: The analyser and models are in the jar
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/BitChord/lib/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/libbitchord_analysis.so'
+          jar=$(ls desktopApp/build/compose/binaries/main/app/MaviMusic/lib/app/desktopApp*.jar)
+          jar tf "$jar" | grep -q 'native/libmavimusic_analysis.so'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
 
       - name: Build the AppImage
         run: |
           desktopApp/packaging/appimage.sh \
-            desktopApp/build/compose/binaries/main/app/BitChord \
-            dist/BitChord-${{ steps.version.outputs.value }}-linux-x86_64.AppImage \
+            desktopApp/build/compose/binaries/main/app/MaviMusic \
+            dist/MaviMusic-${{ steps.version.outputs.value }}-linux-x86_64.AppImage \
             "$PWD/appimagetool.AppImage"
 
       - name: Collect
         run: |
           v=${{ steps.version.outputs.value }}
           mkdir -p dist
-          cp desktopApp/build/compose/binaries/main/deb/*.deb "dist/BitChord-$v-linux-amd64.deb"
-          cp desktopApp/build/compose/binaries/main/rpm/*.rpm "dist/BitChord-$v-linux-x86_64.rpm"
+          cp desktopApp/build/compose/binaries/main/deb/*.deb "dist/MaviMusic-$v-linux-amd64.deb"
+          cp desktopApp/build/compose/binaries/main/rpm/*.rpm "dist/MaviMusic-$v-linux-x86_64.rpm"
           ls -lh dist
 
       - uses: actions/upload-artifact@v4
@@ -92,6 +99,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -116,8 +126,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          version="${{ inputs.version }}"
+          version="${REQUESTED_VERSION}"
           [ -n "$version" ] || version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Use a stable MAJOR.MINOR.PATCH version"; exit 1; }
           echo "value=$version" >> "$GITHUB_OUTPUT"
           echo "Building $version"
 
@@ -128,30 +139,30 @@ jobs:
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :desktopUi:jvmTest :desktopApp:test "-Pbitchord.version=${{ steps.version.outputs.value }}"
+        run: .\gradlew.bat :shared:jvmTest :desktopUi:jvmTest :desktopApp:test "-Pmavimusic.version=${{ steps.version.outputs.value }}"
 
       - name: Build msi, exe and the app image
         run: |
-          .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pbitchord.version=${{ steps.version.outputs.value }}"
+          .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pmavimusic.version=${{ steps.version.outputs.value }}"
 
       - name: The analyser and models are in the jar
         shell: bash
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/BitChord/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/bitchord_analysis.dll'
+          jar=$(ls desktopApp/build/compose/binaries/main/app/MaviMusic/app/desktopApp*.jar)
+          jar tf "$jar" | grep -q 'native/mavimusic_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           # WinRT, so only MSVC can build it and only this job ever does.
-          jar tf "$jar" | grep -q 'native/bitchord_smtc.dll'
+          jar tf "$jar" | grep -q 'native/mavimusic_smtc.dll'
 
       - name: Collect
         shell: pwsh
         run: |
           $v = "${{ steps.version.outputs.value }}"
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/BitChord-$v-windows-x64.msi"
-          Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/BitChord-$v-windows-x64-setup.exe"
-          7z a -tzip -mx=5 "dist/BitChord-$v-windows-x64-portable.zip" `
-            "desktopApp/build/compose/binaries/main/app/BitChord/*" | Out-Null
+          Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/MaviMusic-$v-windows-x64.msi"
+          Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/MaviMusic-$v-windows-x64-setup.exe"
+          7z a -tzip -mx=5 "dist/MaviMusic-$v-windows-x64-portable.zip" `
+            "desktopApp/build/compose/binaries/main/app/MaviMusic/*" | Out-Null
           Get-ChildItem dist | Format-Table Name, Length
 
       - uses: actions/upload-artifact@v4
@@ -169,8 +180,13 @@ jobs:
           - os: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.os }}
+    env:
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -183,8 +199,9 @@ jobs:
       - name: Work out the version
         id: version
         run: |
-          version="${{ inputs.version }}"
+          version="${REQUESTED_VERSION}"
           [ -n "$version" ] || version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Use a stable MAJOR.MINOR.PATCH version"; exit 1; }
           echo "value=$version" >> "$GITHUB_OUTPUT"
           echo "Building $version"
 
@@ -196,30 +213,66 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pbitchord.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pmavimusic.version=${{ steps.version.outputs.value }}
+
+      - name: Validate update signing key and changelog
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          python3 - <<'PYTHON'
+          import base64, json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts/updates')
+          from create_signing_key import public_key
+          from publish_appcast import release_notes
+          secret = os.environ.get('SPARKLE_PRIVATE_KEY', '').strip()
+          if not secret:
+              raise SystemExit('Configure the SPARKLE_PRIVATE_KEY Actions secret before publishing updates')
+          config = json.loads(Path('desktopApp/packaging/updates/channel.json').read_text())
+          assert public_key(base64.b64decode(secret, validate=True)) == config['publicKey'], 'Signing key mismatch'
+          release_notes('CHANGELOG.md', os.environ['RELEASE_VERSION'])
+          PYTHON
+
+      - name: Import optional Developer ID certificate into an ephemeral CI keychain
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: python3 scripts/updates/ci_certificate.py import
 
       - name: Build DMG, PKG and the app bundle
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
-            -Pbitchord.version=${{ steps.version.outputs.value }}
+            -Pmavimusic.version=${{ steps.version.outputs.value }}
 
       - name: The analyser and models are in the jar
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/BitChord.app/Contents/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main/app/MaviMusic.app/Contents/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'models/.*\.onnx'
+          jar tf "$jar" | grep -q 'native/libmavimusic_analysis.dylib'
+          jar tf "$jar" | grep -q 'native/libmavimusic_mac_media.dylib'
 
       - name: Collect
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           v="${{ steps.version.outputs.value }}"
           arch="${{ matrix.arch }}"
           mkdir -p dist
           for f in desktopApp/build/compose/binaries/main/dmg/*.dmg; do
-            [ -f "$f" ] && cp "$f" "dist/BitChord-$v-macos-$arch.dmg"
+            [ -f "$f" ] && cp "$f" "dist/MaviMusic-$v-macos-$arch.dmg"
           done
           for f in desktopApp/build/compose/binaries/main/pkg/*.pkg; do
-            [ -f "$f" ] && cp "$f" "dist/BitChord-$v-macos-$arch.pkg"
+            [ -f "$f" ] && cp "$f" "dist/MaviMusic-$v-macos-$arch.pkg"
           done
-          ditto -c -k --keepParent desktopApp/build/compose/binaries/main/app/BitChord.app "dist/BitChord-$v-macos-$arch.zip"
+          ditto -c -k --sequesterRsrc --keepParent desktopApp/build/compose/binaries/main/app/MaviMusic.app "dist/MaviMusic-$v-macos-$arch.zip"
+          python3 scripts/updates/publish_appcast.py \
+            --archive "dist/MaviMusic-$v-macos-$arch.zip" --version "$v" --arch "$arch" \
+            --output "dist/appcast-$arch.xml" --signer desktopApp/build/sparkle/bin/sign_update
           ls -lh dist
 
       - uses: actions/upload-artifact@v4
@@ -227,11 +280,21 @@ jobs:
           name: macos-${{ matrix.arch }}-artifacts
           path: dist/*
 
+      - name: Remove temporary signing credentials
+        if: always()
+        run: python3 scripts/updates/ci_certificate.py cleanup
+
   release:
+    permissions:
+      contents: write
     name: Publish
     needs: [linux, windows, macos]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - uses: actions/download-artifact@v4
         with:
           pattern: "*-artifacts"
@@ -240,12 +303,31 @@ jobs:
 
       - run: ls -lh dist
 
+      - name: Prepare release notes
+        id: version
+        run: |
+          version="${REQUESTED_VERSION}"
+          [ -n "$version" ] || version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          python3 - "$version" <<'PYTHON' > release-notes.md
+          import sys
+          sys.path.insert(0, 'scripts/updates')
+          from publish_appcast import release_notes
+          print(release_notes('CHANGELOG.md', sys.argv[1]))
+          PYTHON
+          test -s dist/appcast-arm64.xml
+          test -s dist/appcast-x64.xml
+          (cd dist && shasum -a 256 * > SHA256SUMS)
+
+      # Publishing the reviewed draft makes /releases/latest/download/appcast-*.xml live atomically.
       - name: Draft the release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: BitChord ${{ github.ref_name }}
+          tag_name: v${{ steps.version.outputs.value }}
+          target_commitish: ${{ github.sha }}
+          name: MaviMusic ${{ steps.version.outputs.value }}
+          body_path: release-notes.md
           draft: true
           files: dist/*
         env:
