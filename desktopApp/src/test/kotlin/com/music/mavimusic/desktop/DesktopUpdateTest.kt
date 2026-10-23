@@ -1,0 +1,38 @@
+package com.music.mavimusic.desktop
+
+import java.nio.file.Files
+import kotlin.test.*
+
+class DesktopUpdateTest {
+    @Test fun `restart checkpoint restores only the same song once`() {
+        DesktopUpdateResume.save("track", 12345L)
+        assertEquals(DesktopUpdateResume.Checkpoint("track", 12345L), DesktopUpdateResume.consume("track"))
+        assertNull(DesktopUpdateResume.consume("track"))
+        DesktopUpdateResume.save("previous", 900L)
+        assertNull(DesktopUpdateResume.consume("different"))
+        assertNull(DesktopUpdateResume.consume("previous"))
+    }
+
+    @Test fun `restart checkpoint rejects corrupt state and clamps negative positions`() {
+        DesktopUpdateResume.save("track", -40L)
+        assertEquals(0L, assertNotNull(DesktopUpdateResume.consume("track")).positionMs)
+        DesktopPersistence().saveString("update_restart_checkpoint", "invalid json")
+        assertNull(DesktopUpdateResume.consume("track"))
+        DesktopUpdateResume.save(null, 120L)
+        assertNull(DesktopUpdateResume.consume(null))
+    }
+
+    @Test fun `native updater loads only from an installed app layout`() {
+        val folder = Files.createTempDirectory("mavimusic-update-path-")
+        try {
+            assertNull(DesktopMacUpdater.libraryPath(null))
+            assertNull(DesktopMacUpdater.libraryPath(folder.resolve("java")))
+            val launcher = folder.resolve("MaviMusic.app/Contents/MacOS/MaviMusic")
+            assertNull(DesktopMacUpdater.libraryPath(launcher))
+            val library = launcher.parent.parent.resolve("Frameworks/libmavimusic_updates.dylib")
+            Files.createDirectories(library.parent)
+            Files.write(library, byteArrayOf(1))
+            assertEquals(library, DesktopMacUpdater.libraryPath(launcher))
+        } finally { folder.toFile().deleteRecursively() }
+    }
+}

@@ -1,0 +1,48 @@
+# Gradle
+.gradle/
+.vscode/
+/build/
+/desktopApp/bin/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Local service configuration
+local.properties
+
+# Kotlin
+.kotlin/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+.navigation/
+captures/
+*.hprof
+
+# Log/OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Private signing material
+keystore.properties
+*.jks
+*.keystore
+*.p12
+
+# Project scratch / debug artifacts
+.shots/
+.tmp_verify/
+.debug/
+
+# AI agent configuration
+AGENTS.md
+/output/
+
+# Python release tooling
+__pycache__/
+*.py[cod]

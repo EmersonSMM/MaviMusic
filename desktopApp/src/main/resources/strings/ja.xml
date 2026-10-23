@@ -1,0 +1,352 @@
+<resources>
+    <string name="download_channel_name">ダウンロード</string>
+    <string name="cancel">キャンセル</string>
+    <string name="save">保存</string>
+    <string name="close">閉じる</string>
+    <string name="back">戻る</string>
+    <string name="settings">設定</string>
+    <string name="search">検索</string>
+    <string name="clear_search">検索をクリア</string>
+    <string name="library">ライブラリ</string>
+    <string name="play">再生</string>
+    <string name="explore">見つける</string>
+    <string name="downloads">ダウンロード</string>
+    <string name="downloaded_songs">ダウンロード済みの曲</string>
+    <string name="local_music">ローカルの音楽</string>
+    <string name="on_device">デバイス内</string>
+    <string name="playlists">プレイリスト</string>
+    <string name="new_playlist">新しいプレイリスト</string>
+    <string name="saved_to_youtube_music">YouTube Musicに保存済み</string>
+    <string name="sign_in">ログイン</string>
+    <string name="sign_out">ログアウト</string>
+    <string name="signed_in">ログイン済み</string>
+    <string name="not_signed_in">未ログイン</string>
+    <string name="retry">再試行</string>
+    <string name="shuffle">シャッフル</string>
+    <string name="more">その他</string>
+    <string name="add_to_playlist">プレイリストに追加</string>
+    <string name="download_all">すべてダウンロード</string>
+    <string name="top_songs">よく聴いた曲</string>
+    <string name="suggested">おすすめ</string>
+    <plurals name="song_count_plural">
+        <item quantity="other">%1$d曲</item>
+    </plurals>
+    <plurals name="artist_count">
+        <item quantity="other">%1$d組のアーティスト</item>
+    </plurals>
+    <plurals name="album_count">
+        <item quantity="other">%1$d枚のアルバム</item>
+    </plurals>
+    <string name="songs">曲</string>
+    <string name="artists">アーティスト</string>
+    <string name="albums">アルバム</string>
+    <string name="search_empty">YouTube Musicで何百万もの曲を検索できます。</string>
+    <string name="recent_searches">最近の検索</string>
+    <string name="clear">消去</string>
+    <string name="search_hint">アーティスト、曲、歌詞など</string>
+    <string name="recent_search_edit">「%1$s」を編集</string>
+    <string name="recent_search_remove">最近の検索から「%1$s」を削除</string>
+    <plurals name="downloading_song_count">
+        <item quantity="other">%1$d曲をダウンロード中</item>
+    </plurals>
+    <string name="source">ソース</string>
+    <string name="overridden">上書き済み</string>
+    <string name="test">テスト</string>
+    <string name="testing">テスト中…</string>
+    <string name="connected">接続済み</string>
+    <string name="account_integrations">アカウントと連携</string>
+    <string name="rich_presence">リッチプレゼンス</string>
+    <string name="scrobbling">スクロブリング</string>
+    <string name="now_playing">再生中</string>
+    <string name="selected">選択済み</string>
+    <string name="password">パスワード</string>
+    <string name="username">ユーザー名</string>
+    <string name="later">後で</string>
+    <string name="sign_in_youtube_music">YouTube Musicにログイン</string>
+    <string name="play_next">次に再生</string>
+    <string name="queue">再生キュー</string>
+    <string name="checking">確認中…</string>
+    <string name="failed">失敗しました</string>
+    <string name="widget_next">次へ</string>
+    <string name="widget_previous">前へ</string>
+    <string name="widget_open_mavimusic">MaviMusicを開く</string>
+    <string name="download_quality">ダウンロード品質</string>
+    <string name="spatial_audio">空間オーディオ</string>
+    <string name="spatial_audio_subtitle">よりイマーシブな体験のためにステレオトラックを広げます</string>
+    <string name="replay">Replay</string>
+    <string name="top_artists">よく聴いたアーティスト</string>
+    <string name="top_albums">よく聴いたアルバム</string>
+    <string name="cancel_all">すべてキャンセル</string>
+    <string name="language">言語</string>
+    <string name="app_language">アプリの言語</string>
+    <string name="english">英語</string>
+    <string name="german">ドイツ語</string>
+    <string name="polish">ポーランド語</string>
+    <string name="show_all">すべて表示</string>
+    <string name="grid_view">グリッド表示</string>
+    <string name="list_view">リスト表示</string>
+    <string name="switch_to_grid_view">グリッド表示に切り替え</string>
+    <string name="switch_to_list_view">リスト表示に切り替え</string>
+    <string name="audio_quality">音質</string>
+    <string name="playback">再生</string>
+    <string name="appearance">外観</string>
+    <string name="storage">ストレージ</string>
+    <string name="miscellaneous">その他</string>
+    <string name="blocking">ブロック中</string>
+    <string name="crossfade">クロスフェード</string>
+    <string name="automix">オートミックス [BETA]</string>
+    <string name="skip_silence">無音をスキップ</string>
+    <string name="equalizer">イコライザー</string>
+    <string name="equalizer_subtitle">デバイスのシステムパネル</string>
+    <string name="show_nerd_stats">技術情報を表示</string>
+    <string name="show_nerd_stats_subtitle">プレイヤーにコーデック、ビットレート、サンプルレートを表示</string>
+    <string name="theme">テーマ</string>
+    <string name="reduce_animation">アニメーションを減らす</string>
+    <string name="reduce_dynamic_blur">動的なぼかしを減らす</string>
+    <string name="reduce_dynamic_blur_subtitle">アプリ全体ですりガラス効果を単色の塗りつぶしに置き換えます</string>
+    <string name="full_screen_cover_art">全画面カバーアート</string>
+    <string name="synced_lyrics">同期歌詞</string>
+    <string name="synced_lyrics_subtitle">歌われている歌詞をプレイヤー上でハイライト表示します</string>
+    <string name="lyrics_sources">歌詞のソース</string>
+    <string name="song_cache_limit">曲キャッシュの上限</string>
+    <string name="dont_repeat_songs">今回のセッションでは曲を繰り返さない</string>
+    <string name="hide_volume_bar">音量バーを隠す</string>
+    <string name="hide_volume_bar_subtitle">メインプレイヤーから音量スライダーを削除します</string>
+    <string name="off">オフ</string>
+    <string name="low">低</string>
+    <string name="medium">中</string>
+    <string name="high">高</string>
+    <string name="standard">標準</string>
+    <string name="lossless">ロスレス</string>
+    <string name="system">システム</string>
+    <string name="light">ライト</string>
+    <string name="dark">ダーク</string>
+    <string name="full_screen_cover_art_subtitle">正方形のジャケットの代わりにカバーをプレイヤーの端まで広げます</string>
+    <string name="filter_non_music_audio">音楽以外の音声を除外</string>
+    <string name="filter_non_music_audio_subtitle">30秒未満のクリップ、WAVファイル、ボイスメモ、録音、システム音を非表示にします</string>
+    <string name="performance">パフォーマンス</string>
+    <string name="beta">ベータ</string>
+    <string name="enable">有効にする</string>
+    <string name="activity">アクティビティ</string>
+    <string name="activity_dialog_message">カードの上に表示される動詞です。</string>
+    <string name="add_to_queue">再生キューに追加</string>
+    <string name="always_on">常にオン</string>
+    <string name="api_token">APIトークン</string>
+    <string name="autoplay">AutoPlay</string>
+    <string name="buttons">ボタン</string>
+    <string name="clear_name">名前を消去</string>
+    <string name="close_lyrics">歌詞を閉じる</string>
+    <string name="translate_lyrics">歌詞を翻訳</string>
+    <string name="show_original_lyrics">元の歌詞を表示</string>
+    <string name="translating_lyrics_to">%1$sに翻訳中…</string>
+    <string name="lyrics_translated_to">%1$sに翻訳済み</string>
+    <string name="lyrics_already_in_language">この歌詞はすでに%1$sです</string>
+    <string name="lyrics_translation_unavailable">現在、翻訳を利用できません</string>
+    <string name="create_playlist">プレイリストを作成</string>
+    <string name="customize_card">カードをカスタマイズ</string>
+    <string name="customize_card_subtitle">ステータス、文言、両方のボタン</string>
+    <string name="delete">削除</string>
+    <string name="disconnect">接続を解除</string>
+    <string name="discord">Discord</string>
+    <string name="discord_button_variables">{song_name}、{artist_name}、{album_name}は現在の曲に置き換えられます。</string>
+    <string name="discord_token">Discordトークン</string>
+    <string name="dislike">低評価</string>
+    <string name="done">完了</string>
+    <string name="download">ダウンロード</string>
+    <string name="downloaded">ダウンロード済み</string>
+    <string name="drag_to_reorder">ドラッグして並べ替え</string>
+    <string name="enabled">有効</string>
+    <string name="first_button">1つ目のボタン</string>
+    <string name="high_quality">高音質</string>
+    <string name="instrumental">インストゥルメンタル</string>
+    <string name="pause">一時停止</string>
+    <string name="lyrics_by">歌詞提供：%1$s</string>
+    <string name="no_lyrics_found">歌詞が見つかりません</string>
+    <string name="lyrics_saved_with_download">このダウンロードに歌詞を保存済み</string>
+    <string name="shuffle_on">シャッフル: オン</string>
+    <string name="shuffle_off">シャッフル: オフ</string>
+    <string name="repeat_one">1曲をリピート</string>
+    <string name="repeat_all">すべてリピート</string>
+    <string name="repeat_off">リピート: オフ</string>
+    <string name="autoplay_on">AutoPlay: オン</string>
+    <string name="autoplay_off">AutoPlay: オフ</string>
+    <string name="autoplay_queue_description">次に再生される、似た曲</string>
+    <string name="autoplay_empty_description">似た曲が引き続き再生されます</string>
+    <string name="upgrading_quality">音質をアップグレード中</string>
+    <string name="hi_res_lossless">ハイレゾロスレス</string>
+    <string name="bit_depth">%1$dビット</string>
+    <string name="mono">モノラル</string>
+    <string name="stereo">ステレオ</string>
+    <string name="channel_count">%1$dch</string>
+    <string name="history">履歴</string>
+    <string name="sources">ソース</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="library_sign_in_description">Googleアカウントにログインすると、高評価した曲、プレイリスト、YouTube Musicの履歴が表示されます。</string>
+    <string name="starting">開始しています</string>
+    <string name="nothing_downloading">ダウンロード中の項目はありません</string>
+    <string name="library_empty">ライブラリにはまだ何もありません</string>
+    <string name="no_results">結果がありません</string>
+    <plurals name="downloads_failed_count">
+        <item quantity="other">ダウンロード · %1$d件失敗</item>
+    </plurals>
+    <plurals name="download_waiting_count">
+        <item quantity="other">%1$d件待機中</item>
+    </plurals>
+    <plurals name="download_done_count">
+        <item quantity="other">%1$d件完了</item>
+    </plurals>
+    <plurals name="download_failed_count">
+        <item quantity="other">%1$d件失敗</item>
+    </plurals>
+    <plurals name="all_songs_downloaded">
+        <item quantity="other">%1$d曲すべてダウンロード済み</item>
+    </plurals>
+    <string name="your_playlists">あなたのプレイリスト</string>
+    <string name="about_artist">アーティストについて</string>
+    <string name="close_search">検索を閉じる</string>
+    <string name="less">折りたたむ</string>
+    <plurals name="hour_count">
+        <item quantity="other">%1$d時間</item>
+    </plurals>
+    <plurals name="songs_will_play_next">
+        <item quantity="other">%1$d曲が次に再生されます</item>
+    </plurals>
+    <plurals name="songs_added_to_queue">
+        <item quantity="other">%1$d曲を再生キューに追加しました</item>
+    </plurals>
+    <plurals name="log_copied_line_count">
+        <item quantity="other">ログをコピーしました · %1$d行</item>
+    </plurals>
+    <string name="lastfm_now_playing_subtitle">今聴いているものをLast.fmに反映します</string>
+    <string name="lead_with_song">曲名を先頭に</string>
+    <string name="lead_with_song_subtitle">太字の行にアーティストではなく曲名を表示します</string>
+    <string name="like">高評価</string>
+    <string name="listenbrainz_token">ListenBrainzトークン</string>
+    <string name="lyrics_not_available">歌詞は利用できません</string>
+    <string name="name">名前</string>
+    <string name="no_lyrics_for_track">この曲の歌詞はありません</string>
+    <string name="open_album">アルバムを開く</string>
+    <string name="open_artist">アーティストを開く</string>
+    <string name="playlist_name">プレイリスト名</string>
+    <string name="presence">プレゼンス</string>
+    <string name="preview">プレビュー</string>
+    <string name="prioritize_syllable_lyrics">音節単位の歌詞を優先</string>
+    <string name="prioritize_syllable_lyrics_subtitle">行単位で一致しても、単語ごとの歌詞を求めて検索を続けます</string>
+    <string name="queued">待機中</string>
+    <string name="remove">削除</string>
+    <string name="remove_from_liked">高く評価した音楽から削除</string>
+    <string name="remove_from_playlist">このプレイリストから削除</string>
+    <string name="remove_from_queue">再生キューから削除</string>
+    <string name="reset_to_default">デフォルトに戻す</string>
+    <string name="saved_to_downloads">ダウンロードに保存済み</string>
+    <string name="scrobble_delay">スクロブル遅延</string>
+    <string name="scrobble_tracks">トラックをスクロブル</string>
+    <string name="scrobble_tracks_subtitle">再生をLast.fmのタイムラインに記録します</string>
+    <string name="search_this_list">このリスト内を検索</string>
+    <string name="second_button">2つ目のボタン</string>
+    <string name="share">共有</string>
+    <string name="show_what_playing">再生中の曲を表示する</string>
+    <string name="sleep_timer">スリープタイマー</string>
+    <string name="sources_order_header">ソース（この順番で試行）</string>
+    <string name="spdc_token">sp_dcトークン</string>
+    <string name="spotify_canvas_setup">Spotify Canvasの設定</string>
+    <string name="spotify_canvas_setup_description">Spotify Canvasを使うには、Spotifyのsp_dc cookieを入力してください。</string>
+    <string name="spotify_canvas_setup_steps">1. ブラウザでopen.spotify.comにログインします。\n2. デベロッパーツールを開き、[Application]と[Cookies]を選択します。\n3. sp_dc cookieの値をコピーします。\n4. 下に貼り付けます。</string>
+    <string name="status">ステータス</string>
+    <string name="status_dialog_message">プレゼンスが有効な間、アカウントに表示される内容です。</string>
+    <string name="subscribers">登録者数 %1$s人</string>
+    <string name="token">トークン</string>
+    <string name="up_next">次の曲</string>
+    <plurals name="minute_count">
+        <item quantity="other">%1$d分</item>
+    </plurals>
+    <string name="default_replay_holder">MaviMusicリスナー</string>
+    <string name="listening_shape">あなたの再生パターン</string>
+    <string name="member_since">登録日</string>
+    <string name="midday">正午</string>
+    <string name="midnight">真夜中</string>
+    <string name="minutes">分</string>
+    <string name="minutes_listened">再生時間（分）</string>
+    <string name="not_enough_listening">再生履歴がまだ十分ではありません</string>
+    <string name="pinned">ピン留め済み</string>
+    <string name="saved">保存済み</string>
+    <string name="top_album">トップアルバム</string>
+    <string name="top_artist">トップアーティスト</string>
+    <string name="top_song">トップ曲</string>
+    <string name="your_listening_experience">あなたの再生体験</string>
+    <plurals name="replay_artist_count">
+        <item quantity="other">%1$s組のアーティスト</item>
+    </plurals>
+    <plurals name="replay_play_count">
+        <item quantity="other">%1$s回再生</item>
+    </plurals>
+    <plurals name="replay_song_count">
+        <item quantity="other">%1$s曲</item>
+    </plurals>
+    <string name="all_audio_folders">すべてのオーディオフォルダ</string>
+    <string name="local_music_folder">ローカルミュージックフォルダ</string>
+    <string name="sort_title_ascending">アルファベット順（A→Z）</string>
+    <string name="sort_title_descending">アルファベット順（Z→A）</string>
+    <string name="use_all_audio_folders">すべてのオーディオフォルダを使用</string>
+    <string name="use_all_audio_folders_subtitle">フォルダの制限を解除し、デバイス全体の音楽をスキャンします</string>
+    <string name="album">アルバム</string>
+    <string name="artist">アーティスト</string>
+    <string name="playlist">プレイリスト</string>
+    <string name="open">開く</string>
+    <string name="pin">ピン留め</string>
+    <string name="rename">名前を変更</string>
+    <string name="downloading">ダウンロード中</string>
+    <string name="running">実行中</string>
+    <string name="automix_analysis_status">オートミックス · この曲：%1$s · 次：%2$s</string>
+    <string name="analysis_complete">分析済み</string>
+    <string name="analysis_refining">分析済み、調整中…</string>
+    <string name="analysis_in_progress">分析中…</string>
+    <string name="waiting">待機中</string>
+    <string name="import_failed">インポートに失敗しました：%1$s</string>
+    <plurals name="listening_month_count">
+        <item quantity="other">%1$dか月の再生履歴</item>
+    </plurals>
+    <string-array name="lyrics_intro_lines">
+        <item>ビートが着地中</item>
+        <item>曲がスタート</item>
+        <item>ウォーミングアップ中</item>
+        <item>ムードを演出中</item>
+        <item>まずベース、言葉は後で</item>
+        <item>お楽しみに</item>
+        <item>盛り上がりを感じて</item>
+        <item>今はグルーヴだけ</item>
+        <item>サビが近づいています</item>
+        <item>少し間を置いて</item>
+        <item>ボーカルの出番</item>
+        <item>最初の音が鳴った</item>
+    </string-array>
+    <string-array name="lyrics_loading_lines">
+        <item>歌詞を取得中</item>
+        <item>言葉を探しています</item>
+        <item>歌詞を呼び出し中</item>
+        <item>歌詞を読み込み中</item>
+        <item>歌詞カードを確認中</item>
+        <item>歌詞集を検索中</item>
+        <item>歌詞を並べています</item>
+        <item>言葉がもうすぐ届きます</item>
+        <item>アーカイブを確認中</item>
+        <item>ぴったりの言葉を探しています</item>
+        <item>歌詞がまとまりつつあります</item>
+        <item>もう少しで言葉が見つかりそう</item>
+    </string-array>
+
+    <!-- Listen together -->
+    <string name="listen_together">一緒に聴く</string>
+    <string name="listen_together_in_party">パーティー中 · %1$s</string>
+    <string name="listen_together_server">パーティーサーバー</string>
+    <string name="listen_together_create">パーティーを作る</string>
+    <string name="listen_together_create_subtitle">友だちに共有するコードを取得</string>
+    <string name="listen_together_code">パーティーコード</string>
+    <string name="listen_together_you">あなた</string>
+    <string name="listen_together_host">ホスト</string>
+    <string name="listen_together_away">離席中 — 枠は確保されています</string>
+    <string name="listen_together_jam">%1$s のジャム</string>
+    <string name="listen_together_jam_unnamed">一緒に聴いています</string>
+    <string name="listen_together_open">一緒に聴く</string>
+    <string name="listen_together_open_count">一緒に聴いています · %1$d</string>
+</resources>

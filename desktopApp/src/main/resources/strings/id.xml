@@ -1,0 +1,352 @@
+<resources>
+    <string name="download_channel_name">Unduhan</string>
+    <string name="cancel">Batal</string>
+    <string name="save">Simpan</string>
+    <string name="close">Tutup</string>
+    <string name="back">Kembali</string>
+    <string name="settings">Pengaturan</string>
+    <string name="search">Cari</string>
+    <string name="clear_search">Hapus pencarian</string>
+    <string name="library">Perpustakaan</string>
+    <string name="play">Putar</string>
+    <string name="explore">Jelajahi</string>
+    <string name="downloads">Unduhan</string>
+    <string name="downloaded_songs">Lagu yang diunduh</string>
+    <string name="local_music">Musik Lokal</string>
+    <string name="on_device">Di Perangkat</string>
+    <string name="playlists">Playlist</string>
+    <string name="new_playlist">Playlist baru</string>
+    <string name="saved_to_youtube_music">Disimpan ke YouTube Music</string>
+    <string name="sign_in">Masuk</string>
+    <string name="sign_out">Keluar</string>
+    <string name="signed_in">Sudah masuk</string>
+    <string name="not_signed_in">Belum masuk</string>
+    <string name="retry">Coba lagi</string>
+    <string name="shuffle">Acak</string>
+    <string name="more">Lainnya</string>
+    <string name="add_to_playlist">Tambahkan ke playlist</string>
+    <string name="download_all">Unduh semua</string>
+    <string name="top_songs">Lagu teratas</string>
+    <string name="suggested">Disarankan</string>
+    <plurals name="song_count_plural">
+        <item quantity="other">%1$d lagu</item>
+    </plurals>
+    <plurals name="artist_count">
+        <item quantity="other">%1$d artis</item>
+    </plurals>
+    <plurals name="album_count">
+        <item quantity="other">%1$d album</item>
+    </plurals>
+    <string name="songs">Lagu</string>
+    <string name="artists">Artis</string>
+    <string name="albums">Album</string>
+    <string name="search_empty">Cari jutaan lagu di YouTube Music.</string>
+    <string name="recent_searches">Pencarian terbaru</string>
+    <string name="clear">Hapus</string>
+    <string name="search_hint">Artis, Lagu, Lirik, dan Lainnya</string>
+    <string name="recent_search_edit">Edit “%1$s”</string>
+    <string name="recent_search_remove">Hapus “%1$s” dari pencarian terbaru</string>
+    <plurals name="downloading_song_count">
+        <item quantity="other">Mengunduh %1$d lagu</item>
+    </plurals>
+    <string name="source">Sumber</string>
+    <string name="overridden">Ditimpa</string>
+    <string name="test">Uji</string>
+    <string name="testing">Menguji…</string>
+    <string name="connected">Terhubung</string>
+    <string name="account_integrations">Akun &amp; integrasi</string>
+    <string name="rich_presence">Rich presence</string>
+    <string name="scrobbling">Scrobbling</string>
+    <string name="now_playing">Sedang diputar</string>
+    <string name="selected">Dipilih</string>
+    <string name="password">Kata sandi</string>
+    <string name="username">Nama pengguna</string>
+    <string name="later">Nanti</string>
+    <string name="sign_in_youtube_music">Masuk ke YouTube Music</string>
+    <string name="play_next">Putar berikutnya</string>
+    <string name="queue">Antrean</string>
+    <string name="checking">Memeriksa…</string>
+    <string name="failed">Gagal</string>
+    <string name="widget_next">Berikutnya</string>
+    <string name="widget_previous">Sebelumnya</string>
+    <string name="widget_open_mavimusic">Buka MaviMusic</string>
+    <string name="download_quality">Kualitas unduhan</string>
+    <string name="spatial_audio">Audio spasial</string>
+    <string name="spatial_audio_subtitle">Melebarkan trek stereo untuk pengalaman yang lebih imersif</string>
+    <string name="replay">Replay</string>
+    <string name="top_artists">Artis teratas</string>
+    <string name="top_albums">Album teratas</string>
+    <string name="cancel_all">Batalkan semua</string>
+    <string name="language">Bahasa</string>
+    <string name="app_language">Bahasa aplikasi</string>
+    <string name="english">Inggris</string>
+    <string name="german">Jerman</string>
+    <string name="polish">Polandia</string>
+    <string name="show_all">Lihat semua</string>
+    <string name="grid_view">Grid</string>
+    <string name="list_view">Daftar</string>
+    <string name="switch_to_grid_view">Beralih ke tampilan grid</string>
+    <string name="switch_to_list_view">Beralih ke tampilan daftar</string>
+    <string name="audio_quality">Kualitas audio</string>
+    <string name="playback">Pemutaran</string>
+    <string name="appearance">Tampilan</string>
+    <string name="storage">Penyimpanan</string>
+    <string name="miscellaneous">Lainnya</string>
+    <string name="blocking">Memblokir</string>
+    <string name="crossfade">Crossfade</string>
+    <string name="automix">Automix [BETA]</string>
+    <string name="skip_silence">Lewati keheningan</string>
+    <string name="equalizer">Equalizer</string>
+    <string name="equalizer_subtitle">Panel sistem perangkat Anda</string>
+    <string name="show_nerd_stats">Tampilkan statistik teknis</string>
+    <string name="show_nerd_stats_subtitle">Codec, bitrate, dan sample rate pada pemutar</string>
+    <string name="theme">Tema</string>
+    <string name="reduce_animation">Kurangi animasi</string>
+    <string name="reduce_dynamic_blur">Kurangi blur dinamis</string>
+    <string name="reduce_dynamic_blur_subtitle">Mengganti kaca buram dengan warna solid di seluruh aplikasi</string>
+    <string name="full_screen_cover_art">Sampul layar penuh</string>
+    <string name="synced_lyrics">Lirik tersinkron</string>
+    <string name="synced_lyrics_subtitle">Menyorot kata-kata di pemutar saat dinyanyikan</string>
+    <string name="lyrics_sources">Sumber lirik</string>
+    <string name="song_cache_limit">Batas cache lagu</string>
+    <string name="dont_repeat_songs">Jangan ulangi lagu dalam sesi ini</string>
+    <string name="hide_volume_bar">Sembunyikan bilah volume</string>
+    <string name="hide_volume_bar_subtitle">Menghapus penggeser volume dari pemutar utama</string>
+    <string name="off">Nonaktif</string>
+    <string name="low">Rendah</string>
+    <string name="medium">Sedang</string>
+    <string name="high">Tinggi</string>
+    <string name="standard">Standar</string>
+    <string name="lossless">Lossless</string>
+    <string name="system">Sistem</string>
+    <string name="light">Terang</string>
+    <string name="dark">Gelap</string>
+    <string name="full_screen_cover_art_subtitle">Membuat sampul memenuhi tepi pemutar alih-alih berbentuk persegi</string>
+    <string name="filter_non_music_audio">Filter audio non-musik</string>
+    <string name="filter_non_music_audio_subtitle">Menyembunyikan klip di bawah 30 detik, file WAV, catatan suara, rekaman, dan suara sistem</string>
+    <string name="performance">Performa</string>
+    <string name="beta">Beta</string>
+    <string name="enable">Aktifkan</string>
+    <string name="activity">Aktivitas</string>
+    <string name="activity_dialog_message">Kata kerja yang ditampilkan di atas kartu.</string>
+    <string name="add_to_queue">Tambahkan ke antrean</string>
+    <string name="always_on">Selalu aktif</string>
+    <string name="api_token">Token API</string>
+    <string name="autoplay">AutoPlay</string>
+    <string name="buttons">Tombol</string>
+    <string name="clear_name">Hapus nama</string>
+    <string name="close_lyrics">Tutup lirik</string>
+    <string name="translate_lyrics">Terjemahkan lirik</string>
+    <string name="show_original_lyrics">Tampilkan lirik asli</string>
+    <string name="translating_lyrics_to">Menerjemahkan ke %1$s…</string>
+    <string name="lyrics_translated_to">Diterjemahkan ke %1$s</string>
+    <string name="lyrics_already_in_language">Lirik ini sudah dalam %1$s</string>
+    <string name="lyrics_translation_unavailable">Terjemahan tidak tersedia saat ini</string>
+    <string name="create_playlist">Buat playlist</string>
+    <string name="customize_card">Sesuaikan kartu</string>
+    <string name="customize_card_subtitle">Status, teks, dan kedua tombol</string>
+    <string name="delete">Hapus</string>
+    <string name="disconnect">Putuskan</string>
+    <string name="discord">Discord</string>
+    <string name="discord_button_variables">{song_name}, {artist_name}, dan {album_name} akan digantikan dengan trek yang sedang diputar.</string>
+    <string name="discord_token">Token Discord</string>
+    <string name="dislike">Tidak suka</string>
+    <string name="done">Selesai</string>
+    <string name="download">Unduh</string>
+    <string name="downloaded">Diunduh</string>
+    <string name="drag_to_reorder">Seret untuk mengatur ulang urutan</string>
+    <string name="enabled">Aktif</string>
+    <string name="first_button">Tombol pertama</string>
+    <string name="high_quality">Kualitas tinggi</string>
+    <string name="instrumental">Instrumental</string>
+    <string name="pause">Jeda</string>
+    <string name="lyrics_by">Lirik oleh %1$s</string>
+    <string name="no_lyrics_found">Lirik tidak ditemukan</string>
+    <string name="lyrics_saved_with_download">Lirik disimpan bersama unduhan ini</string>
+    <string name="shuffle_on">Acak aktif</string>
+    <string name="shuffle_off">Acak nonaktif</string>
+    <string name="repeat_one">Ulangi satu</string>
+    <string name="repeat_all">Ulangi semua</string>
+    <string name="repeat_off">Ulangi nonaktif</string>
+    <string name="autoplay_on">AutoPlay aktif</string>
+    <string name="autoplay_off">AutoPlay nonaktif</string>
+    <string name="autoplay_queue_description">Musik serupa, dipilih untuk diputar berikutnya</string>
+    <string name="autoplay_empty_description">Musik serupa akan terus diputar</string>
+    <string name="upgrading_quality">Meningkatkan kualitas</string>
+    <string name="hi_res_lossless">Hi-Res Lossless</string>
+    <string name="bit_depth">%1$d-bit</string>
+    <string name="mono">Mono</string>
+    <string name="stereo">Stereo</string>
+    <string name="channel_count">%1$d kanal</string>
+    <string name="history">Riwayat</string>
+    <string name="sources">Sumber</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="library_sign_in_description">Masuk ke akun Google Anda untuk melihat lagu yang disukai, playlist, dan riwayat YouTube Music Anda.</string>
+    <string name="starting">Memulai</string>
+    <string name="nothing_downloading">Tidak ada yang sedang diunduh</string>
+    <string name="library_empty">Belum ada apa pun di perpustakaan Anda</string>
+    <string name="no_results">Tidak ada hasil</string>
+    <plurals name="downloads_failed_count">
+        <item quantity="other">Unduhan · %1$d gagal</item>
+    </plurals>
+    <plurals name="download_waiting_count">
+        <item quantity="other">%1$d menunggu</item>
+    </plurals>
+    <plurals name="download_done_count">
+        <item quantity="other">%1$d selesai</item>
+    </plurals>
+    <plurals name="download_failed_count">
+        <item quantity="other">%1$d gagal</item>
+    </plurals>
+    <plurals name="all_songs_downloaded">
+        <item quantity="other">Semua %1$d lagu diunduh</item>
+    </plurals>
+    <string name="your_playlists">Playlist Anda</string>
+    <string name="about_artist">Tentang artis</string>
+    <string name="close_search">Tutup pencarian</string>
+    <string name="less">Lebih sedikit</string>
+    <plurals name="hour_count">
+        <item quantity="other">%1$d jam</item>
+    </plurals>
+    <plurals name="songs_will_play_next">
+        <item quantity="other">%1$d lagu akan diputar berikutnya</item>
+    </plurals>
+    <plurals name="songs_added_to_queue">
+        <item quantity="other">%1$d lagu ditambahkan ke antrean</item>
+    </plurals>
+    <plurals name="log_copied_line_count">
+        <item quantity="other">Log disalin · %1$d baris</item>
+    </plurals>
+    <string name="lastfm_now_playing_subtitle">Perbarui Last.fm dengan apa yang sedang Anda dengarkan</string>
+    <string name="lead_with_song">Utamakan lagu</string>
+    <string name="lead_with_song_subtitle">Menempatkan judul pada baris tebal, bukan artis</string>
+    <string name="like">Suka</string>
+    <string name="listenbrainz_token">Token ListenBrainz</string>
+    <string name="lyrics_not_available">Lirik tidak tersedia</string>
+    <string name="name">Nama</string>
+    <string name="no_lyrics_for_track">Tidak ada lirik untuk trek ini</string>
+    <string name="open_album">Buka album</string>
+    <string name="open_artist">Buka artis</string>
+    <string name="playlist_name">Nama playlist</string>
+    <string name="presence">Presence</string>
+    <string name="preview">Pratinjau</string>
+    <string name="prioritize_syllable_lyrics">Prioritaskan lirik per suku kata</string>
+    <string name="prioritize_syllable_lyrics_subtitle">Terus mencari melebihi kecocokan tersinkron per baris untuk mendapatkan lirik kata demi kata</string>
+    <string name="queued">Dalam antrean</string>
+    <string name="remove">Hapus</string>
+    <string name="remove_from_liked">Hapus dari Musik yang Disukai</string>
+    <string name="remove_from_playlist">Hapus dari playlist ini</string>
+    <string name="remove_from_queue">Hapus dari antrean</string>
+    <string name="reset_to_default">Setel ulang ke default</string>
+    <string name="saved_to_downloads">Disimpan ke Unduhan</string>
+    <string name="scrobble_delay">Penundaan scrobble</string>
+    <string name="scrobble_tracks">Scrobble trek</string>
+    <string name="scrobble_tracks_subtitle">Catat putaran ke linimasa Last.fm Anda</string>
+    <string name="search_this_list">Cari di daftar ini</string>
+    <string name="second_button">Tombol kedua</string>
+    <string name="share">Bagikan</string>
+    <string name="show_what_playing">Tampilkan apa yang sedang saya putar</string>
+    <string name="sleep_timer">Timer tidur</string>
+    <string name="sources_order_header">Sumber, dicoba dalam urutan ini</string>
+    <string name="spdc_token">Token sp_dc</string>
+    <string name="spotify_canvas_setup">Penyiapan Spotify Canvas</string>
+    <string name="spotify_canvas_setup_description">Untuk menggunakan Spotify Canvas, berikan cookie sp_dc Spotify Anda.</string>
+    <string name="spotify_canvas_setup_steps">1. Masuk di open.spotify.com melalui browser.\n2. Buka Developer Tools, lalu Application dan Cookies.\n3. Salin nilai cookie sp_dc.\n4. Tempel di bawah ini.</string>
+    <string name="status">Status</string>
+    <string name="status_dialog_message">Apa yang ditampilkan akun Anda saat presence aktif.</string>
+    <string name="subscribers">%1$s pelanggan</string>
+    <string name="token">Token</string>
+    <string name="up_next">Berikutnya</string>
+    <plurals name="minute_count">
+        <item quantity="other">%1$d menit</item>
+    </plurals>
+    <string name="default_replay_holder">Pendengar MaviMusic</string>
+    <string name="listening_shape">Pola mendengarkan Anda</string>
+    <string name="member_since">Anggota sejak</string>
+    <string name="midday">tengah hari</string>
+    <string name="midnight">tengah malam</string>
+    <string name="minutes">Menit</string>
+    <string name="minutes_listened">Menit yang didengarkan</string>
+    <string name="not_enough_listening">Belum cukup riwayat mendengarkan</string>
+    <string name="pinned">Disematkan</string>
+    <string name="saved">Disimpan</string>
+    <string name="top_album">Album teratas</string>
+    <string name="top_artist">Artis teratas</string>
+    <string name="top_song">Lagu teratas</string>
+    <string name="your_listening_experience">Pengalaman mendengarkan Anda</string>
+    <plurals name="replay_artist_count">
+        <item quantity="other">%1$s artis</item>
+    </plurals>
+    <plurals name="replay_play_count">
+        <item quantity="other">%1$s putaran</item>
+    </plurals>
+    <plurals name="replay_song_count">
+        <item quantity="other">%1$s lagu</item>
+    </plurals>
+    <string name="all_audio_folders">Semua folder audio</string>
+    <string name="local_music_folder">Folder musik lokal</string>
+    <string name="sort_title_ascending">Alfabet (A ke Z)</string>
+    <string name="sort_title_descending">Alfabet (Z ke A)</string>
+    <string name="use_all_audio_folders">Gunakan semua folder audio</string>
+    <string name="use_all_audio_folders_subtitle">Menghapus batas folder dan memindai musik di seluruh perangkat</string>
+    <string name="album">album</string>
+    <string name="artist">artis</string>
+    <string name="playlist">playlist</string>
+    <string name="open">Buka</string>
+    <string name="pin">Sematkan</string>
+    <string name="rename">Ganti nama</string>
+    <string name="downloading">Mengunduh</string>
+    <string name="running">Berjalan</string>
+    <string name="automix_analysis_status">Automix · lagu ini: %1$s · berikutnya: %2$s</string>
+    <string name="analysis_complete">dianalisis</string>
+    <string name="analysis_refining">dianalisis, menyempurnakan…</string>
+    <string name="analysis_in_progress">menganalisis…</string>
+    <string name="waiting">menunggu</string>
+    <string name="import_failed">Impor gagal: %1$s</string>
+    <plurals name="listening_month_count">
+        <item quantity="other">%1$d bulan mendengarkan</item>
+    </plurals>
+    <string-array name="lyrics_intro_lines">
+        <item>Ketukan mulai terasa</item>
+        <item>Lagu segera dimulai</item>
+        <item>Pemanasan dulu</item>
+        <item>Membangun suasana</item>
+        <item>Bass dulu, kata-kata menyusul</item>
+        <item>Tunggu saja</item>
+        <item>Rasakan build-nya</item>
+        <item>Groove-nya dulu ya</item>
+        <item>Reff-nya segera tiba</item>
+        <item>Biarkan mengalir</item>
+        <item>Vokal segera masuk</item>
+        <item>Nada pertama masuk</item>
+    </string-array>
+    <string-array name="lyrics_loading_lines">
+        <item>Mengambil lirik</item>
+        <item>Mencari kata-katanya</item>
+        <item>Mengambil baitnya</item>
+        <item>Lirik sedang dimuat</item>
+        <item>Memeriksa lembar lirik</item>
+        <item>Menelusuri buku lagu</item>
+        <item>Menyusun liriknya</item>
+        <item>Kata-katanya segera tiba</item>
+        <item>Memeriksa arsip</item>
+        <item>Mencari kata yang pas</item>
+        <item>Lirik mulai tersusun</item>
+        <item>Hampir menemukan kata-katanya</item>
+    </string-array>
+
+    <!-- Listen together -->
+    <string name="listen_together">Dengar bersama</string>
+    <string name="listen_together_in_party">Dalam pesta · %1$s</string>
+    <string name="listen_together_server">Server pesta</string>
+    <string name="listen_together_create">Buat pesta</string>
+    <string name="listen_together_create_subtitle">Dapatkan kode untuk dibagikan ke teman</string>
+    <string name="listen_together_code">Kode pesta</string>
+    <string name="listen_together_you">Kamu</string>
+    <string name="listen_together_host">Tuan rumah</string>
+    <string name="listen_together_away">Sedang menjauh — tempatnya ditahan</string>
+    <string name="listen_together_jam">Sesi %1$s</string>
+    <string name="listen_together_jam_unnamed">Mendengar bersama</string>
+    <string name="listen_together_open">Dengar bersama</string>
+    <string name="listen_together_open_count">Mendengar bersama · %1$d</string>
+</resources>
