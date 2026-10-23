@@ -63,6 +63,17 @@ jobs:
       - name: Tests
         run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pmavimusic.version=${{ steps.version.outputs.value }}
 
+      - name: Preserve failing test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tests-linux
+          path: |
+            desktopApp/build/reports/tests/
+            desktopApp/build/test-results/
+            desktopUi/build/reports/tests/
+            shared/build/reports/tests/
+
       - name: Build deb, rpm and the app image
         run: |
           ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
@@ -141,6 +152,17 @@ jobs:
       - name: Tests
         run: .\gradlew.bat :shared:jvmTest :desktopUi:jvmTest :desktopApp:test "-Pmavimusic.version=${{ steps.version.outputs.value }}"
 
+      - name: Preserve failing test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tests-windows
+          path: |
+            desktopApp/build/reports/tests/
+            desktopApp/build/test-results/
+            desktopUi/build/reports/tests/
+            shared/build/reports/tests/
+
       - name: Build msi, exe and the app image
         run: |
           .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pmavimusic.version=${{ steps.version.outputs.value }}"
@@ -173,6 +195,7 @@ jobs:
   macos:
     name: macOS · dmg, pkg, zip (${{ matrix.arch }})
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-14
@@ -214,6 +237,17 @@ jobs:
 
       - name: Tests
         run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pmavimusic.version=${{ steps.version.outputs.value }}
+
+      - name: Preserve failing test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tests-macos-${{ matrix.arch }}
+          path: |
+            desktopApp/build/reports/tests/
+            desktopApp/build/test-results/
+            desktopUi/build/reports/tests/
+            shared/build/reports/tests/
 
       - name: Validate update signing key and changelog
         env:
