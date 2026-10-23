@@ -1,0 +1,374 @@
+<resources>
+    <string name="download_channel_name">Descargas</string>
+    <string name="cancel">Cancelar</string>
+    <string name="save">Guardar</string>
+    <string name="close">Cerrar</string>
+    <string name="back">Volver</string>
+    <string name="settings">Ajustes</string>
+    <string name="search">Buscar</string>
+    <string name="clear_search">Borrar búsqueda</string>
+    <string name="library">Biblioteca</string>
+    <string name="play">Reproducir</string>
+    <string name="explore">Explorar</string>
+    <string name="downloads">Descargas</string>
+    <string name="downloaded_songs">Canciones descargadas</string>
+    <string name="local_music">Música local</string>
+    <string name="on_device">En el dispositivo</string>
+    <string name="playlists">Listas de reproducción</string>
+    <string name="new_playlist">Nueva lista</string>
+    <string name="saved_to_youtube_music">Guardada en YouTube Music</string>
+    <string name="sign_in">Iniciar sesión</string>
+    <string name="sign_out">Cerrar sesión</string>
+    <string name="signed_in">Sesión iniciada</string>
+    <string name="not_signed_in">Sesión no iniciada</string>
+    <string name="retry">Reintentar</string>
+    <string name="shuffle">Aleatorio</string>
+    <string name="more">Más</string>
+    <string name="add_to_playlist">Añadir a la lista</string>
+    <string name="download_all">Descargar todo</string>
+    <string name="top_songs">Canciones principales</string>
+    <string name="suggested">Sugerencias</string>
+    <plurals name="song_count_plural">
+        <item quantity="one">%1$d canción</item>
+        <item quantity="other">%1$d canciones</item>
+    </plurals>
+    <plurals name="artist_count">
+        <item quantity="one">%1$d artista</item>
+        <item quantity="other">%1$d artistas</item>
+    </plurals>
+    <plurals name="album_count">
+        <item quantity="one">%1$d álbum</item>
+        <item quantity="other">%1$d álbumes</item>
+    </plurals>
+    <string name="songs">Canciones</string>
+    <string name="artists">Artistas</string>
+    <string name="albums">Álbumes</string>
+    <string name="search_empty">Busca millones de canciones en YouTube Music.</string>
+    <string name="recent_searches">Búsquedas recientes</string>
+    <string name="clear">Borrar</string>
+    <string name="search_hint">Artistas, canciones, letras y más</string>
+    <string name="recent_search_edit">Editar “%1$s”</string>
+    <string name="recent_search_remove">Quitar “%1$s” de las búsquedas recientes</string>
+    <plurals name="downloading_song_count">
+        <item quantity="one">Descargando %1$d canción</item>
+        <item quantity="other">Descargando %1$d canciones</item>
+    </plurals>
+    <string name="source">Fuentes</string>
+    <string name="overridden">Anulado</string>
+    <string name="test">Probar</string>
+    <string name="testing">Probando…</string>
+    <string name="connected">Conectado</string>
+    <string name="account_integrations">Cuenta e integraciones</string>
+    <string name="rich_presence">Presencia enriquecida</string>
+    <string name="scrobbling">Registro de reproducciones</string>
+    <string name="now_playing">Reproduciendo</string>
+    <string name="selected">Seleccionado</string>
+    <string name="password">Contraseña</string>
+    <string name="username">Nombre de usuario</string>
+    <string name="later">Más tarde</string>
+    <string name="sign_in_youtube_music">Iniciar sesión en YouTube Music</string>
+    <string name="play_next">Reproducir después</string>
+    <string name="queue">Cola</string>
+    <string name="checking">Comprobando…</string>
+    <string name="failed">Error</string>
+    <string name="widget_next">Siguiente</string>
+    <string name="widget_previous">Anterior</string>
+    <string name="widget_open_mavimusic">Abrir MaviMusic</string>
+    <string name="download_quality">Calidad de descarga</string>
+    <string name="spatial_audio">Audio espacial</string>
+    <string name="spatial_audio_subtitle">Amplía las pistas estéreo para una experiencia más inmersiva</string>
+    <string name="replay">Resumen anual</string>
+    <string name="top_artists">Artistas principales</string>
+    <string name="top_albums">Álbumes principales</string>
+    <string name="cancel_all">Cancelar todo</string>
+    <string name="language">Idioma</string>
+    <string name="app_language">Idioma de la aplicación</string>
+    <string name="english">Inglés</string>
+    <string name="german">Alemán</string>
+    <string name="polish">Polaco</string>
+    <string name="show_all">Ver todo</string>
+    <string name="grid_view">Cuadrícula</string>
+    <string name="list_view">Lista</string>
+    <string name="switch_to_grid_view">Cambiar a vista de cuadrícula</string>
+    <string name="switch_to_list_view">Cambiar a vista de lista</string>
+    <string name="audio_quality">Calidad de audio</string>
+    <string name="playback">Reproducción</string>
+    <string name="appearance">Apariencia</string>
+    <string name="storage">Almacenamiento</string>
+    <string name="miscellaneous">Varios</string>
+    <string name="blocking">Bloqueando</string>
+    <string name="crossfade">Fundido cruzado</string>
+    <string name="automix">Mezcla automática [BETA]</string>
+    <string name="automix_performance">Rendimiento de mezcla automática</string>
+    <string name="automix_performance_subtitle">Define cuánta CPU puede usar el análisis en segundo plano</string>
+    <string name="skip_silence">Omitir silencios</string>
+    <string name="equalizer">Ecualizador</string>
+    <string name="equalizer_subtitle">El panel de audio del sistema</string>
+    <string name="show_nerd_stats">Mostrar datos técnicos</string>
+    <string name="show_nerd_stats_subtitle">Códec, tasa de bits y frecuencia de muestreo en el reproductor</string>
+    <string name="theme">Tema</string>
+    <string name="reduce_animation">Reducir animaciones</string>
+    <string name="reduce_dynamic_blur">Reducir desenfoque dinámico</string>
+    <string name="reduce_dynamic_blur_subtitle">Cambia el cristal esmerilado por fondos sólidos</string>
+    <string name="full_screen_cover_art">Portada a pantalla completa</string>
+    <string name="synced_lyrics">Letras sincronizadas</string>
+    <string name="synced_lyrics_subtitle">Ilumina las palabras mientras se cantan</string>
+    <string name="lyrics_sources">Fuentes de letras</string>
+    <string name="song_cache_limit">Límite de caché de canciones</string>
+    <string name="dont_repeat_songs">No repetir canciones en esta sesión</string>
+    <string name="hide_volume_bar">Ocultar barra de volumen</string>
+    <string name="hide_volume_bar_subtitle">Quita el control de volumen del reproductor principal</string>
+    <string name="off">Desactivado</string>
+    <string name="low">Baja</string>
+    <string name="medium">Media</string>
+    <string name="high">Alta</string>
+    <string name="standard">Estándar</string>
+    <string name="lossless">Sin pérdida</string>
+    <string name="system">Sistema</string>
+    <string name="light">Claro</string>
+    <string name="dark">Oscuro</string>
+    <string name="full_screen_cover_art_subtitle">Lleva la portada a los bordes del reproductor en lugar de mostrarla cuadrada</string>
+    <string name="filter_non_music_audio">Filtrar audios que no son música</string>
+    <string name="filter_non_music_audio_subtitle">Oculta clips de menos de 30 segundos, archivos WAV, notas de voz, grabaciones y sonidos del sistema</string>
+    <string name="performance">Rendimiento</string>
+    <string name="beta">Beta</string>
+    <string name="enable">Activar</string>
+    <string name="activity">Actividad</string>
+    <string name="activity_dialog_message">El verbo que aparece encima de la tarjeta.</string>
+    <string name="add_to_queue">Agregar a la cola</string>
+    <string name="always_on">Siempre activo</string>
+    <string name="api_token">Token de API</string>
+    <string name="autoplay">Reproducción automática</string>
+    <string name="buttons">Botones</string>
+    <string name="clear_name">Borrar nombre</string>
+    <string name="close_lyrics">Cerrar letra</string>
+    <string name="translate_lyrics">Traducir letra</string>
+    <string name="show_original_lyrics">Mostrar letra original</string>
+    <string name="translating_lyrics_to">Traduciendo al %1$s…</string>
+    <string name="lyrics_translated_to">Traducida al %1$s</string>
+    <string name="lyrics_already_in_language">Esta letra ya está en %1$s</string>
+    <string name="lyrics_translation_unavailable">La traducción no está disponible ahora</string>
+    <string name="create_playlist">Crear playlist</string>
+    <string name="customize_card">Personalizar la tarjeta</string>
+    <string name="customize_card_subtitle">Estado, textos y ambos botones</string>
+    <string name="delete">Eliminar</string>
+    <string name="disconnect">Desconectar</string>
+    <string name="discord">Discord</string>
+    <string name="discord_button_variables">{song_name}, {artist_name} y {album_name} se reemplazan por los datos de la canción actual.</string>
+    <string name="discord_token">Token de Discord</string>
+    <string name="dislike">No me gusta</string>
+    <string name="done">Listo</string>
+    <string name="download">Descargar</string>
+    <string name="downloaded">Descargada</string>
+    <string name="drag_to_reorder">Arrastrar para reordenar</string>
+    <string name="enabled">Activado</string>
+    <string name="first_button">Primer botón</string>
+    <string name="high_quality">Alta calidad</string>
+    <string name="instrumental">Instrumental</string>
+    <string name="pause">Pausar</string>
+    <string name="lyrics_by">Letra de %1$s</string>
+    <string name="no_lyrics_found">No se encontró la letra</string>
+    <string name="lyrics_saved_with_download">Letra guardada con esta descarga</string>
+    <string name="shuffle_on">Orden aleatorio activado</string>
+    <string name="shuffle_off">Orden aleatorio desactivado</string>
+    <string name="repeat_one">Repetir una canción</string>
+    <string name="repeat_all">Repetir todo</string>
+    <string name="repeat_off">Repetición desactivada</string>
+    <string name="autoplay_on">AutoPlay activado</string>
+    <string name="autoplay_off">AutoPlay desactivado</string>
+    <string name="autoplay_queue_description">Música similar elegida para reproducirse a continuación</string>
+    <string name="autoplay_empty_description">Seguirá reproduciéndose música similar</string>
+    <string name="upgrading_quality">Mejorando la calidad</string>
+    <string name="hi_res_lossless">Audio sin pérdida de alta resolución</string>
+    <string name="bit_depth">%1$d bits</string>
+    <string name="mono">Mono</string>
+    <string name="stereo">Estéreo</string>
+    <string name="channel_count">%1$d canales</string>
+    <string name="history">Historial</string>
+    <string name="sources">Fuentes</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="library_sign_in_description">Inicia sesión en tu cuenta de Google para ver tus canciones favoritas, playlists e historial de YouTube Music.</string>
+    <string name="starting">Iniciando</string>
+    <string name="nothing_downloading">No hay descargas activas</string>
+    <string name="library_empty">Tu biblioteca todavía está vacía</string>
+    <string name="no_results">No hay resultados</string>
+    <plurals name="downloads_failed_count">
+        <item quantity="one">Descargas · %1$d fallida</item>
+        <item quantity="other">Descargas · %1$d fallidas</item>
+    </plurals>
+    <plurals name="download_waiting_count">
+        <item quantity="one">%1$d en espera</item>
+        <item quantity="other">%1$d en espera</item>
+    </plurals>
+    <plurals name="download_done_count">
+        <item quantity="one">%1$d completada</item>
+        <item quantity="other">%1$d completadas</item>
+    </plurals>
+    <plurals name="download_failed_count">
+        <item quantity="one">%1$d fallida</item>
+        <item quantity="other">%1$d fallidas</item>
+    </plurals>
+    <plurals name="all_songs_downloaded">
+        <item quantity="one">Se descargó %1$d canción</item>
+        <item quantity="other">Se descargaron %1$d canciones</item>
+    </plurals>
+    <string name="your_playlists">Tus playlists</string>
+    <string name="about_artist">Acerca del artista</string>
+    <string name="close_search">Cerrar búsqueda</string>
+    <string name="less">Menos</string>
+    <plurals name="hour_count">
+        <item quantity="one">%1$d hora</item>
+        <item quantity="other">%1$d horas</item>
+    </plurals>
+    <plurals name="songs_will_play_next">
+        <item quantity="one">%1$d canción se reproducirá a continuación</item>
+        <item quantity="other">%1$d canciones se reproducirán a continuación</item>
+    </plurals>
+    <plurals name="songs_added_to_queue">
+        <item quantity="one">Se añadió %1$d canción a la cola</item>
+        <item quantity="other">Se añadieron %1$d canciones a la cola</item>
+    </plurals>
+    <plurals name="log_copied_line_count">
+        <item quantity="one">Registro copiado · %1$d línea</item>
+        <item quantity="other">Registro copiado · %1$d líneas</item>
+    </plurals>
+    <string name="lastfm_now_playing_subtitle">Actualiza Last.fm con lo que estás escuchando</string>
+    <string name="lead_with_song">Mostrar primero la canción</string>
+    <string name="lead_with_song_subtitle">Coloca el título en la línea destacada en vez del artista</string>
+    <string name="like">Me gusta</string>
+    <string name="listenbrainz_token">Token de ListenBrainz</string>
+    <string name="lyrics_not_available">Letra no disponible</string>
+    <string name="name">Nombre</string>
+    <string name="no_lyrics_for_track">No hay letra para esta canción</string>
+    <string name="open_album">Abrir álbum</string>
+    <string name="open_artist">Abrir artista</string>
+    <string name="playlist_name">Nombre de la playlist</string>
+    <string name="presence">Presencia</string>
+    <string name="preview">Vista previa</string>
+    <string name="prioritize_syllable_lyrics">Priorizar letras por sílabas</string>
+    <string name="prioritize_syllable_lyrics_subtitle">Sigue buscando letras palabra por palabra aunque ya haya una sincronizada por líneas</string>
+    <string name="queued">En cola</string>
+    <string name="remove">Quitar</string>
+    <string name="remove_from_liked">Quitar de canciones favoritas</string>
+    <string name="remove_from_playlist">Quitar de esta playlist</string>
+    <string name="remove_from_queue">Quitar de la cola</string>
+    <string name="reset_to_default">Restablecer valores predeterminados</string>
+    <string name="saved_to_downloads">Guardada en Descargas</string>
+    <string name="scrobble_delay">Retraso del scrobbling</string>
+    <string name="scrobble_tracks">Registrar canciones</string>
+    <string name="scrobble_tracks_subtitle">Registra las reproducciones en tu historial de Last.fm</string>
+    <string name="search_this_list">Buscar en esta lista</string>
+    <string name="second_button">Segundo botón</string>
+    <string name="share">Compartir</string>
+    <string name="show_what_playing">Mostrar lo que estoy escuchando</string>
+    <string name="sleep_timer">Temporizador</string>
+    <string name="sources_order_header">Fuentes, en orden de prioridad</string>
+    <string name="spdc_token">Token sp_dc</string>
+    <string name="spotify_canvas_setup">Configuración de Spotify Canvas</string>
+    <string name="spotify_canvas_setup_description">Para usar Spotify Canvas, proporciona tu cookie sp_dc de Spotify.</string>
+    <string name="spotify_canvas_setup_steps">1. Inicia sesión en open.spotify.com desde un navegador.\n2. Abre las herramientas de desarrollo, entra en Aplicación y luego en Cookies.\n3. Copia el valor de la cookie sp_dc.\n4. Pégalo abajo.</string>
+    <string name="status">Estado</string>
+    <string name="status_dialog_message">Lo que muestra tu cuenta mientras la presencia está activa.</string>
+    <string name="subscribers">%1$s suscriptores</string>
+    <string name="token">Token</string>
+    <string name="up_next">A continuación</string>
+    <plurals name="minute_count">
+        <item quantity="one">%1$d minuto</item>
+        <item quantity="other">%1$d minutos</item>
+    </plurals>
+    <string name="default_replay_holder">Oyente de MaviMusic</string>
+    <string name="listening_shape">Tus hábitos de reproducción</string>
+    <string name="member_since">Miembro desde</string>
+    <string name="midday">mediodía</string>
+    <string name="midnight">medianoche</string>
+    <string name="minutes">Minutos</string>
+    <string name="minutes_listened">Minutos escuchados</string>
+    <string name="not_enough_listening">Todavía no hay suficientes reproducciones</string>
+    <string name="pinned">Fijado</string>
+    <string name="saved">Guardado</string>
+    <string name="top_album">Álbum principal</string>
+    <string name="top_artist">Artista principal</string>
+    <string name="top_song">Canción principal</string>
+    <string name="your_listening_experience">Tu experiencia musical</string>
+    <plurals name="replay_artist_count">
+        <item quantity="one">%1$s artista</item>
+        <item quantity="other">%1$s artistas</item>
+    </plurals>
+    <plurals name="replay_play_count">
+        <item quantity="one">%1$s reproducción</item>
+        <item quantity="other">%1$s reproducciones</item>
+    </plurals>
+    <plurals name="replay_song_count">
+        <item quantity="one">%1$s canción</item>
+        <item quantity="other">%1$s canciones</item>
+    </plurals>
+    <string name="all_audio_folders">Todas las carpetas de audio</string>
+    <string name="local_music_folder">Carpeta de música local</string>
+    <string name="sort_title_ascending">Alfabético (A a Z)</string>
+    <string name="sort_title_descending">Alfabético (Z a A)</string>
+    <string name="use_all_audio_folders">Usar todas las carpetas de audio</string>
+    <string name="use_all_audio_folders_subtitle">Quita el límite de carpeta y busca música en todo el dispositivo</string>
+    <string name="album">álbum</string>
+    <string name="artist">artista</string>
+    <string name="playlist">playlist</string>
+    <string name="open">Abrir</string>
+    <string name="pin">Fijar</string>
+    <string name="rename">Cambiar nombre</string>
+    <string name="downloading">Descargando</string>
+    <string name="running">Activo</string>
+    <string name="automix_analysis_status">Automix · canción actual: %1$s · siguiente: %2$s</string>
+    <string name="analysis_complete">analizada</string>
+    <string name="analysis_refining">analizada, ajustando…</string>
+    <string name="analysis_in_progress">analizando…</string>
+    <string name="waiting">en espera</string>
+    <string name="import_failed">Error al importar: %1$s</string>
+    <plurals name="listening_month_count">
+        <item quantity="one">%1$d mes de reproducciones</item>
+        <item quantity="other">%1$d meses de reproducciones</item>
+    </plurals>
+    <string-array name="lyrics_intro_lines">
+        <item>Entra el ritmo</item>
+        <item>Empieza la canción</item>
+        <item>Tomando impulso</item>
+        <item>Creando el ambiente</item>
+        <item>Primero el bajo, luego la voz</item>
+        <item>Espera un momento</item>
+        <item>Siente cómo crece</item>
+        <item>Por ahora, solo el ritmo</item>
+        <item>Ya viene el estribillo</item>
+        <item>Deja que respire</item>
+        <item>Entra la voz</item>
+        <item>Suenan las primeras notas</item>
+    </string-array>
+    <string-array name="lyrics_loading_lines">
+        <item>Buscando la letra</item>
+        <item>Encontrando las palabras</item>
+        <item>Buscando los versos</item>
+        <item>Cargando la letra</item>
+        <item>Consultando la letra</item>
+        <item>Buscando en el cancionero</item>
+        <item>Sincronizando la letra</item>
+        <item>Las palabras están en camino</item>
+        <item>Consultando los archivos</item>
+        <item>Buscando las palabras correctas</item>
+        <item>La letra está tomando forma</item>
+        <item>La letra está casi lista</item>
+    </string-array>
+    <string name="accounts">Cuentas</string>
+    <string name="profiles">Perfiles</string>
+    <string name="personal">Personal</string>
+    <!-- Listen together -->
+    <string name="listen_together">Escuchar juntos</string>
+    <string name="listen_together_in_party">En una fiesta · %1$s</string>
+    <string name="listen_together_server">Servidor de la fiesta</string>
+    <string name="listen_together_create">Crear una fiesta</string>
+    <string name="listen_together_create_subtitle">Consigue un código para compartir con tus amigos</string>
+    <string name="listen_together_code">Código de la fiesta</string>
+    <string name="listen_together_you">Tú</string>
+    <string name="listen_together_host">Anfitrión</string>
+    <string name="listen_together_away">Ausente — su plaza está reservada</string>
+    <string name="listen_together_jam">Jam de %1$s</string>
+    <string name="listen_together_jam_unnamed">Escuchando juntos</string>
+    <string name="listen_together_open">Escuchar juntos</string>
+    <string name="listen_together_open_count">Escuchando juntos · %1$d</string>
+</resources>
