@@ -100,6 +100,10 @@ internal class DesktopAudioSink {
         } else {
             mixer.getLine(infoFor(accepted)) as SourceDataLine
         }
+        val previous = line
+        if (previous != null && DesktopPlatform.isMac) {
+            closeLine(previous)
+        }
         try {
             // Roughly a fifth of a second in the device's hands.
             opened.open(accepted.toAudioFormat(), accepted.byteRate / 5)
@@ -109,16 +113,14 @@ internal class DesktopAudioSink {
             throw failure
         }
 
-        // Do not tear down the working route until its replacement is known to have opened. A
-        // Bluetooth device can disappear between enumeration and this call; that must not turn a
-        // failed switch into silent playback on every other device too.
-        val previous = line
         line = opened
         openedOn = mixer?.mixerInfo?.name
         openedForSelection = selectedDevice
         format = accepted
         diagnosticBlocks = 0
-        closeLine(previous)
+        if (!DesktopPlatform.isMac) {
+            closeLine(previous)
+        }
         DesktopTrackLog.log(
             "audio output opened: ${deviceName ?: "system default"} · " +
                 "${accepted.sampleRate} Hz · ${accepted.channels} ch · " +

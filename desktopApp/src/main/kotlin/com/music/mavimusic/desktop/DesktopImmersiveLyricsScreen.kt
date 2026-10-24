@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -59,10 +60,16 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import com.music.mavimusic.ui.icons.MaviMusicIcons
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -119,6 +126,13 @@ internal enum class ImmersiveColorPalette(
     val tertiary: Color,
     val accent: Color,
 ) {
+    DYNAMIC_ARTWORK(
+        label = "Color de carátula",
+        primary = Color(0xFF00F0FF),
+        secondary = Color(0xFFFF007F),
+        tertiary = Color(0xFF7C4DFF),
+        accent = Color(0xFFFFD600),
+    ),
     NEON_CYBERPUNK(
         label = "Neón Cyberpunk",
         primary = Color(0xFF00F0FF),
@@ -163,6 +177,30 @@ internal enum class ImmersiveColorPalette(
     ),
 }
 
+@Immutable
+internal data class VisualizerPalette(
+    val primary: Color,
+    val secondary: Color,
+    val tertiary: Color,
+    val accent: Color,
+) {
+    companion object {
+        val Default = VisualizerPalette(
+            primary = Color(0xFF00FF66),
+            secondary = Color(0xFF76FF03),
+            tertiary = Color(0xFF00E5FF),
+            accent = Color(0xFFFFD600),
+        )
+    }
+}
+
+internal enum class VisualizerSubmenu {
+    NONE,
+    MODES,
+    PALETTES,
+    SETTINGS,
+}
+
 /**
  * Full-window / fullscreen immersive visualizer & lyrics experience.
  * Includes classic Winamp Oscilloscope waves, LED Spectrum Analyzer with falling peak-hold dots,
@@ -203,12 +241,30 @@ internal fun DesktopImmersiveLyricsScreen(
 ) {
     val artworkPalette = rememberArtworkColors(song.thumbnailUrl, null)
     var visualMode by remember { mutableStateOf(ImmersiveVisualMode.WINAMP_WAVES) }
-    var colorPalette by remember { mutableStateOf(ImmersiveColorPalette.NEON_CYBERPUNK) }
+    var colorPalette by remember { mutableStateOf(ImmersiveColorPalette.DYNAMIC_ARTWORK) }
     var classicEffectsMode by remember { mutableStateOf(false) }
     var showLyricsInWinamp by remember { mutableStateOf(false) }
     var showQueuePanel by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
-    var showPaletteMenu by remember { mutableStateOf(false) }
+    var activeSubmenu by remember { mutableStateOf(VisualizerSubmenu.NONE) }
+
+    val activePalette = remember(colorPalette, artworkPalette) {
+        if (colorPalette == ImmersiveColorPalette.DYNAMIC_ARTWORK && artworkPalette.colors.size >= 4) {
+            VisualizerPalette(
+                primary = artworkPalette.colors[0],
+                secondary = artworkPalette.colors[1],
+                tertiary = artworkPalette.colors[2],
+                accent = artworkPalette.colors[3],
+            )
+        } else {
+            VisualizerPalette(
+                primary = colorPalette.primary,
+                secondary = colorPalette.secondary,
+                tertiary = colorPalette.tertiary,
+                accent = colorPalette.accent,
+            )
+        }
+    }
 
     Box(
         modifier = modifier
@@ -242,7 +298,7 @@ internal fun DesktopImmersiveLyricsScreen(
         } else {
             WinampVisualizerBackdrop(
                 mode = visualMode,
-                palette = colorPalette,
+                palette = activePalette,
                 classicMode = classicEffectsMode,
                 isPlaying = isPlaying,
                 songSeed = song.videoId.hashCode(),
@@ -479,171 +535,326 @@ internal fun DesktopImmersiveLyricsScreen(
                 }
             }
 
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = {
-                    menuExpanded = false
-                    showPaletteMenu = false
-                },
-                modifier = Modifier
-                    .background(Color(0xFF141418))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
-            ) {
-                ImmersiveVisualMode.entries.forEach { mode ->
-                    val selected = visualMode == mode
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                mode.label,
-                                color = if (selected) Color(0xFF00E5FF) else Color.White,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.5.sp,
-                            )
-                        },
-                        onClick = {
-                            visualMode = mode
-                            menuExpanded = false
-                        },
-                        trailingIcon = if (selected) {
-                            {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                        } else null,
-                    )
-                }
-
-                HorizontalDivider(
-                    color = Color.White.copy(alpha = 0.12f),
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-
-                // Color Palette Selector Item
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(colorPalette.primary),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Paleta: ${colorPalette.label}",
-                                color = Color.White,
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
+            if (menuExpanded) {
+                Popup(
+                    alignment = Alignment.BottomStart,
+                    offset = IntOffset(0, -44),
+                    onDismissRequest = {
+                        menuExpanded = false
+                        activeSubmenu = VisualizerSubmenu.NONE
                     },
-                    onClick = { showPaletteMenu = !showPaletteMenu },
-                )
-
-                if (showPaletteMenu) {
-                    ImmersiveColorPalette.entries.forEach { pal ->
-                        val palSelected = colorPalette == pal
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(9.dp)
-                                            .clip(CircleShape)
-                                            .background(pal.primary),
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        pal.label,
-                                        color = if (palSelected) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
-                                        fontSize = 12.sp,
-                                    )
-                                }
-                            },
-                            onClick = {
-                                colorPalette = pal
-                                showPaletteMenu = false
-                            },
-                            trailingIcon = if (palSelected) {
-                                {
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    ) {
+                        // Main Root Menu (Windows XP style)
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xF214141A),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                            shadowElevation = 14.dp,
+                            modifier = Modifier.width(220.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                     Icon(
-                                        Icons.Rounded.Check,
+                                        Icons.Rounded.Tune,
                                         contentDescription = null,
                                         tint = Color(0xFF00E5FF),
                                         modifier = Modifier.size(14.dp),
                                     )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "Ajustes Visuales",
+                                        color = Color.White.copy(alpha = 0.60f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
                                 }
-                            } else null,
-                            modifier = Modifier.padding(start = 12.dp),
-                        )
+
+                                HorizontalDivider(
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                )
+
+                                // Item 1: Efectos visuales ▸
+                                val isModesOpen = activeSubmenu == VisualizerSubmenu.MODES
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            activeSubmenu = if (isModesOpen) VisualizerSubmenu.NONE else VisualizerSubmenu.MODES
+                                        }
+                                        .background(if (isModesOpen) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+                                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Rounded.GraphicEq,
+                                            contentDescription = null,
+                                            tint = if (isModesOpen) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(
+                                            text = "Efectos visuales",
+                                            color = if (isModesOpen) Color(0xFF00E5FF) else Color.White,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (isModesOpen) FontWeight.SemiBold else FontWeight.Normal,
+                                        )
+                                    }
+                                    Icon(
+                                        MaviMusicIcons.ChevronRight,
+                                        contentDescription = null,
+                                        tint = if (isModesOpen) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+
+                                // Item 2: Paleta de color ▸
+                                val isPalOpen = activeSubmenu == VisualizerSubmenu.PALETTES
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            activeSubmenu = if (isPalOpen) VisualizerSubmenu.NONE else VisualizerSubmenu.PALETTES
+                                        }
+                                        .background(if (isPalOpen) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+                                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(11.dp)
+                                                .clip(CircleShape)
+                                                .background(activePalette.primary),
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            text = "Paleta de color",
+                                            color = if (isPalOpen) Color(0xFF00E5FF) else Color.White,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (isPalOpen) FontWeight.SemiBold else FontWeight.Normal,
+                                        )
+                                    }
+                                    Icon(
+                                        MaviMusicIcons.ChevronRight,
+                                        contentDescription = null,
+                                        tint = if (isPalOpen) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+
+                                // Item 3: Opciones y DJ ▸
+                                val isSettingsOpen = activeSubmenu == VisualizerSubmenu.SETTINGS
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            activeSubmenu = if (isSettingsOpen) VisualizerSubmenu.NONE else VisualizerSubmenu.SETTINGS
+                                        }
+                                        .background(if (isSettingsOpen) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+                                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Rounded.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = if (isSettingsOpen) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(
+                                            text = "Ajustes retro y DJ",
+                                            color = if (isSettingsOpen) Color(0xFF00E5FF) else Color.White,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (isSettingsOpen) FontWeight.SemiBold else FontWeight.Normal,
+                                        )
+                                    }
+                                    Icon(
+                                        MaviMusicIcons.ChevronRight,
+                                        contentDescription = null,
+                                        tint = if (isSettingsOpen) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            }
+                        }
+
+                        // Cascading Submenu Flyout to the Right
+                        if (activeSubmenu != VisualizerSubmenu.NONE) {
+                            Spacer(Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xF714141A),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                                shadowElevation = 16.dp,
+                                modifier = Modifier.width(235.dp),
+                            ) {
+                                Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                                    when (activeSubmenu) {
+                                        VisualizerSubmenu.MODES -> {
+                                            ImmersiveVisualMode.entries.forEach { mode ->
+                                                val selected = visualMode == mode
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            visualMode = mode
+                                                            menuExpanded = false
+                                                            activeSubmenu = VisualizerSubmenu.NONE
+                                                        }
+                                                        .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+                                                        .padding(horizontal = 14.dp, vertical = 7.5.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                ) {
+                                                    Text(
+                                                        text = mode.label,
+                                                        color = if (selected) Color(0xFF00E5FF) else Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                                    )
+                                                    if (selected) {
+                                                        Icon(
+                                                            Icons.Rounded.Check,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF00E5FF),
+                                                            modifier = Modifier.size(15.dp),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        VisualizerSubmenu.PALETTES -> {
+                                            ImmersiveColorPalette.entries.forEach { pal ->
+                                                val palSelected = colorPalette == pal
+                                                val dotColor = if (pal == ImmersiveColorPalette.DYNAMIC_ARTWORK && artworkPalette.colors.isNotEmpty()) {
+                                                    artworkPalette.colors[0]
+                                                } else {
+                                                    pal.primary
+                                                }
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            colorPalette = pal
+                                                            menuExpanded = false
+                                                            activeSubmenu = VisualizerSubmenu.NONE
+                                                        }
+                                                        .background(if (palSelected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+                                                        .padding(horizontal = 14.dp, vertical = 7.5.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(10.dp)
+                                                                .clip(CircleShape)
+                                                                .background(dotColor),
+                                                        )
+                                                        Spacer(Modifier.width(10.dp))
+                                                        Text(
+                                                            text = pal.label,
+                                                            color = if (palSelected) Color(0xFF00E5FF) else Color.White,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = if (palSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        )
+                                                    }
+                                                    if (palSelected) {
+                                                        Icon(
+                                                            Icons.Rounded.Check,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF00E5FF),
+                                                            modifier = Modifier.size(15.dp),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        VisualizerSubmenu.SETTINGS -> {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { classicEffectsMode = !classicEffectsMode }
+                                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    text = "Efectos clásicos",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                )
+                                                Switch(
+                                                    checked = classicEffectsMode,
+                                                    onCheckedChange = { classicEffectsMode = it },
+                                                    modifier = Modifier.scale(0.75f),
+                                                )
+                                            }
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { onAutomixChange(!automix) }
+                                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    text = "Modo DJ Automix",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                )
+                                                Switch(
+                                                    checked = automix,
+                                                    onCheckedChange = onAutomixChange,
+                                                    modifier = Modifier.scale(0.75f),
+                                                )
+                                            }
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        showLyricsInWinamp = !showLyricsInWinamp
+                                                    }
+                                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    text = "Letras sincronizadas",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                )
+                                                Switch(
+                                                    checked = showLyricsInWinamp,
+                                                    onCheckedChange = { showLyricsInWinamp = it },
+                                                    modifier = Modifier.scale(0.75f),
+                                                )
+                                            }
+                                        }
+                                        else -> {}
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-
-                HorizontalDivider(
-                    color = Color.White.copy(alpha = 0.12f),
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            "Efectos clásicos retro",
-                            color = Color.White,
-                            fontSize = 12.5.sp,
-                        )
-                    },
-                    onClick = { classicEffectsMode = !classicEffectsMode },
-                    trailingIcon = {
-                        Switch(
-                            checked = classicEffectsMode,
-                            onCheckedChange = { classicEffectsMode = it },
-                            modifier = Modifier.scale(0.8f),
-                        )
-                    },
-                )
-
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            "Modo DJ Automix",
-                            color = Color.White,
-                            fontSize = 12.5.sp,
-                        )
-                    },
-                    onClick = { onAutomixChange(!automix) },
-                    trailingIcon = {
-                        Switch(
-                            checked = automix,
-                            onCheckedChange = onAutomixChange,
-                            modifier = Modifier.scale(0.8f),
-                        )
-                    },
-                )
-
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            if (showLyricsInWinamp) "Letras sincronizadas" else "Solo visualizador",
-                            color = Color.White,
-                            fontSize = 12.5.sp,
-                        )
-                    },
-                    onClick = {
-                        showLyricsInWinamp = !showLyricsInWinamp
-                        menuExpanded = false
-                    },
-                    trailingIcon = {
-                        Switch(
-                            checked = showLyricsInWinamp,
-                            onCheckedChange = { showLyricsInWinamp = it },
-                            modifier = Modifier.scale(0.8f),
-                        )
-                    },
-                )
             }
         }
 
@@ -796,7 +1007,7 @@ internal fun DesktopImmersiveLyricsScreen(
 @Composable
 private fun WinampVisualizerBackdrop(
     mode: ImmersiveVisualMode,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
     isPlaying: Boolean,
     songSeed: Int,
@@ -1128,7 +1339,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
     topY: Float,
     bottomY: Float,
     reflectionHeight: Float,
-    palette: ImmersiveColorPalette = ImmersiveColorPalette.CLASSIC_WINAMP,
+    palette: VisualizerPalette = VisualizerPalette.Default,
     classicMode: Boolean = false,
 ) {
     val w = size.width
@@ -1149,7 +1360,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
         // Segmented LED Bar
         for (s in 0 until activeSegs) {
             val segFrac = s.toFloat() / segments.toFloat()
-            val segColor = if (palette == ImmersiveColorPalette.CLASSIC_WINAMP || classicMode) {
+            val segColor = if (classicMode) {
                 when {
                     segFrac < 0.50f -> Color(0xFF00FF66) // Classic Winamp Green
                     segFrac < 0.75f -> Color(0xFFC6FF00) // Lime-Yellow
@@ -1228,7 +1439,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
     timeSec: Float,
     numBands: Int,
     isPlaying: Boolean,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
 ) {
     val w = size.width
@@ -1346,7 +1557,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
     barValues: FloatArray,
     timeSec: Float,
     isPlaying: Boolean,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
 ) {
     val w = size.width
@@ -1465,7 +1676,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
     barValues: FloatArray,
     timeSec: Float,
     isPlaying: Boolean,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
 ) {
     val w = size.width
@@ -1582,7 +1793,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSphere(
     timeSec: Float,
     numBands: Int,
     isPlaying: Boolean,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
 ) {
     val w = size.width
@@ -1736,7 +1947,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampFireSpark
     timeSec: Float,
     numBands: Int,
     isPlaying: Boolean,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
 ) {
     val w = size.width
@@ -1874,7 +2085,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampStarburst
     timeSec: Float,
     numBands: Int,
     isPlaying: Boolean,
-    palette: ImmersiveColorPalette,
+    palette: VisualizerPalette,
     classicMode: Boolean,
 ) {
     val w = size.width
@@ -2074,32 +2285,30 @@ private fun ImmersiveHeroPlayer(
             )
         }
 
-        if (djMixState.isBlending) {
-            val infiniteTransition = rememberInfiniteTransition(label = "djPulseImmersive")
-            val pulseAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.65f,
-                targetValue = 1.0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(650, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "pulseAlphaImmersive",
-            )
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF00F0FF).copy(alpha = 0.14f * pulseAlpha))
-                    .border(1.dp, Color(0xFF00F0FF).copy(alpha = 0.45f * pulseAlpha), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
+        // Fixed-height subtle container for Automix status (zero layout shift, cover never moves)
+        Box(
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .height(20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (djMixState.isBlending) {
+                val infiniteTransition = rememberInfiniteTransition(label = "djPulseImmersive")
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.45f,
+                    targetValue = 0.85f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(750, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "pulseAlphaImmersive",
+                )
                 Text(
-                    text = "⚡ MEZCLANDO CON ${djMixState.incomingTitle.uppercase()} A ${djMixState.incomingBpm} BPM",
-                    color = Color(0xFF00F0FF).copy(alpha = pulseAlpha),
+                    text = "MEZCLANDO CON ${djMixState.incomingTitle.uppercase()} A ${djMixState.incomingBpm} BPM",
+                    color = Color.White.copy(alpha = 0.50f * pulseAlpha),
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 10.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -2220,13 +2429,50 @@ private fun ImmersiveHeroPlayer(
                 )
             }
 
-            IconButton(onClick = { onAutomixChange(!automix) }) {
-                Icon(
-                    Icons.Rounded.AutoAwesome,
-                    contentDescription = DesktopStrings["automix", "Modo DJ Automix"],
-                    tint = if (automix) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
-                    modifier = Modifier.size(20.dp),
-                )
+            var showDjTooltip by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier.pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            when (event.type) {
+                                PointerEventType.Enter -> showDjTooltip = true
+                                PointerEventType.Exit -> showDjTooltip = false
+                            }
+                        }
+                    }
+                },
+            ) {
+                IconButton(onClick = { onAutomixChange(!automix) }) {
+                    Icon(
+                        Icons.Rounded.AutoAwesome,
+                        contentDescription = DesktopStrings["automix", "Modo DJ Automix"],
+                        tint = if (automix) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                if (showDjTooltip) {
+                    Popup(
+                        alignment = Alignment.TopCenter,
+                        offset = IntOffset(0, -32),
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xF21C1C24),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                            shadowElevation = 6.dp,
+                        ) {
+                            Text(
+                                text = "Modo DJ Automix: Mezclas y transiciones automáticas",
+                                color = Color.White.copy(alpha = 0.92f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
 

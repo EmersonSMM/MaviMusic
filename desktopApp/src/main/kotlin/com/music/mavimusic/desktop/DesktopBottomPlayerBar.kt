@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,9 +46,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -57,6 +60,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import com.music.mavimusic.ui.components.contextClick
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -111,6 +116,9 @@ internal fun DesktopBottomPlayerBar(
     modifier: Modifier = Modifier,
 ) {
     var showOutputPopover by remember { mutableStateOf(false) }
+    var draggingScrubber by remember { mutableStateOf(false) }
+    var scrubFraction by remember { mutableFloatStateOf(0f) }
+    var showDjTooltip by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -319,47 +327,77 @@ internal fun DesktopBottomPlayerBar(
                         }
                     }
 
-                    DesktopToolbarButton(
-                        onClick = { onAutomixChange(!automix) },
-                        size = 32.dp,
+                    Box(
+                        modifier = Modifier.pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    when (event.type) {
+                                        PointerEventType.Enter -> showDjTooltip = true
+                                        PointerEventType.Exit -> showDjTooltip = false
+                                    }
+                                }
+                            }
+                        },
                     ) {
-                        Icon(
-                            Icons.Rounded.AutoAwesome,
-                            DesktopStrings["automix", "Modo DJ Automix"],
-                            tint = if (automix) Color(0xFF00E5FF) else DesktopSecondary,
-                            modifier = Modifier.size(17.dp),
-                        )
+                        DesktopToolbarButton(
+                            onClick = { onAutomixChange(!automix) },
+                            size = 32.dp,
+                        ) {
+                            Icon(
+                                Icons.Rounded.AutoAwesome,
+                                DesktopStrings["automix", "Modo DJ Automix"],
+                                tint = if (automix) Color(0xFF00E5FF) else DesktopSecondary,
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+
+                        if (showDjTooltip) {
+                            Popup(
+                                alignment = Alignment.TopCenter,
+                                offset = IntOffset(0, -32),
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xF21C1C24),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                    shadowElevation = 6.dp,
+                                ) {
+                                    Text(
+                                        text = "Modo DJ Automix: Mezclas y transiciones automáticas",
+                                        color = Color.White.copy(alpha = 0.92f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(2.dp))
-
-                if (djMixState.isBlending) {
-                    val infiniteTransition = rememberInfiniteTransition(label = "djPulse")
-                    val pulseAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.65f,
-                        targetValue = 1.0f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(650, easing = LinearEasing),
-                            repeatMode = RepeatMode.Reverse,
-                        ),
-                        label = "pulseAlpha",
-                    )
-                    Box(
-                        modifier = Modifier
-                            .padding(bottom = 2.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF00F0FF).copy(alpha = 0.12f * pulseAlpha))
-                            .border(1.dp, Color(0xFF00F0FF).copy(alpha = 0.40f * pulseAlpha), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                // Fixed-height subtle container for Automix status (zero layout shift)
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (djMixState.isBlending) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "djPulse")
+                        val pulseAlpha by infiniteTransition.animateFloat(
+                            initialValue = 0.45f,
+                            targetValue = 0.85f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(750, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse,
+                            ),
+                            label = "pulseAlpha",
+                        )
                         Text(
-                            text = "⚡ MEZCLANDO CON ${djMixState.incomingTitle.uppercase()} A ${djMixState.incomingBpm} BPM",
-                            color = Color(0xFF00F0FF).copy(alpha = pulseAlpha),
+                            text = "MEZCLANDO CON ${djMixState.incomingTitle.uppercase()} A ${djMixState.incomingBpm} BPM",
+                            color = Color.White.copy(alpha = 0.50f * pulseAlpha),
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 9.5.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -367,12 +405,23 @@ internal fun DesktopBottomPlayerBar(
                 }
 
                 // Timeline Scrubber Row
+                val displayPositionMs = if (draggingScrubber && durationMs > 0) {
+                    (scrubFraction * durationMs).toLong()
+                } else {
+                    positionMs
+                }
+                val displayProgress = if (draggingScrubber) {
+                    scrubFraction
+                } else {
+                    progress.coerceIn(0f, 1f)
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = formatTimestamp(positionMs),
+                        text = formatTimestamp(displayPositionMs),
                         color = DesktopSecondary,
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 11.sp,
@@ -380,9 +429,16 @@ internal fun DesktopBottomPlayerBar(
                     )
 
                     DesktopThinSlider(
-                        value = progress.coerceIn(0f, 1f),
+                        value = displayProgress,
                         onValueChange = { fraction ->
-                            if (durationMs > 0) onSeek((fraction * durationMs).toLong())
+                            draggingScrubber = true
+                            scrubFraction = fraction
+                        },
+                        onValueChangeFinished = {
+                            if (durationMs > 0) {
+                                onSeek((scrubFraction * durationMs).toLong())
+                            }
+                            draggingScrubber = false
                         },
                         idleHeight = 4.dp,
                         activeHeight = 7.dp,

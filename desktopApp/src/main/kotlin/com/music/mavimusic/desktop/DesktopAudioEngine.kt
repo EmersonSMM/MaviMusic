@@ -1520,7 +1520,15 @@ class DesktopPlaybackEngine(
         held?.let { analyzer.request(it, nextLocalStream, it.durationText.durationSeconds()) }
     }
 
+    @Volatile
+    private var lastManualSeekTimeMs = 0L
+
+    @Volatile
+    private var lastManualSeekPositionMs = 0L
+
     private fun performSeek(millis: Long) {
+        lastManualSeekTimeMs = System.currentTimeMillis()
+        lastManualSeekPositionMs = millis
         if (fadeRemaining > 0 || blendActive) {
             fadeRemaining = 0
             blendActive = false
@@ -1694,6 +1702,14 @@ class DesktopPlaybackEngine(
         publishTransitionWindow(track, plan, duration)
 
         if (!plan.shouldStart || plan.blocked) return
+
+        // When a user manually seeks near the end of the track to hear the outro or ending,
+        // do not abruptly skip or force an early blend. Allow the song to play until the natural end.
+        val timeSinceManualSeek = System.currentTimeMillis() - lastManualSeekTimeMs
+        if (timeSinceManualSeek < 12_000L && lastManualSeekPositionMs >= duration - 35_000L) {
+            if (positionMs < duration - 2_500L) return
+        }
+
         armIncomingBlend(incoming, plan)
     }
 

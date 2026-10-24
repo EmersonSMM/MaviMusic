@@ -82,8 +82,13 @@ internal object DesktopAudioDevices {
         if (id == SYSTEM_DEFAULT) return null
         return runCatching {
             AudioSystem.getMixerInfo()
-                .firstOrNull { it.name == id }
-                ?.let(AudioSystem::getMixer)
+                .filter { it.name == id }
+                .map { AudioSystem.getMixer(it) }
+                .firstOrNull { mixer ->
+                    runCatching {
+                        mixer.isLineSupported(DataLine.Info(SourceDataLine::class.java, null))
+                    }.getOrDefault(false)
+                }
         }.getOrNull()
     }
 

@@ -458,7 +458,15 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         val container = format ?: return false
         val context = codec ?: return false
         val target = ((micros + streamStartUs) / 1_000_000.0 / streamTimeBase).toLong()
-        if (av_seek_frame(container, streamIndex, target, AVSEEK_FLAG_BACKWARD) < 0) return false
+        var seekResult = av_seek_frame(container, streamIndex, target, AVSEEK_FLAG_BACKWARD)
+        if (seekResult < 0) {
+            val defaultTarget = micros + streamStartUs
+            seekResult = av_seek_frame(container, -1, defaultTarget, AVSEEK_FLAG_BACKWARD)
+        }
+        if (seekResult < 0) {
+            seekResult = av_seek_frame(container, streamIndex, target, 0)
+        }
+        if (seekResult < 0) return false
         avcodec_flush_buffers(context)
         drained = false
         positionUs = micros
@@ -504,7 +512,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         const val IO_BUFFER_BYTES = 64 * 1024
 
         /** Further apart than any index point, cue or segment lands before its target. */
-        const val MAX_SEEK_TRIM_US = 30_000_000L
+        const val MAX_SEEK_TRIM_US = 300_000_000L
 
         /** `whence` values, which FFmpeg takes straight from stdio. */
         const val SEEK_CUR = 1
