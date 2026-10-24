@@ -544,6 +544,9 @@ fun MaviMusicDesktopApp() {
     var predictiveBufferEnabled by remember {
         mutableStateOf(persistence.predictiveBufferEnabled())
     }
+    var smartTrim by remember {
+        mutableStateOf(persistence.smartTrimEnabled())
+    }
     var preferAudioTracks by remember {
         mutableStateOf(persistence.preferAudioTracks())
     }
@@ -1826,9 +1829,10 @@ fun MaviMusicDesktopApp() {
     LaunchedEffect(eqEnabled, eqMode, eqToneX, eqToneY, eqFocused, eqBalance, eqBands) {
         playbackEngine.setEqualizer(eqEnabled, DesktopEqualizerSettings.curve(), eqBalance)
     }
-    LaunchedEffect(spatialAudio, skipSilence, outputPrecision, volumeNormalization) {
+    LaunchedEffect(spatialAudio, skipSilence, outputPrecision, volumeNormalization, smartTrim) {
         playbackEngine.setSpatialAudio(spatialAudio)
         playbackEngine.setSkipSilence(skipSilence)
+        playbackEngine.setSmartTrim(smartTrim)
         playbackEngine.setOutputPrecision(outputPrecision)
         playbackEngine.setVolumeNormalization(volumeNormalization)
     }
@@ -4353,6 +4357,11 @@ fun MaviMusicDesktopApp() {
                                     onPredictiveBufferChange = {
                                         predictiveBufferEnabled = it
                                         persistence.savePredictiveBufferEnabled(it)
+                                    },
+                                    smartTrim = smartTrim,
+                                    onSmartTrimChange = {
+                                        smartTrim = it
+                                        persistence.saveSmartTrimEnabled(it)
                                     },
                                     preferAudioTracks = preferAudioTracks,
                                     onPreferAudioTracksChange = {

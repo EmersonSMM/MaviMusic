@@ -152,6 +152,43 @@ class DesktopSilenceSkipperTest {
         }
     }
 
+    @Test
+    fun `smart trim drops leading silence entirely and starts audio immediately`() {
+        val skipper = DesktopSilenceSkipper(channels, rate).apply {
+            enabled = false
+            smartTrimEnabled = true
+        }
+        val silentLeadingSec = 0.5
+        val musicLeadingSec = 1.0
+        val musicSamples = (rate * musicLeadingSec).toInt() * channels
+        val music = FloatArray(musicSamples) { 0.5f }
+        val input = quiet(silentLeadingSec) + music
+
+        val out = skipper.process(input, input.size)
+
+        assertEquals(musicSamples, skipper.outputCount, "output should only contain music")
+        assertEquals((rate * silentLeadingSec).toLong(), skipper.skippedFrames, "leading silence frames should be skipped")
+
+        for (i in 0 until musicSamples) {
+            assertEquals(0.5f, out[i], 1e-6f, "sample $i must match original music")
+        }
+    }
+
+    @Test
+    fun `smart trim disabled leaves leading silence untouched`() {
+        val skipper = DesktopSilenceSkipper(channels, rate).apply {
+            enabled = false
+            smartTrimEnabled = false
+        }
+        val input = quiet(0.5) + tone(1.0)
+
+        val out = skipper.process(input, input.size)
+
+        assertEquals(input.size, skipper.outputCount)
+        assertEquals(0L, skipper.skippedFrames)
+        assertTrue(out.contentEquals(input))
+    }
+
     private fun tone(seconds: Double): FloatArray {
         val frames = (rate * seconds).toInt()
         return FloatArray(frames * channels) { index ->

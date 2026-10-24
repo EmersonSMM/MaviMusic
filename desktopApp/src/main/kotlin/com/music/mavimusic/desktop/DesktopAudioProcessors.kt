@@ -71,6 +71,11 @@ internal class DesktopSilenceSkipper(private val channels: Int, sampleRate: Int)
     @Volatile
     var enabled: Boolean = false
 
+    @Volatile
+    var smartTrimEnabled: Boolean = false
+
+    private var headTrimmed = false
+
     private val minSilenceFrames = (sampleRate * MIN_SILENCE_US / 1_000_000L).toInt()
     private val keptFrames = (sampleRate * KEPT_EACH_END_US / 1_000_000L).toInt().coerceAtLeast(1)
 
@@ -95,15 +100,45 @@ internal class DesktopSilenceSkipper(private val channels: Int, sampleRate: Int)
         private set
 
     fun process(samples: FloatArray, count: Int): FloatArray {
-        if (!enabled) {
-            outputCount = count
-            return samples
-        }
-        grow(count + (pendingFrames + keptFrames) * channels)
-        var produced = 0
-        var index = 0
+        var effectiveOffset = 0
+        var effectiveCount = count
 
-        while (index + channels <= count) {
+        if (smartTrimEnabled && !headTrimmed) {
+            var idx = 0
+            while (idx + channels <= effectiveCount) {
+                if (!isSilentForTrim(samples, idx)) {
+                    headTrimmed = true
+                    break
+                }
+                idx += channels
+            }
+            if (!headTrimmed) {
+                skippedFrames += (effectiveCount / channels).toLong()
+                outputCount = 0
+                return output
+            } else if (idx > 0) {
+                skippedFrames += (idx / channels).toLong()
+                effectiveOffset = idx
+                effectiveCount -= idx
+            }
+        }
+
+        if (!enabled) {
+            if (effectiveOffset > 0) {
+                grow(effectiveCount)
+                System.arraycopy(samples, effectiveOffset, output, 0, effectiveCount)
+                outputCount = effectiveCount
+                return output
+            } else {
+                outputCount = effectiveCount
+                return samples
+            }
+        }
+        grow(effectiveCount + (pendingFrames + keptFrames) * channels)
+        var produced = 0
+        var index = effectiveOffset
+
+        while (index + channels <= effectiveOffset + effectiveCount) {
             if (isSilent(samples, index)) {
                 if (skipping) {
                     // Only the last [keptFrames] of a skipped run matter.
@@ -176,6 +211,13 @@ internal class DesktopSilenceSkipper(private val channels: Int, sampleRate: Int)
         return true
     }
 
+    private fun isSilentForTrim(samples: FloatArray, at: Int): Boolean {
+        for (channel in 0 until channels) {
+            if (abs(samples[at + channel]) > SMART_TRIM_THRESHOLD) return false
+        }
+        return true
+    }
+
     private fun grow(required: Int) {
         if (output.size < required) output = output.copyOf(maxOf(required, output.size * 2))
     }
@@ -186,6 +228,7 @@ internal class DesktopSilenceSkipper(private val channels: Int, sampleRate: Int)
         tailWrite = 0
         skipping = false
         skippedFrames = 0
+        headTrimmed = false
     }
 
     private companion object {
@@ -197,6 +240,9 @@ internal class DesktopSilenceSkipper(private val channels: Int, sampleRate: Int)
 
         /** `DEFAULT_SILENCE_THRESHOLD_LEVEL` of 1024, on a 16-bit scale. */
         const val THRESHOLD = 1024f / 32_768f
+
+        /** Smart Trim threshold: -50 dBFS silence floor to detect even very quiet audio while discarding encoder delay */
+        const val SMART_TRIM_THRESHOLD = 100f / 32_768f
 
         /** `DEFAULT_MIN_VOLUME_TO_KEEP_PERCENTAGE` of 10. */
         const val KEPT_VOLUME = 0.1f

@@ -395,6 +395,8 @@ internal fun DesktopSettingsScreen(
     onDontRepeatSuggestionsChange: (Boolean) -> Unit,
     predictiveBuffer: Boolean = DesktopPersistence.predictiveBufferEnabled(),
     onPredictiveBufferChange: (Boolean) -> Unit = {},
+    smartTrim: Boolean = DesktopPersistence.smartTrimEnabled(),
+    onSmartTrimChange: (Boolean) -> Unit = {},
     preferAudioTracks: Boolean = true,
     onPreferAudioTracksChange: (Boolean) -> Unit = {},
     filterNonMusicAudio: Boolean,
@@ -502,6 +504,18 @@ internal fun DesktopSettingsScreen(
                         {
                             onPredictiveBufferChange(it)
                             DesktopPersistence.savePredictiveBufferEnabled(it)
+                        },
+                    )
+                    SettingsToggle(
+                        DesktopStrings["smart_trim", "Smart Trim y reproducción continua (Gapless)"],
+                        DesktopStrings[
+                            "smart_trim_subtitle",
+                            "Elimina los silencios digitales de inicio y final de pista para una transición perfecta de 0 ms entre temas de álbum",
+                        ],
+                        smartTrim,
+                        {
+                            onSmartTrimChange(it)
+                            DesktopPersistence.saveSmartTrimEnabled(it)
                         },
                     )
                     SettingsToggle(

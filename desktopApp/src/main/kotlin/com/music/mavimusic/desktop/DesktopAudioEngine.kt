@@ -927,7 +927,10 @@ class DesktopPlaybackEngine(
         if (count == 0) return
 
         val (blended, blendedCount) = blend(track, block, count)
-        val quiet = silence?.also { it.enabled = skipSilenceEnabled }
+        val quiet = silence?.also {
+            it.enabled = skipSilenceEnabled
+            it.smartTrimEnabled = smartTrimEnabled
+        }
         val skippedBefore = quiet?.skippedFrames ?: 0L
         val trimmed = quiet?.process(blended, blendedCount) ?: blended
         val trimmedCount = quiet?.outputCount ?: blendedCount
@@ -1557,7 +1560,10 @@ class DesktopPlaybackEngine(
         equalizer.configure(sink.format.channels, sink.format.sampleRate)
         equalizerIncoming.configure(sink.format.channels, sink.format.sampleRate)
         silence = DesktopSilenceSkipper(sink.format.channels, sink.format.sampleRate)
-            .apply { enabled = skipSilenceEnabled }
+            .apply {
+                enabled = skipSilenceEnabled
+                smartTrimEnabled = this@DesktopPlaybackEngine.smartTrimEnabled
+            }
         outgoingFilter.configure(sink.format.channels, sink.format.sampleRate)
         incomingFilter.configure(sink.format.channels, sink.format.sampleRate)
         normLimiter.configure(sink.format.sampleRate)
@@ -1594,7 +1600,10 @@ class DesktopPlaybackEngine(
         equalizer.configure(sink.format.channels, sink.format.sampleRate)
         equalizerIncoming.configure(sink.format.channels, sink.format.sampleRate)
         silence = DesktopSilenceSkipper(sink.format.channels, sink.format.sampleRate)
-            .apply { enabled = skipSilenceEnabled }
+            .apply {
+                enabled = skipSilenceEnabled
+                smartTrimEnabled = this@DesktopPlaybackEngine.smartTrimEnabled
+            }
         outgoingFilter.configure(sink.format.channels, sink.format.sampleRate)
         incomingFilter.configure(sink.format.channels, sink.format.sampleRate)
         normLimiter.configure(sink.format.sampleRate)
@@ -2081,7 +2090,9 @@ class DesktopPlaybackEngine(
     ): TransitionPlan {
         val manualSeconds = crossfadeSeconds
         val smart = automixEnabled
-        if (!smart && manualSeconds <= 0) return TransitionPlan()
+        if (!smart && manualSeconds <= 0 && !smartTrimEnabled) return TransitionPlan()
+        val isSameAlbum = track.song.albumName?.isNotBlank() == true &&
+            track.song.albumName == next.albumName
         return planTransition(
             analysis = analyzer.analysisFor(track.song.videoId),
             nextAnalysis = analyzer.analysisFor(next.videoId),
@@ -2089,8 +2100,9 @@ class DesktopPlaybackEngine(
             nextTrack = next.transitionInfo(nextDurationMs),
             currentTime = positionMs / 1_000.0,
             duration = durationMs / 1_000.0,
-            fadeSeconds = if (manualSeconds > 0) manualSeconds.toDouble() else AUTOMIX_FALLBACK_SECONDS.toDouble(),
+            fadeSeconds = if (manualSeconds > 0) manualSeconds.toDouble() else if (smartTrimEnabled) 0.12 else AUTOMIX_FALLBACK_SECONDS.toDouble(),
             mode = if (smart) CrossfadeMode.SMART else CrossfadeMode.STANDARD,
+            albumSequential = isSameAlbum || smartTrimEnabled,
             advanced = smart,
             // A fixed phrase length only means anything under Automix; a manual
             // crossfade keeps its slider length.
@@ -2152,6 +2164,14 @@ class DesktopPlaybackEngine(
     fun setSkipSilence(enabled: Boolean) {
         skipSilenceEnabled = enabled
         if (!enabled) silence?.reset()
+    }
+
+    @Volatile private var smartTrimEnabled = false
+
+    /** Smart Trim and gapless playback transition mode (Phase 1, Item 2). */
+    fun setSmartTrim(enabled: Boolean) {
+        smartTrimEnabled = enabled
+        silence?.smartTrimEnabled = enabled
     }
 
     private fun precisionBytes(): Int = if (preferFloat) 4 else 2

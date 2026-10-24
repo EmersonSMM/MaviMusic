@@ -301,6 +301,10 @@ class DesktopPersistence {
 
     fun savePredictiveBufferEnabled(enabled: Boolean) = saveBoolean(KEY_PREDICTIVE_BUFFER_ENABLED, enabled)
 
+    fun smartTrimEnabled(): Boolean = boolean(KEY_SMART_TRIM_ENABLED, false)
+
+    fun saveSmartTrimEnabled(enabled: Boolean) = saveBoolean(KEY_SMART_TRIM_ENABLED, enabled)
+
     fun allowRemixesAndLive(): Boolean = boolean(KEY_ALLOW_REMIXES_LIVE, false)
 
     fun saveAllowRemixesAndLive(enabled: Boolean) = saveBoolean(KEY_ALLOW_REMIXES_LIVE, enabled)
@@ -326,6 +330,7 @@ class DesktopPersistence {
         const val KEY_IMMERSIVE_SHOW_LYRICS = "immersive_show_lyrics"
         const val KEY_PREFER_AUDIO_TRACKS = "prefer_audio_tracks"
         const val KEY_PREDICTIVE_BUFFER_ENABLED = "predictive_buffer_enabled"
+        const val KEY_SMART_TRIM_ENABLED = "smart_trim_enabled"
         const val KEY_DJ_MIX_CURVE = "dj_mix_curve"
         const val MAX_HISTORY = 100
         const val MAX_QUEUE = 200
@@ -417,6 +422,17 @@ class DesktopPersistence {
             runCatching {
                 val prefs = DesktopPreferenceMigration.open()
                 prefs.putBoolean(KEY_PREDICTIVE_BUFFER_ENABLED, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun smartTrimEnabled(default: Boolean = false): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_SMART_TRIM_ENABLED, default) }.getOrDefault(default)
+
+        fun saveSmartTrimEnabled(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_SMART_TRIM_ENABLED, enabled)
                 prefs.flush()
             }
         }

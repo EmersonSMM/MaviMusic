@@ -148,6 +148,8 @@ object DesktopStrings {
         "normalized_lufs_badge" to "✓ -14 LUFS",
         "predictive_buffer" to "Buffer predictivo de la cola",
         "predictive_buffer_subtitle" to "Descarga en segundo plano las siguientes 2–3 canciones para reproducción instantánea sin cortes",
+        "smart_trim" to "Smart Trim y reproducción continua (Gapless)",
+        "smart_trim_subtitle" to "Elimina los silencios digitales de inicio y final de pista para una transición perfecta de 0 ms entre temas de álbum",
     )
 
     init {
