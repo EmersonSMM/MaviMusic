@@ -5,6 +5,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,7 +17,9 @@ def public_key(seed):
         raise ValueError("Expected a base64-encoded 32-byte Ed25519 seed")
     # RFC 8410 PKCS#8: wrap the seed for OpenSSL. No key material enters command arguments.
     private_der = bytes.fromhex("302e020100300506032b657004220420") + seed
-    result = subprocess.run(["openssl", "pkey", "-inform", "DER", "-pubout", "-outform", "DER"],
+    openssl_bin = next((p for p in ["/opt/homebrew/bin/openssl", "/usr/local/bin/openssl", "openssl"]
+                        if shutil.which(p)), "openssl")
+    result = subprocess.run([openssl_bin, "pkey", "-inform", "DER", "-pubout", "-outform", "DER"],
                             input=private_der, capture_output=True, check=True)
     return base64.b64encode(result.stdout[-32:]).decode("ascii")
 
