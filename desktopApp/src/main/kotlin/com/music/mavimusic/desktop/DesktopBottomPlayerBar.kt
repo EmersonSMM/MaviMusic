@@ -1,9 +1,16 @@
 package com.music.mavimusic.desktop
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +28,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Bedtime
@@ -40,7 +48,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,8 +61,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
 import com.music.mavimusic.data.model.CARD_ART_PX
 import com.music.mavimusic.data.model.Song
 import com.music.mavimusic.ui.icons.MaviMusicIcons
@@ -87,6 +100,9 @@ internal fun DesktopBottomPlayerBar(
     onOpenSleepTimer: () -> Unit = {},
     isSleepTimerActive: Boolean = false,
     onOpenImmersive: () -> Unit = {},
+    automix: Boolean = false,
+    onAutomixChange: (Boolean) -> Unit = {},
+    djMixState: DjMixState = DjMixState(),
     sidePanel: DesktopSidePanel?,
     isLiked: Boolean,
     onToggleLike: () -> Unit,
@@ -94,6 +110,8 @@ internal fun DesktopBottomPlayerBar(
     onOpenSongMenu: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    var showOutputPopover by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -300,9 +318,53 @@ internal fun DesktopBottomPlayerBar(
                             )
                         }
                     }
+
+                    DesktopToolbarButton(
+                        onClick = { onAutomixChange(!automix) },
+                        size = 32.dp,
+                    ) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            DesktopStrings["automix", "Modo DJ Automix"],
+                            tint = if (automix) Color(0xFF00E5FF) else DesktopSecondary,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(2.dp))
+
+                if (djMixState.isBlending) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "djPulse")
+                    val pulseAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.65f,
+                        targetValue = 1.0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(650, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "pulseAlpha",
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = 2.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF00F0FF).copy(alpha = 0.12f * pulseAlpha))
+                            .border(1.dp, Color(0xFF00F0FF).copy(alpha = 0.40f * pulseAlpha), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "⚡ MEZCLANDO CON ${djMixState.incomingTitle.uppercase()} A ${djMixState.incomingBpm} BPM",
+                            color = Color(0xFF00F0FF).copy(alpha = pulseAlpha),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
 
                 // Timeline Scrubber Row
                 Row(
@@ -348,13 +410,28 @@ internal fun DesktopBottomPlayerBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    DesktopToolbarButton(onClick = onOpenAudioOutput, size = 32.dp) {
-                        Icon(
-                            Icons.Rounded.Headphones,
-                            DesktopStrings["audio_output", "Salida de audio"],
-                            tint = DesktopSecondary,
-                            modifier = Modifier.size(18.dp),
-                        )
+                    Box {
+                        DesktopToolbarButton(
+                            onClick = { showOutputPopover = !showOutputPopover },
+                            size = 32.dp,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Headphones,
+                                DesktopStrings["audio_output", "Salida de audio"],
+                                tint = if (showOutputPopover) Color(0xFF00E5FF) else DesktopSecondary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+
+                        if (showOutputPopover) {
+                            Popup(
+                                alignment = Alignment.BottomEnd,
+                                offset = IntOffset(0, -48),
+                                onDismissRequest = { showOutputPopover = false },
+                            ) {
+                                DesktopAudioOutputPopover(onDismiss = { showOutputPopover = false })
+                            }
+                        }
                     }
 
                     DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {

@@ -46,3 +46,4 @@ AGENTS.md
 # Python release tooling
 __pycache__/
 *.py[cod]
+*.dmg

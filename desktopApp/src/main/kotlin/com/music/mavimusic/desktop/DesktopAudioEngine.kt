@@ -457,11 +457,7 @@ class DesktopPlaybackEngine(
     }
 
     fun seekTo(positionMs: Long) {
-        // TEMP seek diagnostics: who asked, so a seek undone by a second one shows up.
-        DesktopTrackLog.log(
-            "seek requested: ${positionMs}ms (at ${_state.value.positionMs}ms) from " +
-                Throwable().stackTrace.drop(1).take(6).joinToString(" < ") { "${it.fileName}:${it.lineNumber}" },
-        )
+        commands.removeAll { it is Command.SeekTo }
         commands += Command.SeekTo(positionMs.coerceAtLeast(0))
     }
 
@@ -1021,6 +1017,7 @@ class DesktopPlaybackEngine(
             fadeRemaining -= span
         }
         val progress = ((transitionTotal - fadeRemaining).toFloat() / fadeTotal.coerceAtLeast(1))
+        DesktopDjState.updateProgress(progress)
         val handoffAt = plan?.let(DesktopTransitionRide::handoffAt) ?: DISPLAY_SWITCH_AT
         if (!displaySwitched && progress >= handoffAt && fadeRemaining > 0) switchDisplay(incoming)
         if (fadeRemaining <= 0) promoteUpcoming() else publishBlend(playing = true)
@@ -1243,6 +1240,7 @@ class DesktopPlaybackEngine(
      */
     private fun endBlend() {
         DesktopPlayerSettings.smartMixBlend.value = null
+        DesktopDjState.reset()
         var had = false
         var next: Song? = null
         synchronized(blendLock) {
@@ -1523,6 +1521,14 @@ class DesktopPlaybackEngine(
     }
 
     private fun performSeek(millis: Long) {
+        if (fadeRemaining > 0 || blendActive) {
+            fadeRemaining = 0
+            blendActive = false
+            upcoming?.decoder?.close()
+            upcoming = null
+            nextDeckOpenId = null
+            endBlend()
+        }
         // Past the midpoint the listener is looking at — and seeking in — the incoming song, so
         // the blend is finished on the spot and the seek lands on that one.
         if (displaySwitched && upcoming != null) promoteUpcoming()
@@ -1758,6 +1764,14 @@ class DesktopPlaybackEngine(
         outgoingFilter.flush()
         incomingFilter.flush()
         blendActive = true
+        val bpm = if (plan.incomingBpm > 0) plan.incomingBpm.toInt() else if (plan.outgoingBpm > 0) plan.outgoingBpm.toInt() else 120
+        DesktopDjState.update(
+            isBlending = true,
+            incomingTitle = incoming.song.title,
+            incomingArtist = incoming.song.artist,
+            incomingBpm = bpm,
+            outgoingBpm = plan.outgoingBpm.toInt(),
+        )
     }
 
     /**

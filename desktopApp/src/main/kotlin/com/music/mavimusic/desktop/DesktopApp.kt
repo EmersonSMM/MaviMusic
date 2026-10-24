@@ -409,6 +409,7 @@ fun MaviMusicDesktopApp() {
     // transport and queue gesture reaches Listen Together without duplicating protocol logic.
     val partySyncHolder = remember { arrayOfNulls<DesktopPartySync>(1) }
     val partyState by DesktopListenTogether.state.collectAsState()
+    val djMixState by DesktopDjState.state.collectAsState()
     var personalQueueStash by remember { mutableStateOf<DesktopQueue?>(null) }
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
@@ -3601,6 +3602,12 @@ fun MaviMusicDesktopApp() {
                                     repeatMode = it
                                     persistence.saveString("repeat_mode", it.name)
                                 },
+                                automix = automix,
+                                onAutomixChange = {
+                                    automix = it
+                                    persistence.saveBoolean("automix", it)
+                                },
+                                djMixState = djMixState,
                                 onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
                                 onPrevious = ::playPrevious,
                                 onNext = ::playNext,
@@ -3903,6 +3910,15 @@ fun MaviMusicDesktopApp() {
                                 repeatMode = it
                                 persistence.saveString("repeat_mode", it.name)
                             },
+                            automix = automix,
+                            onAutomixChange = {
+                                automix = it
+                                persistence.saveBoolean("automix", it)
+                            },
+                            djMixState = djMixState,
+                            queue = queue,
+                            queueIndex = liveQueue.index,
+                            onPlayQueueIndex = { idx -> playQueueIndex(idx) },
                             lyrics = sharedLyrics,
                             lyricsSource = sharedLyricsSource,
                             lyricsProviderStates = providerStates,

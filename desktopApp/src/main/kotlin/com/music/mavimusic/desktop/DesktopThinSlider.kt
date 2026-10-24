@@ -57,6 +57,7 @@ internal fun DesktopThinSlider(
     markerColor: Color = Color.White.copy(alpha = 0.5f),
 ) {
     var dragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableStateOf(0f) }
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
         animationSpec = spring(
@@ -75,7 +76,9 @@ internal fun DesktopThinSlider(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     dragging = true
-                    onValueChange((down.position.x / size.width).coerceIn(0f, 1f))
+                    val initialFraction = (down.position.x / size.width).coerceIn(0f, 1f)
+                    dragFraction = initialFraction
+                    onValueChange(initialFraction)
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -85,7 +88,9 @@ internal fun DesktopThinSlider(
                             break
                         }
                         if (pointer.positionChanged()) {
-                            onValueChange((pointer.position.x / size.width).coerceIn(0f, 1f))
+                            val newFraction = (pointer.position.x / size.width).coerceIn(0f, 1f)
+                            dragFraction = newFraction
+                            onValueChange(newFraction)
                             pointer.consume()
                         }
                     }
@@ -118,7 +123,8 @@ internal fun DesktopThinSlider(
                     )
                 }
             }
-            val filled = size.width * value.coerceIn(0f, 1f)
+            val displayFraction = if (dragging) dragFraction else value.coerceIn(0f, 1f)
+            val filled = size.width * displayFraction
             if (filled > 0f && !mixing) {
                 drawRoundRect(
                     color = activeColor,

@@ -1,5 +1,6 @@
 package com.music.mavimusic.desktop
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -32,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
@@ -51,6 +53,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -103,13 +106,68 @@ internal enum class ImmersiveVisualMode(val label: String) {
     WINAMP_TUNNEL("Túnel Retro 3D"),
     WINAMP_LASER("Láser Osciloscopio"),
     WINAMP_WARP("Hiperespacio 3D"),
+    WINAMP_SPHERE("Esfera Retro 3D"),
+    WINAMP_FIRE_SPARKS("Lluvia de Fuego"),
+    WINAMP_STARBURST("Vórtice Contorno"),
     APPLE_LYRICS("Letras Mesh"),
+}
+
+internal enum class ImmersiveColorPalette(
+    val label: String,
+    val primary: Color,
+    val secondary: Color,
+    val tertiary: Color,
+    val accent: Color,
+) {
+    NEON_CYBERPUNK(
+        label = "Neón Cyberpunk",
+        primary = Color(0xFF00F0FF),
+        secondary = Color(0xFFFF007F),
+        tertiary = Color(0xFF7C4DFF),
+        accent = Color(0xFFFFD600),
+    ),
+    FIRE_AMBER(
+        label = "Fuego y Ámbar",
+        primary = Color(0xFFFF4500),
+        secondary = Color(0xFFFFAB00),
+        tertiary = Color(0xFFFF1744),
+        accent = Color(0xFFFFEA00),
+    ),
+    CLASSIC_WINAMP(
+        label = "Winamp Clásico",
+        primary = Color(0xFF00FF66),
+        secondary = Color(0xFF76FF03),
+        tertiary = Color(0xFF00E5FF),
+        accent = Color(0xFFFFD600),
+    ),
+    COSMIC_ICE(
+        label = "Hielo Cósmico",
+        primary = Color(0xFF80D8FF),
+        secondary = Color(0xFF00B0FF),
+        tertiary = Color(0xFFB388FF),
+        accent = Color(0xFFFFFFFF),
+    ),
+    MATRIX_CRT(
+        label = "Matrix Fósforo",
+        primary = Color(0xFF00FF66),
+        secondary = Color(0xFF00C853),
+        tertiary = Color(0xFF69F0AE),
+        accent = Color(0xFFB9F6CA),
+    ),
+    SYNTHWAVE_SUNSET(
+        label = "Synthwave 80s",
+        primary = Color(0xFFFF2A85),
+        secondary = Color(0xFF9D00FF),
+        tertiary = Color(0xFFFF7A00),
+        accent = Color(0xFF00F5FF),
+    ),
 }
 
 /**
  * Full-window / fullscreen immersive visualizer & lyrics experience.
  * Includes classic Winamp Oscilloscope waves, LED Spectrum Analyzer with falling peak-hold dots,
- * MilkDrop psychedelic plasma waves, 3D Retro Warp Tunnel, and Apple Music synchronized kinetic lyrics.
+ * MilkDrop psychedelic plasma waves, 3D Retro Warp Tunnel, Retro 3D Sphere, Fire Sparks Rain,
+ * Starburst Vortex, and Apple Music synchronized kinetic lyrics.
  */
 @Composable
 internal fun DesktopImmersiveLyricsScreen(
@@ -137,14 +195,20 @@ internal fun DesktopImmersiveLyricsScreen(
     queue: List<Song> = emptyList(),
     queueIndex: Int = 0,
     onPlayQueueIndex: (Int) -> Unit = {},
+    automix: Boolean = false,
+    onAutomixChange: (Boolean) -> Unit = {},
+    djMixState: DjMixState = DjMixState(),
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val artworkPalette = rememberArtworkColors(song.thumbnailUrl, null)
     var visualMode by remember { mutableStateOf(ImmersiveVisualMode.WINAMP_WAVES) }
+    var colorPalette by remember { mutableStateOf(ImmersiveColorPalette.NEON_CYBERPUNK) }
+    var classicEffectsMode by remember { mutableStateOf(false) }
     var showLyricsInWinamp by remember { mutableStateOf(false) }
     var showQueuePanel by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var showPaletteMenu by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -178,6 +242,8 @@ internal fun DesktopImmersiveLyricsScreen(
         } else {
             WinampVisualizerBackdrop(
                 mode = visualMode,
+                palette = colorPalette,
+                classicMode = classicEffectsMode,
                 isPlaying = isPlaying,
                 songSeed = song.videoId.hashCode(),
                 modifier = Modifier.fillMaxSize(),
@@ -305,6 +371,9 @@ internal fun DesktopImmersiveLyricsScreen(
                                 onShuffleChange = onShuffleChange,
                                 repeatMode = repeatMode,
                                 onRepeatModeChange = onRepeatModeChange,
+                                automix = automix,
+                                onAutomixChange = onAutomixChange,
+                                djMixState = djMixState,
                                 isQueueVisible = showQueuePanel,
                                 onToggleQueue = { showQueuePanel = !showQueuePanel },
                             )
@@ -315,18 +384,24 @@ internal fun DesktopImmersiveLyricsScreen(
                                 .weight(0.58f)
                                 .fillMaxHeight(),
                         ) {
-                            LyricsSidePanel(
-                                song = song,
-                                isPlaying = isPlaying,
-                                position = position,
-                                lyrics = lyrics,
-                                lyricsSource = lyricsSource,
-                                lyricsProviderStates = lyricsProviderStates,
-                                onSelectLyricsProvider = onSelectLyricsProvider,
-                                lyricsUnavailable = lyricsUnavailable,
-                                onSeek = onSeek,
-                                modifier = Modifier.fillMaxSize(),
-                            )
+                            Crossfade(
+                                targetState = song.videoId,
+                                animationSpec = tween(600),
+                                label = "lyricsCrossfade",
+                            ) { _ ->
+                                LyricsSidePanel(
+                                    song = song,
+                                    isPlaying = isPlaying,
+                                    position = position,
+                                    lyrics = lyrics,
+                                    lyricsSource = lyricsSource,
+                                    lyricsProviderStates = lyricsProviderStates,
+                                    onSelectLyricsProvider = onSelectLyricsProvider,
+                                    lyricsUnavailable = lyricsUnavailable,
+                                    onSeek = onSeek,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                         }
                     }
                 } else {
@@ -352,6 +427,9 @@ internal fun DesktopImmersiveLyricsScreen(
                                 onShuffleChange = onShuffleChange,
                                 repeatMode = repeatMode,
                                 onRepeatModeChange = onRepeatModeChange,
+                                automix = automix,
+                                onAutomixChange = onAutomixChange,
+                                djMixState = djMixState,
                                 isQueueVisible = showQueuePanel,
                                 onToggleQueue = { showQueuePanel = !showQueuePanel },
                             )
@@ -403,7 +481,10 @@ internal fun DesktopImmersiveLyricsScreen(
 
             DropdownMenu(
                 expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
+                onDismissRequest = {
+                    menuExpanded = false
+                    showPaletteMenu = false
+                },
                 modifier = Modifier
                     .background(Color(0xFF141418))
                     .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
@@ -439,6 +520,108 @@ internal fun DesktopImmersiveLyricsScreen(
                 HorizontalDivider(
                     color = Color.White.copy(alpha = 0.12f),
                     modifier = Modifier.padding(vertical = 4.dp),
+                )
+
+                // Color Palette Selector Item
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(colorPalette.primary),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Paleta: ${colorPalette.label}",
+                                color = Color.White,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    },
+                    onClick = { showPaletteMenu = !showPaletteMenu },
+                )
+
+                if (showPaletteMenu) {
+                    ImmersiveColorPalette.entries.forEach { pal ->
+                        val palSelected = colorPalette == pal
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(9.dp)
+                                            .clip(CircleShape)
+                                            .background(pal.primary),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        pal.label,
+                                        color = if (palSelected) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                            },
+                            onClick = {
+                                colorPalette = pal
+                                showPaletteMenu = false
+                            },
+                            trailingIcon = if (palSelected) {
+                                {
+                                    Icon(
+                                        Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color(0xFF00E5FF),
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            } else null,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.12f),
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "Efectos clásicos retro",
+                            color = Color.White,
+                            fontSize = 12.5.sp,
+                        )
+                    },
+                    onClick = { classicEffectsMode = !classicEffectsMode },
+                    trailingIcon = {
+                        Switch(
+                            checked = classicEffectsMode,
+                            onCheckedChange = { classicEffectsMode = it },
+                            modifier = Modifier.scale(0.8f),
+                        )
+                    },
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "Modo DJ Automix",
+                            color = Color.White,
+                            fontSize = 12.5.sp,
+                        )
+                    },
+                    onClick = { onAutomixChange(!automix) },
+                    trailingIcon = {
+                        Switch(
+                            checked = automix,
+                            onCheckedChange = onAutomixChange,
+                            modifier = Modifier.scale(0.8f),
+                        )
+                    },
                 )
 
                 DropdownMenuItem(
@@ -606,11 +789,15 @@ internal fun DesktopImmersiveLyricsScreen(
 /**
  * Real-time 60fps Winamp-inspired audio visualizer backdrop.
  * Renders multi-harmonic oscilloscope neon waves, classic segmented LED spectrum bars
- * with gravity-falling peak-hold caps, and MilkDrop psychedelic plasma waves.
+ * with gravity-falling peak-hold caps, MilkDrop psychedelic plasma waves, 3D Retro Warp Tunnel,
+ * Analog Laser Lissajous, Relativistic HyperSpace Warp, 3D Retro Wireframe Sphere, Fire Sparks Rain,
+ * and Starburst Contour Vortex.
  */
 @Composable
 private fun WinampVisualizerBackdrop(
     mode: ImmersiveVisualMode,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
     isPlaying: Boolean,
     songSeed: Int,
     modifier: Modifier = Modifier,
@@ -681,11 +868,11 @@ private fun WinampVisualizerBackdrop(
         val h = size.height
         val t = timeSec
 
-        // Deep retro-cyber grid glow backdrop
+        // Deep retro-cyber grid glow backdrop tailored to active palette
         drawRect(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFF141834),
+                    palette.primary.copy(alpha = 0.10f),
                     Color(0xFF090A14),
                     Color(0xFF040408),
                 ),
@@ -698,12 +885,12 @@ private fun WinampVisualizerBackdrop(
             ImmersiveVisualMode.WINAMP_WAVES -> {
                 // 1. Multi-harmonic glowing Winamp Oscilloscope Waves across the upper/middle stage
                 val waveColors = listOf(
-                    Color(0xFF00F0FF), // Electric Cyan
-                    Color(0xFF00FF66), // Classic Winamp Green
-                    Color(0xFFFF007F), // Neon Magenta
-                    Color(0xFFFFD600), // Solar Gold
+                    palette.primary,
+                    palette.secondary,
+                    palette.tertiary,
+                    palette.accent,
                 )
-                val steps = 160
+                val steps = if (classicMode) 90 else 160
                 val dx = w / steps.toFloat()
                 val centerY = h * 0.42f
                 val ampBase = if (isPlaying) h * 0.16f else h * 0.03f
@@ -729,13 +916,13 @@ private fun WinampVisualizerBackdrop(
                     drawPath(
                         path = path,
                         color = color.copy(alpha = 0.24f),
-                        style = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                        style = Stroke(width = if (classicMode) 6f else 10f, cap = StrokeCap.Round, join = StrokeJoin.Round),
                     )
                     // Core oscilloscope beam
                     drawPath(
                         path = path,
                         color = color.copy(alpha = 0.92f),
-                        style = Stroke(width = 2.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                        style = Stroke(width = if (classicMode) 1.8f else 2.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
                     )
                 }
 
@@ -747,12 +934,14 @@ private fun WinampVisualizerBackdrop(
                     topY = h * 0.56f,
                     bottomY = h * 0.92f,
                     reflectionHeight = h * 0.06f,
+                    palette = palette,
+                    classicMode = classicMode,
                 )
             }
 
             ImmersiveVisualMode.WINAMP_SPECTRUM -> {
                 // Top Mini Oscilloscope Ribbon
-                val steps = 140
+                val steps = if (classicMode) 80 else 140
                 val dx = w / steps.toFloat()
                 val wavePath = Path()
                 val waveY = h * 0.20f
@@ -765,12 +954,12 @@ private fun WinampVisualizerBackdrop(
                 }
                 drawPath(
                     path = wavePath,
-                    color = Color(0xFF00FF66).copy(alpha = 0.30f),
+                    color = palette.primary.copy(alpha = 0.30f),
                     style = Stroke(width = 8f, cap = StrokeCap.Round),
                 )
                 drawPath(
                     path = wavePath,
-                    color = Color(0xFF80FFB4),
+                    color = palette.accent,
                     style = Stroke(width = 2.5f, cap = StrokeCap.Round),
                 )
 
@@ -782,6 +971,8 @@ private fun WinampVisualizerBackdrop(
                     topY = h * 0.26f,
                     bottomY = h * 0.88f,
                     reflectionHeight = h * 0.09f,
+                    palette = palette,
+                    classicMode = classicMode,
                 )
             }
 
@@ -797,13 +988,13 @@ private fun WinampVisualizerBackdrop(
                     val frac = ((t * 0.22f + rIdx / 7f) % 1f)
                     val radius = (0.08f + frac * 0.92f) * maxR * (0.85f + bassEnergy * 0.30f)
                     val hueColor = when (rIdx % 4) {
-                        0 -> Color(0xFF00F0FF)
-                        1 -> Color(0xFFFF007F)
-                        2 -> Color(0xFF00FF66)
-                        else -> Color(0xFFFFAB00)
+                        0 -> palette.primary
+                        1 -> palette.secondary
+                        2 -> palette.tertiary
+                        else -> palette.accent
                     }
                     val ringPath = Path()
-                    val pts = 96
+                    val pts = if (classicMode) 48 else 96
                     for (p in 0..pts) {
                         val angle = (p.toFloat() / pts.toFloat()) * (2f * PI.toFloat())
                         val bIdx = ((p.toFloat() / pts.toFloat()) * (numBands - 1)).toInt()
@@ -821,12 +1012,12 @@ private fun WinampVisualizerBackdrop(
 
                 // Flowing Lissajous / Aurora Plasma Ribbons
                 val ribbonColors = listOf(
-                    Color(0xFF00E5FF),
-                    Color(0xFFFF1744),
-                    Color(0xFF76FF03),
-                    Color(0xFFE040FB),
+                    palette.primary,
+                    palette.secondary,
+                    palette.tertiary,
+                    palette.accent,
                 )
-                val steps = 150
+                val steps = if (classicMode) 80 else 150
                 val dx = w / steps.toFloat()
                 ribbonColors.forEachIndexed { idx, col ->
                     val p = Path()
@@ -850,6 +1041,8 @@ private fun WinampVisualizerBackdrop(
                     timeSec = t,
                     numBands = numBands,
                     isPlaying = isPlaying,
+                    palette = palette,
+                    classicMode = classicMode,
                 )
             }
 
@@ -858,6 +1051,8 @@ private fun WinampVisualizerBackdrop(
                     barValues = barValues,
                     timeSec = t,
                     isPlaying = isPlaying,
+                    palette = palette,
+                    classicMode = classicMode,
                 )
             }
 
@@ -866,10 +1061,62 @@ private fun WinampVisualizerBackdrop(
                     barValues = barValues,
                     timeSec = t,
                     isPlaying = isPlaying,
+                    palette = palette,
+                    classicMode = classicMode,
+                )
+            }
+
+            ImmersiveVisualMode.WINAMP_SPHERE -> {
+                drawWinampSphere(
+                    barValues = barValues,
+                    peakValues = peakValues,
+                    timeSec = t,
+                    numBands = numBands,
+                    isPlaying = isPlaying,
+                    palette = palette,
+                    classicMode = classicMode,
+                )
+            }
+
+            ImmersiveVisualMode.WINAMP_FIRE_SPARKS -> {
+                drawWinampFireSparks(
+                    barValues = barValues,
+                    peakValues = peakValues,
+                    timeSec = t,
+                    numBands = numBands,
+                    isPlaying = isPlaying,
+                    palette = palette,
+                    classicMode = classicMode,
+                )
+            }
+
+            ImmersiveVisualMode.WINAMP_STARBURST -> {
+                drawWinampStarburst(
+                    barValues = barValues,
+                    peakValues = peakValues,
+                    timeSec = t,
+                    numBands = numBands,
+                    isPlaying = isPlaying,
+                    palette = palette,
+                    classicMode = classicMode,
                 )
             }
 
             ImmersiveVisualMode.APPLE_LYRICS -> Unit
+        }
+
+        // Classic Nostalgia Scanlines overlay across the visualizer canvas
+        if (classicMode) {
+            var sy = 0f
+            while (sy < h) {
+                drawLine(
+                    color = Color.Black.copy(alpha = 0.25f),
+                    start = Offset(0f, sy),
+                    end = Offset(w, sy),
+                    strokeWidth = 1.2f,
+                )
+                sy += 3.5f
+            }
         }
     }
 }
@@ -881,6 +1128,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
     topY: Float,
     bottomY: Float,
     reflectionHeight: Float,
+    palette: ImmersiveColorPalette = ImmersiveColorPalette.CLASSIC_WINAMP,
+    classicMode: Boolean = false,
 ) {
     val w = size.width
     val horizontalPad = w * 0.04f
@@ -897,33 +1146,59 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
         val level = barValues[i].coerceIn(0f, 1f)
         val activeSegs = (level * segments).toInt()
 
-        // Classic Winamp Segmented LED Bar (Green -> Yellow -> Orange -> Red)
+        // Segmented LED Bar
         for (s in 0 until activeSegs) {
             val segFrac = s.toFloat() / segments.toFloat()
-            val segColor = when {
-                segFrac < 0.50f -> Color(0xFF00FF66) // Classic Winamp Green
-                segFrac < 0.75f -> Color(0xFFC6FF00) // Lime-Yellow
-                segFrac < 0.88f -> Color(0xFFFFAB00) // Warm Amber-Orange
-                else -> Color(0xFFFF1744) // Peak Red
+            val segColor = if (palette == ImmersiveColorPalette.CLASSIC_WINAMP || classicMode) {
+                when {
+                    segFrac < 0.50f -> Color(0xFF00FF66) // Classic Winamp Green
+                    segFrac < 0.75f -> Color(0xFFC6FF00) // Lime-Yellow
+                    segFrac < 0.88f -> Color(0xFFFFAB00) // Warm Amber-Orange
+                    else -> Color(0xFFFF1744) // Peak Red
+                }
+            } else {
+                when {
+                    segFrac < 0.38f -> palette.primary
+                    segFrac < 0.72f -> palette.secondary
+                    segFrac < 0.88f -> palette.tertiary
+                    else -> palette.accent
+                }
             }
             val segY = bottomY - (s + 1) * (segH + segGap)
-            drawRoundRect(
-                color = segColor.copy(alpha = 0.88f),
-                topLeft = Offset(x, segY),
-                size = Size(barW, segH),
-                cornerRadius = CornerRadius(2f, 2f),
-            )
+            if (classicMode) {
+                drawRect(
+                    color = segColor.copy(alpha = 0.92f),
+                    topLeft = Offset(x, segY),
+                    size = Size(barW, segH),
+                )
+            } else {
+                drawRoundRect(
+                    color = segColor.copy(alpha = 0.88f),
+                    topLeft = Offset(x, segY),
+                    size = Size(barW, segH),
+                    cornerRadius = CornerRadius(2f, 2f),
+                )
+            }
         }
 
         // Classic Winamp Falling Peak-Hold Cap
         val peakSeg = (peakValues[i].coerceIn(0f, 1f) * segments).toInt().coerceIn(0, segments)
         val peakY = bottomY - (peakSeg + 1) * (segH + segGap)
-        drawRoundRect(
-            color = Color(0xFFE0F7FA),
-            topLeft = Offset(x, peakY),
-            size = Size(barW, segH.coerceAtMost(5f)),
-            cornerRadius = CornerRadius(2f, 2f),
-        )
+        val capColor = if (classicMode) palette.accent else Color(0xFFE0F7FA)
+        if (classicMode) {
+            drawRect(
+                color = capColor,
+                topLeft = Offset(x, peakY),
+                size = Size(barW, segH.coerceAtMost(4f)),
+            )
+        } else {
+            drawRoundRect(
+                color = capColor,
+                topLeft = Offset(x, peakY),
+                size = Size(barW, segH.coerceAtMost(5f)),
+                cornerRadius = CornerRadius(2f, 2f),
+            )
+        }
 
         // Subtle Floor Reflection
         if (reflectionHeight > 0f && activeSegs > 0) {
@@ -931,7 +1206,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
             drawRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF00FF66).copy(alpha = 0.22f),
+                        palette.primary.copy(alpha = 0.22f),
                         Color.Transparent,
                     ),
                     startY = bottomY + 4f,
@@ -946,8 +1221,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSpectrumB
 
 /**
  * 3D Retro Warp Tunnel visualizer inspired by vintage Winamp AVS and MilkDrop.
- * Features 16 concentric depth rings accelerating toward the camera, 16 radial perspective ribs,
- * audio beat wobble, neon color cycling, and a pulsing bass singularity at the vanishing point.
  */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
     barValues: FloatArray,
@@ -955,6 +1228,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
     timeSec: Float,
     numBands: Int,
     isPlaying: Boolean,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
 ) {
     val w = size.width
     val h = size.height
@@ -965,16 +1240,16 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
     val maxR = (w.coerceAtLeast(h) * 0.75f).coerceAtLeast(200f)
 
     val numRings = 16
-    val numSpokes = 16
+    val numSpokes = if (classicMode) 12 else 16
     val speed = if (isPlaying) 0.52f + bass * 0.35f else 0.12f
     val rot = timeSec * (if (isPlaying) 0.32f else 0.08f)
 
     val tunnelColors = listOf(
-        Color(0xFF00F0FF), // Electric Cyan
-        Color(0xFFFF007F), // Neon Magenta
-        Color(0xFF7C4DFF), // Deep Violet
-        Color(0xFF00FF66), // Classic Winamp Lime
-        Color(0xFFFFAB00), // Amber Gold
+        palette.primary,
+        palette.secondary,
+        palette.tertiary,
+        palette.accent,
+        Color(0xFFFFAB00),
     )
 
     val vertexGrid = Array(numRings) { arrayOfNulls<Offset>(numSpokes) }
@@ -1013,12 +1288,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
         drawPath(
             path = ringPath,
             color = ringColor.copy(alpha = alpha * 0.28f),
-            style = Stroke(width = (4f + radiusFrac * 6f), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            style = Stroke(width = if (classicMode) 3f else (4f + radiusFrac * 6f), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
         drawPath(
             path = ringPath,
             color = ringColor.copy(alpha = alpha),
-            style = Stroke(width = (1.5f + radiusFrac * 2.2f), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            style = Stroke(width = if (classicMode) 1.4f else (1.5f + radiusFrac * 2.2f), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }
 
@@ -1047,8 +1322,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
         brush = Brush.radialGradient(
             colors = listOf(
                 Color.White.copy(alpha = 0.95f),
-                Color(0xFF00F0FF).copy(alpha = 0.65f),
-                Color(0xFFFF007F).copy(alpha = 0.25f),
+                palette.primary.copy(alpha = 0.65f),
+                palette.secondary.copy(alpha = 0.25f),
                 Color.Transparent,
             ),
             center = Offset(cx, cy),
@@ -1066,12 +1341,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
 
 /**
  * Analog Vector Laser Oscilloscope inspired by classic vector arcade CRT monitors and audio XY analyzers.
- * Renders dual glowing phosphor electron beams tracing dynamic Lissajous curves and audio wave forms.
  */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
     barValues: FloatArray,
     timeSec: Float,
     isPlaying: Boolean,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
 ) {
     val w = size.width
     val h = size.height
@@ -1082,8 +1358,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
     val mid = (barValues[4] + barValues[5] + barValues[6] + barValues[7]) * 0.25f
     val treble = (barValues[8] + barValues[9] + barValues[10] + barValues[11]) * 0.25f
 
-    // 1. Subtle CRT Phosphor Reticle Grid
-    val gridColor = Color(0xFF00381B)
+    // 1. CRT Phosphor Reticle Grid
+    val gridColor = palette.primary.copy(alpha = 0.16f)
     val gridStep = 48f
     var gx = cx % gridStep
     while (gx < w) {
@@ -1110,15 +1386,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
     val maxRadius = minOf(cx, cy) * 0.82f
     listOf(0.33f, 0.66f, 1.0f).forEach { frac ->
         drawCircle(
-            color = gridColor.copy(alpha = 0.65f),
+            color = gridColor.copy(alpha = 0.50f),
             radius = maxRadius * frac,
             center = Offset(cx, cy),
             style = Stroke(width = 1f),
         )
     }
 
-    // 2. Primary Phosphor Laser Lissajous Beam
-    val numPoints = 280
+    // 2. Phosphor Laser Lissajous Beam
+    val numPoints = if (classicMode) 140 else 280
     val pathOuter = Path()
     val pathInner = Path()
 
@@ -1142,7 +1418,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
         if (i == 0) pathOuter.moveTo(lx, ly) else pathOuter.lineTo(lx, ly)
     }
 
-    // Secondary complementary counter-rotating beam
     for (i in 0..numPoints) {
         val u = (i.toFloat() / numPoints.toFloat()) * (2f * PI.toFloat())
         val waveMod = if (isPlaying) cos(u * 8f - timeSec * 6f) * (mid * 18f) else 0f
@@ -1153,18 +1428,18 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
         if (i == 0) pathInner.moveTo(lx, ly) else pathInner.lineTo(lx, ly)
     }
 
-    val phosphorGreen = Color(0xFF00FF66)
-    val laserCyan = Color(0xFF00F0FF)
+    val primaryBeam = palette.primary
+    val secondaryBeam = palette.secondary
 
-    // Outer Beam Triple-Pass Glow (Bloom -> Core -> Electron Spine)
-    drawPath(pathOuter, phosphorGreen.copy(alpha = 0.16f + bass * 0.12f), style = Stroke(width = 16f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawPath(pathOuter, phosphorGreen.copy(alpha = 0.55f), style = Stroke(width = 5.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawPath(pathOuter, Color.White.copy(alpha = 0.95f), style = Stroke(width = 1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    // Outer Beam Glow
+    drawPath(pathOuter, primaryBeam.copy(alpha = 0.16f + bass * 0.12f), style = Stroke(width = if (classicMode) 8f else 16f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathOuter, primaryBeam.copy(alpha = 0.55f), style = Stroke(width = if (classicMode) 3.5f else 5.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathOuter, Color.White.copy(alpha = 0.95f), style = Stroke(width = 1.6f, cap = StrokeCap.Round, join = StrokeJoin.Round))
 
-    // Inner Complementary Beam
-    drawPath(pathInner, laserCyan.copy(alpha = 0.14f + mid * 0.10f), style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawPath(pathInner, laserCyan.copy(alpha = 0.60f), style = Stroke(width = 4.0f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawPath(pathInner, Color.White.copy(alpha = 0.90f), style = Stroke(width = 1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    // Inner Beam
+    drawPath(pathInner, secondaryBeam.copy(alpha = 0.14f + mid * 0.10f), style = Stroke(width = if (classicMode) 6f else 12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathInner, secondaryBeam.copy(alpha = 0.60f), style = Stroke(width = if (classicMode) 2.5f else 4.0f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathInner, Color.White.copy(alpha = 0.90f), style = Stroke(width = 1.4f, cap = StrokeCap.Round, join = StrokeJoin.Round))
 
     // Center CRT Glow Point
     val centerGlow = (12f + bass * 28f).coerceAtLeast(8f)
@@ -1172,7 +1447,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
         brush = Brush.radialGradient(
             colors = listOf(
                 Color.White,
-                phosphorGreen.copy(alpha = 0.6f),
+                primaryBeam.copy(alpha = 0.6f),
                 Color.Transparent,
             ),
             center = Offset(cx, cy),
@@ -1185,13 +1460,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
 
 /**
  * HyperSpace Starfield 3D Warp visualizer.
- * Simulates travelling at faster-than-light speed through a deep cosmic warp tunnel,
- * with star streaks expanding outward, chromatic speed lines, and explosive bass shockwaves.
  */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
     barValues: FloatArray,
     timeSec: Float,
     isPlaying: Boolean,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
 ) {
     val w = size.width
     val h = size.height
@@ -1201,30 +1476,26 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
     val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
     val treble = (barValues[8] + barValues[9] + barValues[10] + barValues[11]) * 0.25f
 
-    val numStars = 190
+    val numStars = if (classicMode) 120 else 190
     val warpSpeed = if (isPlaying) 0.65f + bass * 1.10f else 0.18f
     val maxDist = maxOf(w, h) * 0.75f
 
-    // Color palette for cosmic warp streaks
     val streakColors = listOf(
-        Color(0xFF00F0FF), // Cyan
-        Color(0xFFFF007F), // Neon Magenta
-        Color(0xFF7C4DFF), // Purple
-        Color(0xFF00FF66), // Lime Green
-        Color(0xFFFFFFFF), // Pure White
+        palette.primary,
+        palette.secondary,
+        palette.tertiary,
+        palette.accent,
+        Color.White,
     )
 
     for (i in 0 until numStars) {
-        // Deterministic pseudo-random seed per star index
         val seedAngle = ((i * 137.508f) % 360f) * (PI.toFloat() / 180f)
         val seedDist = (((i * 47) % 100) / 100f).coerceIn(0.08f, 1.0f)
         val seedOffset = ((i * 31) % 100) / 100f
 
-        // Star distance along Z-axis (1 = deep background, 0 = at the camera)
         val z = ((seedOffset - (timeSec * warpSpeed * 0.35f)) % 1f + 1f) % 1f
         if (z < 0.02f) continue
 
-        // Perspective projection: coordinates expand as Z -> 0
         val dist = (1f - z) * (1f - z) * maxDist * seedDist
         val prevDist = ((1f - (z + 0.045f * warpSpeed)).coerceAtLeast(0f)).let { it * it * maxDist * seedDist }
 
@@ -1233,7 +1504,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
         val prevX = cx + cos(seedAngle) * prevDist
         val prevY = cy + sin(seedAngle) * prevDist
 
-        // Only draw if within screen margins
         if (sx < -40f || sx > w + 40f || sy < -40f || sy > h + 40f) continue
 
         val starColor = streakColors[i % streakColors.size]
@@ -1249,25 +1519,29 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
             color = starColor.copy(alpha = alpha),
             start = Offset(prevX, prevY),
             end = Offset(sx, sy),
-            strokeWidth = streakWidth,
+            strokeWidth = if (classicMode) 1.5f else streakWidth,
             cap = StrokeCap.Round,
         )
 
-        // Bright star head dot
-        drawCircle(
-            color = Color.White.copy(alpha = alpha),
-            radius = (streakWidth * 0.65f).coerceAtLeast(1.5f),
-            center = Offset(sx, sy),
-        )
+        // Star head dot / retro cross
+        if (classicMode) {
+            drawRetroStarCross(Offset(sx, sy), armLength = 3f, color = Color.White.copy(alpha = alpha))
+        } else {
+            drawCircle(
+                color = Color.White.copy(alpha = alpha),
+                radius = (streakWidth * 0.65f).coerceAtLeast(1.5f),
+                center = Offset(sx, sy),
+            )
+        }
     }
 
-    // Bass Shockwave Ring expanding from warp center
+    // Bass Shockwave Ring
     if (bass > 0.15f) {
         val shockFrac = ((timeSec * 2.2f) % 1f)
         val shockRadius = shockFrac * maxDist * (0.6f + bass * 0.4f)
         val shockAlpha = (1f - shockFrac) * (0.45f + bass * 0.40f)
         drawCircle(
-            color = Color(0xFF00F0FF).copy(alpha = shockAlpha),
+            color = palette.primary.copy(alpha = shockAlpha),
             radius = shockRadius,
             center = Offset(cx, cy),
             style = Stroke(width = (4f * (1f - shockFrac) + 1f).coerceAtLeast(1.5f)),
@@ -1280,8 +1554,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
         brush = Brush.radialGradient(
             colors = listOf(
                 Color.White,
-                Color(0xFF00F0FF).copy(alpha = 0.80f),
-                Color(0xFFFF007F).copy(alpha = 0.35f),
+                palette.primary.copy(alpha = 0.80f),
+                palette.secondary.copy(alpha = 0.35f),
                 Color.Transparent,
             ),
             center = Offset(cx, cy),
@@ -1294,6 +1568,418 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
         color = Color.White,
         radius = (coreR * 0.4f).coerceAtLeast(3f),
         center = Offset(cx, cy),
+    )
+}
+
+/**
+ * 3D Retro Wireframe Sphere visualizer (Image 3 inspired).
+ * Features rotating latitude and longitude rings modulated by FFT frequency bands,
+ * an orbiting satellite orb with glow, and a retro star cross constellation field.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampSphere(
+    barValues: FloatArray,
+    peakValues: FloatArray,
+    timeSec: Float,
+    numBands: Int,
+    isPlaying: Boolean,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    val cx = w * 0.5f
+    val cy = h * 0.48f
+
+    val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+    val mid = (barValues[5] + barValues[6] + barValues[7] + barValues[8]) * 0.25f
+    val treble = (barValues[10] + barValues[11] + barValues[12] + barValues[13]) * 0.25f
+
+    // 1. Retro Star Cross Constellation Field in deep space background
+    val numStars = 64
+    for (i in 0 until numStars) {
+        val sAngle = ((i * 137.5f) % 360f) * (PI.toFloat() / 180f)
+        val sDist = (((i * 73) % 100) / 100f) * (maxOf(w, h) * 0.60f)
+        val sx = cx + cos(sAngle) * sDist
+        val sy = cy + sin(sAngle) * sDist
+        val starAlpha = (0.25f + 0.50f * sin(timeSec * 2f + i)).coerceIn(0.15f, 0.85f)
+        val starCol = if (i % 3 == 0) palette.accent else Color.White
+
+        if (classicMode) {
+            drawRetroStarCross(Offset(sx, sy), armLength = 3.5f, color = starCol.copy(alpha = starAlpha))
+        } else {
+            drawCircle(color = starCol.copy(alpha = starAlpha), radius = 1.6f, center = Offset(sx, sy))
+        }
+    }
+
+    // 2. 3D Rotating Sphere Geometry
+    val baseRadius = (minOf(w, h) * 0.28f) * (0.88f + bass * 0.24f)
+    val rotY = timeSec * (if (isPlaying) 0.50f else 0.15f)
+    val rotX = 0.42f + 0.12f * sin(timeSec * 0.28f)
+    val cosRx = cos(rotX)
+    val sinRx = sin(rotX)
+
+    fun project3D(x: Float, y: Float, z: Float): Pair<Offset, Float> {
+        val cosRy = cos(rotY)
+        val sinRy = sin(rotY)
+        val x1 = x * cosRy + z * sinRy
+        val y1 = y
+        val z1 = -x * sinRy + z * cosRy
+
+        val x2 = x1
+        val y2 = y1 * cosRx - z1 * sinRx
+        val z2 = y1 * sinRx + z1 * cosRx
+
+        val fov = 600f
+        val scale = fov / (fov + z2)
+        return Pair(Offset(cx + x2 * scale, cy + y2 * scale), z2)
+    }
+
+    // Latitude Rings (horizontal slices)
+    val numLat = 9
+    for (lat in 1 until numLat) {
+        val phi = ((lat.toFloat() / numLat.toFloat()) - 0.5f) * PI.toFloat()
+        val latR = baseRadius * cos(phi)
+        val latY = baseRadius * sin(phi)
+        val bandIdx = (lat * (numBands / numLat)).coerceIn(0, numBands - 1)
+        val audioMod = 1f + (if (isPlaying) barValues[bandIdx] * 0.20f else 0f)
+
+        val pts = if (classicMode) 24 else 48
+        val path = Path()
+        for (p in 0..pts) {
+            val theta = (p.toFloat() / pts.toFloat()) * (2f * PI.toFloat())
+            val px = latR * audioMod * cos(theta)
+            val pz = latR * audioMod * sin(theta)
+            val (screenPt, _) = project3D(px, latY, pz)
+            if (p == 0) path.moveTo(screenPt.x, screenPt.y) else path.lineTo(screenPt.x, screenPt.y)
+        }
+        val latColor = if (lat == numLat / 2) palette.accent else palette.primary
+        drawPath(
+            path = path,
+            color = latColor.copy(alpha = 0.70f),
+            style = Stroke(width = if (lat == numLat / 2) 2.2f else 1.4f, cap = StrokeCap.Round),
+        )
+    }
+
+    // Longitude Rings (meridians passing through poles)
+    val numLong = 10
+    for (lng in 0 until numLong) {
+        val baseTheta = (lng.toFloat() / numLong.toFloat()) * PI.toFloat()
+        val pts = if (classicMode) 28 else 56
+        val path = Path()
+        val bandIdx = (lng * (numBands / numLong)).coerceIn(0, numBands - 1)
+        val audioMod = 1f + (if (isPlaying) peakValues[bandIdx] * 0.16f else 0f)
+
+        for (p in 0..pts) {
+            val phi = (p.toFloat() / pts.toFloat()) * (2f * PI.toFloat())
+            val px = baseRadius * audioMod * cos(phi) * cos(baseTheta)
+            val py = baseRadius * audioMod * sin(phi)
+            val pz = baseRadius * audioMod * cos(phi) * sin(baseTheta)
+            val (screenPt, _) = project3D(px, py, pz)
+            if (p == 0) path.moveTo(screenPt.x, screenPt.y) else path.lineTo(screenPt.x, screenPt.y)
+        }
+        drawPath(
+            path = path,
+            color = palette.secondary.copy(alpha = 0.55f),
+            style = Stroke(width = 1.3f, cap = StrokeCap.Round),
+        )
+    }
+
+    // Orbiting Satellite Ring tilted around sphere
+    val orbitRadius = baseRadius * (1.42f + mid * 0.15f)
+    val orbitTilt = 0.55f
+    val cosOt = cos(orbitTilt)
+    val sinOt = sin(orbitTilt)
+    val orbitPts = if (classicMode) 32 else 64
+    val orbitPath = Path()
+    for (p in 0..orbitPts) {
+        val oAngle = (p.toFloat() / orbitPts.toFloat()) * (2f * PI.toFloat())
+        val ox = orbitRadius * cos(oAngle)
+        val oy = orbitRadius * sin(oAngle) * sinOt
+        val oz = orbitRadius * sin(oAngle) * cosOt
+        val (screenPt, _) = project3D(ox, oy, oz)
+        if (p == 0) orbitPath.moveTo(screenPt.x, screenPt.y) else orbitPath.lineTo(screenPt.x, screenPt.y)
+    }
+    drawPath(
+        path = orbitPath,
+        color = palette.accent.copy(alpha = 0.40f),
+        style = Stroke(width = 1.5f, cap = StrokeCap.Round),
+    )
+
+    // Satellite Orb traveling on orbit
+    val satAngle = timeSec * (if (isPlaying) 1.4f else 0.4f)
+    val satX = orbitRadius * cos(satAngle)
+    val satY = orbitRadius * sin(satAngle) * sinOt
+    val satZ = orbitRadius * sin(satAngle) * cosOt
+    val (satScreen, _) = project3D(satX, satY, satZ)
+
+    val satGlow = (6f + treble * 14f).coerceAtLeast(4f)
+    drawCircle(
+        color = palette.accent.copy(alpha = 0.45f),
+        radius = satGlow * 2.2f,
+        center = satScreen,
+    )
+    drawCircle(
+        color = Color.White,
+        radius = (3f + treble * 4f).coerceAtLeast(2.5f),
+        center = satScreen,
+    )
+}
+
+/**
+ * Falling Rain of Fire Sparks & Embers with reflective mirror floor (Image 4 inspired).
+ * Features hundreds of descending glowing sparks, beat explosions, floor bounce ripples,
+ * and vertical dark water reflections.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampFireSparks(
+    barValues: FloatArray,
+    peakValues: FloatArray,
+    timeSec: Float,
+    numBands: Int,
+    isPlaying: Boolean,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.78f
+
+    val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+    val mid = (barValues[6] + barValues[7] + barValues[8]) / 3f
+    val treble = (barValues[12] + barValues[13] + barValues[14]) / 3f
+
+    // 1. Dark Mirror Water Floor Backdrop
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xCC060814),
+                Color(0xEE0B0D18),
+                Color(0xFF04040A),
+            ),
+            startY = floorY,
+            endY = h,
+        ),
+        topLeft = Offset(0f, floorY),
+        size = Size(w, h - floorY),
+    )
+    drawLine(
+        color = palette.primary.copy(alpha = 0.35f),
+        start = Offset(0f, floorY),
+        end = Offset(w, floorY),
+        strokeWidth = 1.5f,
+    )
+
+    // 2. Falling Sparks Simulation
+    val numSparks = if (classicMode) 90 else 140
+    val fallSpeed = if (isPlaying) 0.55f + bass * 0.85f else 0.18f
+
+    for (i in 0 until numSparks) {
+        val seedX = (((i * 89) % 1000) / 1000f) * w
+        val seedOffset = ((i * 43) % 100) / 100f
+        val sparkSpeed = 0.4f + (((i * 17) % 100) / 100f) * 0.8f
+
+        // Progress from 0 (top of screen) to 1 (floor plane)
+        val progress = ((seedOffset + timeSec * fallSpeed * sparkSpeed) % 1.0f)
+        val sway = sin(timeSec * 3f + i * 1.7f) * (8f + mid * 18f)
+        val sparkX = (seedX + sway).coerceIn(4f, w - 4f)
+        val sparkY = progress * floorY
+
+        val sparkColor = when (i % 4) {
+            0 -> palette.primary
+            1 -> palette.secondary
+            2 -> palette.accent
+            else -> Color(0xFFFFD54F)
+        }
+
+        val tailLen = (6f + progress * 24f + bass * 28f).coerceIn(6f, 50f)
+        val alpha = when {
+            progress < 0.10f -> (progress / 0.10f) * 0.85f
+            progress > 0.85f -> ((1f - progress) / 0.15f) * 0.95f
+            else -> 0.95f
+        }
+
+        // Draw Spark Trail
+        drawLine(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color.Transparent, sparkColor.copy(alpha = alpha)),
+                startY = (sparkY - tailLen).coerceAtLeast(0f),
+                endY = sparkY,
+            ),
+            start = Offset(sparkX, (sparkY - tailLen).coerceAtLeast(0f)),
+            end = Offset(sparkX, sparkY),
+            strokeWidth = if (classicMode) 1.5f else 2.5f,
+            cap = StrokeCap.Round,
+        )
+
+        // Spark Head Dot / Cross
+        if (classicMode) {
+            drawRetroStarCross(Offset(sparkX, sparkY), armLength = 2.5f, color = Color.White.copy(alpha = alpha))
+        } else {
+            drawCircle(
+                color = Color.White.copy(alpha = alpha),
+                radius = 1.8f,
+                center = Offset(sparkX, sparkY),
+            )
+        }
+
+        // Floor Water Mirror Reflection
+        val reflY = floorY + (floorY - sparkY) * 0.45f
+        if (reflY < h) {
+            val reflAlpha = alpha * 0.28f
+            drawLine(
+                color = sparkColor.copy(alpha = reflAlpha),
+                start = Offset(sparkX, reflY),
+                end = Offset(sparkX, reflY + tailLen * 0.35f),
+                strokeWidth = if (classicMode) 1.2f else 2.0f,
+            )
+        }
+
+        // Floor Impact Ripples (when spark hits floor)
+        if (progress > 0.92f) {
+            val rippleFrac = (progress - 0.92f) / 0.08f
+            val rippleR = rippleFrac * 28f
+            val rippleAlpha = (1f - rippleFrac) * 0.45f
+            drawOval(
+                color = sparkColor.copy(alpha = rippleAlpha),
+                topLeft = Offset(sparkX - rippleR, floorY + 2f - rippleR * 0.25f),
+                size = Size(rippleR * 2f, rippleR * 0.5f),
+                style = Stroke(width = 1.2f),
+            )
+        }
+    }
+
+    // Treble Twinkle Sparks floating above floor
+    if (isPlaying && treble > 0.2f) {
+        val numTwinkles = 16
+        for (t in 0 until numTwinkles) {
+            val tx = (((t * 157) % 1000) / 1000f) * w
+            val ty = floorY - 30f - (((t * 97) % 100) / 100f) * 120f
+            val tAlpha = (sin(timeSec * 8f + t * 2f).coerceAtLeast(0f)) * treble * 0.8f
+            if (classicMode) {
+                drawRetroStarCross(Offset(tx, ty), armLength = 4f, color = palette.accent.copy(alpha = tAlpha))
+            } else {
+                drawCircle(color = palette.accent.copy(alpha = tAlpha), radius = 2.4f, center = Offset(tx, ty))
+            }
+        }
+    }
+}
+
+/**
+ * Inward Contour Starburst / Vortex Tunnel visualizer (Image 2 inspired).
+ * Features concentric starburst contour rings deformed by FFT frequencies,
+ * creating an inward vortex tunnel with sharp ridges and vintage bloom.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampStarburst(
+    barValues: FloatArray,
+    peakValues: FloatArray,
+    timeSec: Float,
+    numBands: Int,
+    isPlaying: Boolean,
+    palette: ImmersiveColorPalette,
+    classicMode: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    val cx = w * 0.5f
+    val cy = h * 0.48f
+
+    val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+    val maxRadius = maxOf(w, h) * 0.72f
+
+    val numRings = 16
+    val ptsPerRing = if (classicMode) 32 else 54
+    val speed = if (isPlaying) 0.45f + bass * 0.50f else 0.12f
+    val rot = timeSec * (if (isPlaying) 0.22f else 0.06f)
+
+    for (r in 0 until numRings) {
+        val baseFrac = r.toFloat() / numRings.toFloat()
+        // Rings advance inward toward center
+        val z = ((baseFrac - timeSec * speed * 0.25f) % 1f + 1f) % 1f
+        val radiusFrac = z * z
+        val radius = 12f + radiusFrac * maxRadius
+
+        val alpha = when {
+            z < 0.08f -> (z / 0.08f) * 0.45f
+            z > 0.88f -> ((1f - z) / 0.12f) * 0.85f
+            else -> 0.88f
+        }
+
+        val ringColor = when (r % 4) {
+            0 -> palette.primary
+            1 -> palette.secondary
+            2 -> palette.tertiary
+            else -> palette.accent
+        }
+
+        val path = Path()
+        for (p in 0..ptsPerRing) {
+            val angle = (p.toFloat() / ptsPerRing.toFloat()) * (2f * PI.toFloat()) + rot + (r * 0.08f)
+            val bandIdx = ((p.toFloat() / ptsPerRing.toFloat()) * (numBands - 1)).toInt().coerceIn(0, numBands - 1)
+            val audioLevel = barValues[bandIdx]
+
+            // Starburst undulation: 8 or 12 points contour deformation
+            val starHarmonic = cos(angle * 8f) * (0.16f + audioLevel * 0.25f)
+            val waveWobble = sin(angle * 16f - timeSec * 4f) * (0.06f * audioLevel)
+            val totalMod = (1f + starHarmonic + waveWobble).coerceAtLeast(0.3f)
+
+            val px = cx + cos(angle) * radius * totalMod
+            val py = cy + sin(angle) * radius * totalMod
+
+            if (p == 0) path.moveTo(px, py) else path.lineTo(px, py)
+        }
+        path.close()
+
+        // Outer glow
+        drawPath(
+            path = path,
+            color = ringColor.copy(alpha = alpha * 0.25f),
+            style = Stroke(width = if (classicMode) 3f else (6f + radiusFrac * 4f), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+        // Core contour ridge
+        drawPath(
+            path = path,
+            color = ringColor.copy(alpha = alpha),
+            style = Stroke(width = if (classicMode) 1.4f else (2.0f + radiusFrac * 1.5f), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
+
+    // Singularity Core at vanishing point
+    val coreR = (12f + bass * 30f).coerceAtLeast(6f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White,
+                palette.primary.copy(alpha = 0.70f),
+                palette.secondary.copy(alpha = 0.25f),
+                Color.Transparent,
+            ),
+            center = Offset(cx, cy),
+            radius = coreR * 3f,
+        ),
+        radius = coreR * 3f,
+        center = Offset(cx, cy),
+    )
+}
+
+/**
+ * Draws a sharp vintage 5-pixel star crossmark (+) for retro demoscene visuals.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRetroStarCross(
+    center: Offset,
+    armLength: Float,
+    color: Color,
+    strokeWidth: Float = 1.4f,
+) {
+    drawLine(
+        color = color,
+        start = Offset(center.x - armLength, center.y),
+        end = Offset(center.x + armLength, center.y),
+        strokeWidth = strokeWidth,
+    )
+    drawLine(
+        color = color,
+        start = Offset(center.x, center.y - armLength),
+        end = Offset(center.x, center.y + armLength),
+        strokeWidth = strokeWidth,
     )
 }
 
@@ -1315,6 +2001,9 @@ private fun ImmersiveHeroPlayer(
     onShuffleChange: (Boolean) -> Unit,
     repeatMode: DesktopRepeatMode,
     onRepeatModeChange: (DesktopRepeatMode) -> Unit,
+    automix: Boolean = false,
+    onAutomixChange: (Boolean) -> Unit = {},
+    djMixState: DjMixState = DjMixState(),
     isQueueVisible: Boolean = false,
     onToggleQueue: () -> Unit = {},
 ) {
@@ -1385,7 +2074,39 @@ private fun ImmersiveHeroPlayer(
             )
         }
 
-        Spacer(Modifier.height(20.dp))
+        if (djMixState.isBlending) {
+            val infiniteTransition = rememberInfiniteTransition(label = "djPulseImmersive")
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.65f,
+                targetValue = 1.0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(650, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "pulseAlphaImmersive",
+            )
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF00F0FF).copy(alpha = 0.14f * pulseAlpha))
+                    .border(1.dp, Color(0xFF00F0FF).copy(alpha = 0.45f * pulseAlpha), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "⚡ MEZCLANDO CON ${djMixState.incomingTitle.uppercase()} A ${djMixState.incomingBpm} BPM",
+                    color = Color(0xFF00F0FF).copy(alpha = pulseAlpha),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
 
         DesktopThinSlider(
             value = currentDisplayFraction,
@@ -1495,6 +2216,15 @@ private fun ImmersiveHeroPlayer(
                     },
                     contentDescription = DesktopStrings["repeat", "Repetir"],
                     tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else Color.White.copy(alpha = 0.45f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            IconButton(onClick = { onAutomixChange(!automix) }) {
+                Icon(
+                    Icons.Rounded.AutoAwesome,
+                    contentDescription = DesktopStrings["automix", "Modo DJ Automix"],
+                    tint = if (automix) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
                     modifier = Modifier.size(20.dp),
                 )
             }
