@@ -297,6 +297,10 @@ class DesktopPersistence {
 
     fun savePreferAudioTracks(enabled: Boolean) = saveBoolean(KEY_PREFER_AUDIO_TRACKS, enabled)
 
+    fun predictiveBufferEnabled(): Boolean = boolean(KEY_PREDICTIVE_BUFFER_ENABLED, true)
+
+    fun savePredictiveBufferEnabled(enabled: Boolean) = saveBoolean(KEY_PREDICTIVE_BUFFER_ENABLED, enabled)
+
     fun allowRemixesAndLive(): Boolean = boolean(KEY_ALLOW_REMIXES_LIVE, false)
 
     fun saveAllowRemixesAndLive(enabled: Boolean) = saveBoolean(KEY_ALLOW_REMIXES_LIVE, enabled)
@@ -321,6 +325,7 @@ class DesktopPersistence {
         const val KEY_IMMERSIVE_CLASSIC_MODE = "immersive_classic_mode"
         const val KEY_IMMERSIVE_SHOW_LYRICS = "immersive_show_lyrics"
         const val KEY_PREFER_AUDIO_TRACKS = "prefer_audio_tracks"
+        const val KEY_PREDICTIVE_BUFFER_ENABLED = "predictive_buffer_enabled"
         const val KEY_DJ_MIX_CURVE = "dj_mix_curve"
         const val MAX_HISTORY = 100
         const val MAX_QUEUE = 200
@@ -401,6 +406,17 @@ class DesktopPersistence {
             runCatching {
                 val prefs = DesktopPreferenceMigration.open()
                 prefs.putBoolean(KEY_PREFER_AUDIO_TRACKS, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun predictiveBufferEnabled(default: Boolean = true): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_PREDICTIVE_BUFFER_ENABLED, default) }.getOrDefault(default)
+
+        fun savePredictiveBufferEnabled(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_PREDICTIVE_BUFFER_ENABLED, enabled)
                 prefs.flush()
             }
         }

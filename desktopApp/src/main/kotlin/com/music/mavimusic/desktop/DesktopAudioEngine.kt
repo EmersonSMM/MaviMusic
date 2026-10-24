@@ -261,6 +261,7 @@ class DesktopPlaybackEngine(
             // literally named "Justin%20Bieber%20-%20…" and it answered ENOENT for a file that was
             // sitting right there.
             val localUrl = DesktopDownloadManager.savedFile(song)?.toAbsolutePath()?.toString()
+                ?: DesktopPredictiveCache.cachedStream(song)?.url
             val resolved = localUrl?.let { Result.success(DesktopLiveResolution(DesktopStream(it))) }
                 ?: DesktopMusicSources.resolveLive(song, audioQuality, excludedSourceId)
             resolved.fold(
@@ -579,7 +580,8 @@ class DesktopPlaybackEngine(
         nextSong = song
         // A download plays from its file, here as in [loadInternal] — never from whichever source
         // would have answered for it.
-        val local = DesktopDownloadManager.savedFile(song)?.toAbsolutePath()?.toString()?.let { DesktopStream(it) }
+        val local = (DesktopDownloadManager.savedFile(song)?.toAbsolutePath()?.toString()
+            ?: DesktopPredictiveCache.cachedStream(song)?.url)?.let { DesktopStream(it) }
         nextLocalStream = local
         // Measured on YouTube Opus (or the file) whatever will end up serving it, so Automix has
         // its analysis without anything being fetched from the source that will play it.

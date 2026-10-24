@@ -146,6 +146,8 @@ object DesktopStrings {
         "loudness_normalization" to "Normalización de volumen",
         "loudness_normalization_desc" to "Iguala el volumen entre canciones (LUFS estándar -14 dB) para evitar cambios bruscos",
         "normalized_lufs_badge" to "✓ -14 LUFS",
+        "predictive_buffer" to "Buffer predictivo de la cola",
+        "predictive_buffer_subtitle" to "Descarga en segundo plano las siguientes 2–3 canciones para reproducción instantánea sin cortes",
     )
 
     init {

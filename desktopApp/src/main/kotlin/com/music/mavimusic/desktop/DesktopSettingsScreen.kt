@@ -393,6 +393,8 @@ internal fun DesktopSettingsScreen(
     onOpenSpotifyCanvasSetup: () -> Unit,
     dontRepeatSuggestions: Boolean,
     onDontRepeatSuggestionsChange: (Boolean) -> Unit,
+    predictiveBuffer: Boolean = DesktopPersistence.predictiveBufferEnabled(),
+    onPredictiveBufferChange: (Boolean) -> Unit = {},
     preferAudioTracks: Boolean = true,
     onPreferAudioTracksChange: (Boolean) -> Unit = {},
     filterNonMusicAudio: Boolean,
@@ -490,6 +492,18 @@ internal fun DesktopSettingsScreen(
             DesktopSettingsSection.entries.forEach { section ->
             if (section == DesktopSettingsSection.PLAYBACK) item {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                    SettingsToggle(
+                        DesktopStrings["predictive_buffer", "Buffer predictivo de la cola"],
+                        DesktopStrings[
+                            "predictive_buffer_subtitle",
+                            "Descarga en segundo plano las siguientes 2–3 canciones para reproducción instantánea sin cortes",
+                        ],
+                        predictiveBuffer,
+                        {
+                            onPredictiveBufferChange(it)
+                            DesktopPersistence.savePredictiveBufferEnabled(it)
+                        },
+                    )
                     SettingsToggle(
                         DesktopStrings["prefer_audio_tracks", "Modo Solo Canción (Evitar videos musicales)"],
                         DesktopStrings[

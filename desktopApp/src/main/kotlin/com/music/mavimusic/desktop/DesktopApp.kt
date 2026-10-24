@@ -541,6 +541,9 @@ fun MaviMusicDesktopApp() {
                 .getOrDefault(AutomixPerformanceMode.BALANCED),
         )
     }
+    var predictiveBufferEnabled by remember {
+        mutableStateOf(persistence.predictiveBufferEnabled())
+    }
     var preferAudioTracks by remember {
         mutableStateOf(persistence.preferAudioTracks())
     }
@@ -1917,6 +1920,12 @@ fun MaviMusicDesktopApp() {
                 }
             }
         }
+    }
+    // Phase 1, Item 1: Predictive buffer for upcoming queue tracks
+    LaunchedEffect(liveQueue.upcoming.map { it.videoId }, predictiveBufferEnabled) {
+        if (!predictiveBufferEnabled) return@LaunchedEffect
+        delay(2_000L) // Wait 2 seconds so current track playback starts without competing I/O
+        DesktopPredictiveCache.bufferUpcoming(liveQueue.upcoming, audioQuality.name)
     }
     LaunchedEffect(Unit) {
         while (currentCoroutineContext().isActive) {
@@ -4339,6 +4348,11 @@ fun MaviMusicDesktopApp() {
                                     onDontRepeatSuggestionsChange = {
                                         dontRepeatSuggestions = it
                                         persistence.saveBoolean(KEY_DONT_REPEAT_SUGGESTIONS, it)
+                                    },
+                                    predictiveBuffer = predictiveBufferEnabled,
+                                    onPredictiveBufferChange = {
+                                        predictiveBufferEnabled = it
+                                        persistence.savePredictiveBufferEnabled(it)
                                     },
                                     preferAudioTracks = preferAudioTracks,
                                     onPreferAudioTracksChange = {
