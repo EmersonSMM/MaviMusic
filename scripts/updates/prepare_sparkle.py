@@ -24,13 +24,19 @@ def prepare(output, archive=None):
             partial.replace(cached)
         finally:
             partial.unlink(missing_ok=True)
+    hasher = hashlib.sha256()
     with cached.open("rb") as stream:
-        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+        for chunk in iter(lambda: stream.read(65536), b""):
+            hasher.update(chunk)
+    actual = hasher.hexdigest()
     if actual != SHA256:
         raise ValueError("Sparkle archive checksum mismatch; refusing to use it")
     # The hash identifies the trusted upstream tarball, including framework symlinks.
     with tarfile.open(cached) as archive_file:
-        archive_file.extractall(output, filter="fully_trusted")
+        try:
+            archive_file.extractall(output, filter="fully_trusted")
+        except TypeError:
+            archive_file.extractall(output)
     (output / "verified-sha256.txt").write_text(SHA256 + "\n")
     return output
 

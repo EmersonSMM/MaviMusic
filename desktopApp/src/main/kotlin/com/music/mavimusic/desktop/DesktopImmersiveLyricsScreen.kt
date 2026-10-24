@@ -101,6 +101,8 @@ internal enum class ImmersiveVisualMode(val label: String) {
     WINAMP_SPECTRUM("Espectro Winamp"),
     WINAMP_MILKDROP("Plasma MilkDrop"),
     WINAMP_TUNNEL("Túnel Retro 3D"),
+    WINAMP_LASER("Láser Osciloscopio"),
+    WINAMP_WARP("Hiperespacio 3D"),
     APPLE_LYRICS("Letras Mesh"),
 }
 
@@ -851,6 +853,22 @@ private fun WinampVisualizerBackdrop(
                 )
             }
 
+            ImmersiveVisualMode.WINAMP_LASER -> {
+                drawWinampLaser(
+                    barValues = barValues,
+                    timeSec = t,
+                    isPlaying = isPlaying,
+                )
+            }
+
+            ImmersiveVisualMode.WINAMP_WARP -> {
+                drawWinampWarp(
+                    barValues = barValues,
+                    timeSec = t,
+                    isPlaying = isPlaying,
+                )
+            }
+
             ImmersiveVisualMode.APPLE_LYRICS -> Unit
         }
     }
@@ -1042,6 +1060,239 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampTunnel(
     drawCircle(
         color = Color.White,
         radius = (coreRadius * 0.35f).coerceAtLeast(3f),
+        center = Offset(cx, cy),
+    )
+}
+
+/**
+ * Analog Vector Laser Oscilloscope inspired by classic vector arcade CRT monitors and audio XY analyzers.
+ * Renders dual glowing phosphor electron beams tracing dynamic Lissajous curves and audio wave forms.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampLaser(
+    barValues: FloatArray,
+    timeSec: Float,
+    isPlaying: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    val cx = w * 0.5f
+    val cy = h * 0.48f
+
+    val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+    val mid = (barValues[4] + barValues[5] + barValues[6] + barValues[7]) * 0.25f
+    val treble = (barValues[8] + barValues[9] + barValues[10] + barValues[11]) * 0.25f
+
+    // 1. Subtle CRT Phosphor Reticle Grid
+    val gridColor = Color(0xFF00381B)
+    val gridStep = 48f
+    var gx = cx % gridStep
+    while (gx < w) {
+        drawLine(
+            color = gridColor,
+            start = Offset(gx, 0f),
+            end = Offset(gx, h),
+            strokeWidth = 1f,
+        )
+        gx += gridStep
+    }
+    var gy = cy % gridStep
+    while (gy < h) {
+        drawLine(
+            color = gridColor,
+            start = Offset(0f, gy),
+            end = Offset(w, gy),
+            strokeWidth = 1f,
+        )
+        gy += gridStep
+    }
+
+    // Concentric calibration rings
+    val maxRadius = minOf(cx, cy) * 0.82f
+    listOf(0.33f, 0.66f, 1.0f).forEach { frac ->
+        drawCircle(
+            color = gridColor.copy(alpha = 0.65f),
+            radius = maxRadius * frac,
+            center = Offset(cx, cy),
+            style = Stroke(width = 1f),
+        )
+    }
+
+    // 2. Primary Phosphor Laser Lissajous Beam
+    val numPoints = 280
+    val pathOuter = Path()
+    val pathInner = Path()
+
+    val freqA = if (isPlaying) 2.0f + (mid * 3.0f).toInt().toFloat() else 2.0f
+    val freqB = if (isPlaying) 3.0f + (treble * 2.0f).toInt().toFloat() else 3.0f
+    val speed = if (isPlaying) 1.2f + bass * 1.5f else 0.4f
+    val phase = timeSec * speed
+
+    val baseRx = maxRadius * (0.55f + bass * 0.35f)
+    val baseRy = maxRadius * (0.50f + mid * 0.30f)
+
+    for (i in 0..numPoints) {
+        val u = (i.toFloat() / numPoints.toFloat()) * (2f * PI.toFloat())
+        val waveMod = if (isPlaying) sin(u * 12f + timeSec * 8f) * (treble * 24f) else 0f
+
+        val lx = cx + cos(freqA * u + phase) * (baseRx + waveMod) +
+            sin(u * 4f - timeSec * 2f) * (bass * 30f)
+        val ly = cy + sin(freqB * u + phase * 0.7f) * (baseRy + waveMod) +
+            cos(u * 3f + timeSec) * (mid * 25f)
+
+        if (i == 0) pathOuter.moveTo(lx, ly) else pathOuter.lineTo(lx, ly)
+    }
+
+    // Secondary complementary counter-rotating beam
+    for (i in 0..numPoints) {
+        val u = (i.toFloat() / numPoints.toFloat()) * (2f * PI.toFloat())
+        val waveMod = if (isPlaying) cos(u * 8f - timeSec * 6f) * (mid * 18f) else 0f
+
+        val lx = cx + cos((freqB - 1f) * u - phase * 0.8f) * (baseRx * 0.68f + waveMod)
+        val ly = cy + sin((freqA + 1f) * u + phase * 0.5f) * (baseRy * 0.68f + waveMod)
+
+        if (i == 0) pathInner.moveTo(lx, ly) else pathInner.lineTo(lx, ly)
+    }
+
+    val phosphorGreen = Color(0xFF00FF66)
+    val laserCyan = Color(0xFF00F0FF)
+
+    // Outer Beam Triple-Pass Glow (Bloom -> Core -> Electron Spine)
+    drawPath(pathOuter, phosphorGreen.copy(alpha = 0.16f + bass * 0.12f), style = Stroke(width = 16f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathOuter, phosphorGreen.copy(alpha = 0.55f), style = Stroke(width = 5.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathOuter, Color.White.copy(alpha = 0.95f), style = Stroke(width = 1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+    // Inner Complementary Beam
+    drawPath(pathInner, laserCyan.copy(alpha = 0.14f + mid * 0.10f), style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathInner, laserCyan.copy(alpha = 0.60f), style = Stroke(width = 4.0f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(pathInner, Color.White.copy(alpha = 0.90f), style = Stroke(width = 1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+    // Center CRT Glow Point
+    val centerGlow = (12f + bass * 28f).coerceAtLeast(8f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White,
+                phosphorGreen.copy(alpha = 0.6f),
+                Color.Transparent,
+            ),
+            center = Offset(cx, cy),
+            radius = centerGlow * 2f,
+        ),
+        radius = centerGlow * 2f,
+        center = Offset(cx, cy),
+    )
+}
+
+/**
+ * HyperSpace Starfield 3D Warp visualizer.
+ * Simulates travelling at faster-than-light speed through a deep cosmic warp tunnel,
+ * with star streaks expanding outward, chromatic speed lines, and explosive bass shockwaves.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWinampWarp(
+    barValues: FloatArray,
+    timeSec: Float,
+    isPlaying: Boolean,
+) {
+    val w = size.width
+    val h = size.height
+    val cx = w * 0.5f
+    val cy = h * 0.48f
+
+    val bass = (barValues[0] + barValues[1] + barValues[2] + barValues[3]) * 0.25f
+    val treble = (barValues[8] + barValues[9] + barValues[10] + barValues[11]) * 0.25f
+
+    val numStars = 190
+    val warpSpeed = if (isPlaying) 0.65f + bass * 1.10f else 0.18f
+    val maxDist = maxOf(w, h) * 0.75f
+
+    // Color palette for cosmic warp streaks
+    val streakColors = listOf(
+        Color(0xFF00F0FF), // Cyan
+        Color(0xFFFF007F), // Neon Magenta
+        Color(0xFF7C4DFF), // Purple
+        Color(0xFF00FF66), // Lime Green
+        Color(0xFFFFFFFF), // Pure White
+    )
+
+    for (i in 0 until numStars) {
+        // Deterministic pseudo-random seed per star index
+        val seedAngle = ((i * 137.508f) % 360f) * (PI.toFloat() / 180f)
+        val seedDist = (((i * 47) % 100) / 100f).coerceIn(0.08f, 1.0f)
+        val seedOffset = ((i * 31) % 100) / 100f
+
+        // Star distance along Z-axis (1 = deep background, 0 = at the camera)
+        val z = ((seedOffset - (timeSec * warpSpeed * 0.35f)) % 1f + 1f) % 1f
+        if (z < 0.02f) continue
+
+        // Perspective projection: coordinates expand as Z -> 0
+        val dist = (1f - z) * (1f - z) * maxDist * seedDist
+        val prevDist = ((1f - (z + 0.045f * warpSpeed)).coerceAtLeast(0f)).let { it * it * maxDist * seedDist }
+
+        val sx = cx + cos(seedAngle) * dist
+        val sy = cy + sin(seedAngle) * dist
+        val prevX = cx + cos(seedAngle) * prevDist
+        val prevY = cy + sin(seedAngle) * prevDist
+
+        // Only draw if within screen margins
+        if (sx < -40f || sx > w + 40f || sy < -40f || sy > h + 40f) continue
+
+        val starColor = streakColors[i % streakColors.size]
+        val alpha = when {
+            z > 0.85f -> ((1f - z) / 0.15f).coerceIn(0f, 1f) * 0.65f
+            z < 0.15f -> (z / 0.15f).coerceIn(0f, 1f) * 0.95f
+            else -> 0.95f
+        }
+        val streakWidth = (1.2f + (1f - z) * 3.5f + bass * 2.0f).coerceIn(1.2f, 7.0f)
+
+        // Draw Motion Streak Line
+        drawLine(
+            color = starColor.copy(alpha = alpha),
+            start = Offset(prevX, prevY),
+            end = Offset(sx, sy),
+            strokeWidth = streakWidth,
+            cap = StrokeCap.Round,
+        )
+
+        // Bright star head dot
+        drawCircle(
+            color = Color.White.copy(alpha = alpha),
+            radius = (streakWidth * 0.65f).coerceAtLeast(1.5f),
+            center = Offset(sx, sy),
+        )
+    }
+
+    // Bass Shockwave Ring expanding from warp center
+    if (bass > 0.15f) {
+        val shockFrac = ((timeSec * 2.2f) % 1f)
+        val shockRadius = shockFrac * maxDist * (0.6f + bass * 0.4f)
+        val shockAlpha = (1f - shockFrac) * (0.45f + bass * 0.40f)
+        drawCircle(
+            color = Color(0xFF00F0FF).copy(alpha = shockAlpha),
+            radius = shockRadius,
+            center = Offset(cx, cy),
+            style = Stroke(width = (4f * (1f - shockFrac) + 1f).coerceAtLeast(1.5f)),
+        )
+    }
+
+    // Hyperspace Singularity Core
+    val coreR = (14f + bass * 35f + treble * 12f).coerceAtLeast(8f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White,
+                Color(0xFF00F0FF).copy(alpha = 0.80f),
+                Color(0xFFFF007F).copy(alpha = 0.35f),
+                Color.Transparent,
+            ),
+            center = Offset(cx, cy),
+            radius = coreR * 3f,
+        ),
+        radius = coreR * 3f,
+        center = Offset(cx, cy),
+    )
+    drawCircle(
+        color = Color.White,
+        radius = (coreR * 0.4f).coerceAtLeast(3f),
         center = Offset(cx, cy),
     )
 }
