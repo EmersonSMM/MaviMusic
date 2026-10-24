@@ -51,7 +51,7 @@ object QueueBuilder {
 
         for (candidate in ordered) {
             if (out.size >= limit) break
-            if (taken.any { isSameRecording(it, candidate) }) continue
+            if (taken.any { isSameTrackOrVariant(it, candidate) }) continue
 
             val artists = artistCredits(candidate)
             val key = artists.minOrNull()
@@ -115,17 +115,40 @@ object QueueBuilder {
      */
     fun isSameTrackOrVariant(a: Song, b: Song): Boolean {
         if (isSameRecording(a, b)) return true
+        val langA = extractLanguageTags(a.title)
+        val langB = extractLanguageTags(b.title)
+        if (langA.isNotEmpty() && langB.isNotEmpty() && langA != langB) {
+            return false
+        }
         val coreA = coreTrackTitle(recordingTitle(a))
         val coreB = coreTrackTitle(recordingTitle(b))
         if (coreA.isNotEmpty() && coreB.isNotEmpty()) {
             val left = artistCredits(a)
             val right = artistCredits(b)
-            val artistMatches = left.isEmpty() || right.isEmpty() || left.any { it in right }
-            if (artistMatches && (coreA == coreB)) {
+            val artistMatches = left.isEmpty() || right.isEmpty() || left.any { it in right } ||
+                left.any { l -> right.any { r -> l.contains(r) || r.contains(l) } }
+            if (coreA == coreB && artistMatches) {
                 return true
             }
         }
         return false
+    }
+
+    private val LANGUAGE_TAG_PATTERNS = listOf(
+        "es" to Regex("""\b(?:spanish|espanol|castellano)\b""", RegexOption.IGNORE_CASE),
+        "en" to Regex("""\b(?:english|ingles)\b""", RegexOption.IGNORE_CASE),
+        "pt" to Regex("""\b(?:portuguese|portugues)\b""", RegexOption.IGNORE_CASE),
+        "fr" to Regex("""\b(?:french|frances)\b""", RegexOption.IGNORE_CASE),
+        "it" to Regex("""\b(?:italian|italiano)\b""", RegexOption.IGNORE_CASE),
+        "ja" to Regex("""\b(?:japanese|japones)\b""", RegexOption.IGNORE_CASE),
+        "ko" to Regex("""\b(?:korean|coreano)\b""", RegexOption.IGNORE_CASE),
+    )
+
+    private fun extractLanguageTags(rawTitle: String): Set<String> {
+        val folded = fold(rawTitle)
+        return LANGUAGE_TAG_PATTERNS.mapNotNullTo(mutableSetOf()) { (lang, regex) ->
+            lang.takeIf { regex.containsMatchIn(folded) }
+        }
     }
 
     /**
@@ -133,29 +156,58 @@ object QueueBuilder {
      * recording as far as a queue is concerned. Remix and cover markers are
      * deliberately left in for this function — those really are different tracks.
      */
-    fun normalisedTitle(raw: String): String = fold(raw)
-        .substringBefore(" | ")
-        .substringBefore(" // ")
-        .replace(COLLABORATION, " ")
-        .replace(NOISE, " ")
-        .replace(PUNCTUATION, " ")
-        .replace(SPACES, " ")
-        .trim()
+    fun normalisedTitle(raw: String): String = collapseSpacedLetters(
+        fold(raw)
+            .substringBefore(" | ")
+            .substringBefore(" // ")
+            .replace(Regex("""\s+l\s+[a-z0-9\s]{3,}$""", RegexOption.IGNORE_CASE), " ")
+            .replace(COLLABORATION, " ")
+            .replace(NOISE, " ")
+            .replace(PUNCTUATION, " ")
+            .replace(SPACES, " ")
+            .trim()
+    )
 
     /**
      * Aggressively extracts the core track title by removing all parentheticals,
      * featuring clauses, remixes, versions, and subtitles for consecutive track duplicate prevention.
      */
-    fun coreTrackTitle(raw: String): String = fold(raw)
-        .substringBefore(" | ")
-        .substringBefore(" // ")
-        .replace(Regex("""\([^)]*\)|\[[^]]*]"""), " ")
-        .replace(Regex("""\b(?:feat\.?|ft\.?|featuring|with|remix|version|deluxe|radio edit|edit|acoustic|en vivo|live)\b.*$""", RegexOption.IGNORE_CASE), " ")
-        .replace(COLLABORATION, " ")
-        .replace(NOISE, " ")
-        .replace(PUNCTUATION, " ")
-        .replace(SPACES, " ")
-        .trim()
+    fun coreTrackTitle(raw: String): String = collapseSpacedLetters(
+        fold(raw)
+            .substringBefore(" | ")
+            .substringBefore(" // ")
+            .replace(Regex("""\s+l\s+[a-z0-9\s]{3,}$""", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("""\([^)]*\)|\[[^]]*]"""), " ")
+            .replace(Regex("""\b(?:feat\.?|ft\.?|featuring|with|remix|version|deluxe|radio edit|edit|acoustic|en vivo|live|slowed|sped up|reverb|explicita|explicit)\b.*$""", RegexOption.IGNORE_CASE), " ")
+            .replace(COLLABORATION, " ")
+            .replace(NOISE, " ")
+            .replace(PUNCTUATION, " ")
+            .replace(SPACES, " ")
+            .trim()
+    )
+
+    private fun collapseSpacedLetters(input: String): String {
+        val tokens = input.split(" ").filter { it.isNotEmpty() }
+        if (tokens.size < 3) return input
+        val out = mutableListOf<String>()
+        var i = 0
+        while (i < tokens.size) {
+            if (tokens[i].length == 1 && tokens[i][0].isLetter()) {
+                var j = i
+                while (j < tokens.size && tokens[j].length == 1 && tokens[j][0].isLetter()) {
+                    j++
+                }
+                if (j - i >= 3) {
+                    out += tokens.subList(i, j).joinToString("")
+                    i = j
+                    continue
+                }
+            }
+            out += tokens[i]
+            i++
+        }
+        return out.joinToString(" ")
+    }
 
     /** The cast behind a credit, split out so billing order stops mattering. */
     fun artistSet(raw: String): Set<String> = fold(raw)
@@ -166,7 +218,27 @@ object QueueBuilder {
         .filter { it.isNotEmpty() }
         .toSet()
 
-    private fun artistCredits(song: Song): Set<String> = artistSet(song.artist) + song.artists.flatMap { artistSet(it.name) }
+    private val FEAT_ARTIST_REGEX = Regex(
+        """\b(?:con|feat\.?|ft\.?|featuring|with|junto\s+a)\s+([^()\[\]{}|/]+)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private fun titleArtistCredits(title: String): Set<String> {
+        val matches = FEAT_ARTIST_REGEX.findAll(title).toList()
+        if (matches.isEmpty()) return emptySet()
+        val out = mutableSetOf<String>()
+        for (m in matches) {
+            val names = m.groupValues[1]
+                .replace(PUNCTUATION, " ")
+                .replace(SPACES, " ")
+                .trim()
+            out += artistSet(names)
+        }
+        return out
+    }
+
+    private fun artistCredits(song: Song): Set<String> =
+        artistSet(song.artist) + song.artists.flatMap { artistSet(it.name) } + titleArtistCredits(song.title)
 
     private fun isVideoUpload(song: Song): Boolean = song.isVideo || song.isVideoOrigin || VIDEO_LABEL.containsMatchIn(song.title)
 
@@ -180,8 +252,9 @@ object QueueBuilder {
         var raw = fold(song.title)
         val artists = artistCredits(song)
         fun isCredit(part: String): Boolean {
-            val credits = artistSet(part)
-            return credits.isNotEmpty() && credits.all { it in artists }
+            val withoutParens = part.replace(Regex("""\(+[^()]*\)+|\[[^]]*]"""), " ")
+            val credits = artistSet(withoutParens)
+            return credits.isNotEmpty() && credits.any { it in artists }
         }
         // A real billing separator is required: an artist named "Love" must not
         // collapse distinct songs "Love Me" and "Me" into one recording.
@@ -212,11 +285,11 @@ object QueueBuilder {
     // Only collaboration-labelled parentheses are packaging. Language and version labels stay.
     private val COLLABORATION = Regex("""[\(\[]\s*(?:con|junto a|feat\.?|ft\.?|featuring|with)\s+[^)\]]*(?:[)\]]|$)""", RegexOption.IGNORE_CASE)
     private val NOISE = Regex(
-        """\((?:official|video oficial|audio oficial|letra|lyric|lyrics|lyrical|audio|video|visuali[sz]er|full song|hd|4k|clip oficial|feat\.?|ft\.?|featuring|with)[^)]*\)""" +
+        """\((?:official|video oficial|video official|audio oficial|letra|lyric|lyrics|lyrical|audio|video|visuali[sz]er|full song|hd|4k|clip oficial|explicita|explicit|clean|feat\.?|ft\.?|featuring|with)[^)]*\)""" +
             """|\(from[^)]*\)""" +
-            """|\[(?:official|video oficial|audio oficial|letra|lyric|lyrics|audio|video|visuali[sz]er|hd|4k|clip oficial|feat\.?|ft\.?|featuring|with)[^]]*]""" +
-            """|\b(?:official (?:video|audio|music video)|video oficial|audio oficial|video musical|lyrical video|full video|4k video|clip oficial)\b""" +
-            """|\b(?:letra|lyrics|lyrical|visuali[sz]er)\b""" +
+            """|\[(?:official|video oficial|video official|audio oficial|letra|lyric|lyrics|audio|video|visuali[sz]er|hd|4k|clip oficial|explicita|explicit|clean|feat\.?|ft\.?|featuring|with)[^]]*]""" +
+            """|\b(?:official (?:video|audio|music video)|video oficial|video official|audio oficial|video musical|lyrical video|full video|4k video|clip oficial)\b""" +
+            """|\b(?:letra|lyrics|lyrical|visuali[sz]er|explicita|explicit)\b""" +
             """|\s+(?:feat\.?|ft\.?|featuring|with)\s+.*$""",
         RegexOption.IGNORE_CASE,
     )

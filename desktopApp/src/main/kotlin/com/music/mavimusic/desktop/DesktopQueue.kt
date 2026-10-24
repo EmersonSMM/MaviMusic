@@ -49,10 +49,29 @@ internal data class DesktopQueue(
     fun nextDistinctIndex(currentId: String, repeatAll: Boolean, recent: List<Song> = emptyList()): Int? {
         val at = if (current?.videoId == currentId) index else songs.indexOfFirst { it.videoId == currentId }
         if (at < 0) return null
-        val played = listOf(songs[at]) + recent.take(6)
+        val queueRecent = songs.take(at + 1).asReversed()
+        val played = (queueRecent + recent)
+            .distinctBy { it.videoId }
+            .take(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)
         val next = ((at + 1)..songs.lastIndex).firstOrNull { candidate ->
-            songs[candidate].queueTier == QueueTier.USER_QUEUE ||
-                played.none { com.music.mavimusic.playback.QueueBuilder.isSameTrackOrVariant(it, songs[candidate]) }
+            val candSong = songs[candidate]
+            if (candSong.queueTier == QueueTier.USER_QUEUE) return@firstOrNull true
+            val duplicateMatch = DesktopTrackSimilarity.findDuplicateMatch(candSong, played)
+            val isDuplicate = duplicateMatch != null ||
+                (DesktopTrackSimilarity.avoidDuplicateVersions &&
+                    played.any { com.music.mavimusic.playback.QueueBuilder.isSameTrackOrVariant(it, candSong) })
+            if (isDuplicate) {
+                val matchedTitle = duplicateMatch?.first?.title ?: songs[at].title
+                val scoreInfo = duplicateMatch?.second?.reason ?: "variant_match"
+                DesktopTrackLog.log(
+                    "[Automix/Similarity] Skipped duplicate candidate '${candSong.title}' (${candSong.artist}) vs '$matchedTitle' [$scoreInfo]"
+                )
+            }
+            !isDuplicate
+        }
+        // Fallback: if all remaining candidates were filtered out as duplicates, inform and continue with the immediate next track if user-queued, or null to trigger autoplay.
+        if (next == null && at < songs.lastIndex) {
+            DesktopTrackLog.log("[Automix/Similarity] All ${songs.lastIndex - at} remaining queue candidates matched recent history; awaiting fresh candidates.")
         }
         // Repeat-all is an explicit request to revisit the collection.
         return next ?: if (repeatAll) 0.takeIf { songs.isNotEmpty() } else null
@@ -86,25 +105,75 @@ internal data class DesktopQueue(
      * Queues [song] by hand, as the phone does: "Play next" heads the listener's own section,
      * "Add to queue" ends it — above the album and above AutoPlay either way.
      */
-    fun enqueue(song: Song, playNext: Boolean): DesktopQueue = insert(
-        QueueTimeline.findUserQueueInsertionIndex(songs, index, isNext = playNext),
-        song.asQueueEntry(QueueTier.USER_QUEUE),
-    )
+    fun enqueue(song: Song, playNext: Boolean, recent: List<Song> = emptyList()): DesktopQueue {
+        val activePool = (listOfNotNull(current) + upcoming.filter { it.queueTier == QueueTier.USER_QUEUE } + recent)
+            .take(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)
+        val duplicateMatch = activePool.firstOrNull { existing ->
+            existing.videoId != song.videoId && DesktopTrackSimilarity.compare(existing, song).isDuplicate
+        }
+        if (duplicateMatch != null) {
+            DesktopTrackLog.log(
+                "[Automix/Similarity] Ignored enqueue of duplicate version '${song.title}' (matches '${duplicateMatch.title}')"
+            )
+            return this
+        }
+        return insert(
+            QueueTimeline.findUserQueueInsertionIndex(songs, index, isNext = playNext),
+            song.asQueueEntry(QueueTier.USER_QUEUE),
+        ).withoutAutoplayDuplicates()
+    }
 
     /** Adds tracks at the end — where AutoPlay's own additions go. */
     fun append(more: List<Song>): DesktopQueue =
-        if (more.isEmpty()) this else copy(songs = songs + more).withoutAutoplayDuplicates()
+        if (more.isEmpty()) this else copy(songs = songs + more).withoutDuplicates()
 
-    /** Clean generated suggestions themselves, so the visible queue agrees with what will play.
-     * Context and manually requested rows are never deleted. History/current index stay intact.
+    /**
+     * Deduplicates upcoming songs against the currently playing track and preceding queue entries.
+     * Manually queued rows (USER_QUEUE) are preserved as intentional requests.
+     * Redundant variants in CONTEXT (e.g. repeated tracks from Recents or playlists) and AUTOPLAY are pruned.
      */
-    fun withoutAutoplayDuplicates(): DesktopQueue {
-        val known = (songs.take(index + 1) + upcoming.filterNot { it.fromAutoplay }).toMutableList()
+    fun withoutDuplicates(): DesktopQueue {
+        if (songs.isEmpty() || index !in songs.indices) return this
+        val known = songs.take(index + 1).toMutableList()
         val kept = songs.take(index + 1).toMutableList()
         for (song in upcoming) {
-            if (song.fromAutoplay && known.any { com.music.mavimusic.playback.QueueBuilder.isSameRecording(it, song) }) continue
+            val isExplicitUserRequest = song.queueTier == QueueTier.USER_QUEUE
+            if (!isExplicitUserRequest) {
+                val recentWindow = known.takeLast(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)
+                val isSimDup = DesktopTrackSimilarity.isDuplicateOfAny(song, recentWindow)
+                val isRecDup = known.any { com.music.mavimusic.playback.QueueBuilder.isSameTrackOrVariant(it, song) }
+                if (isSimDup || isRecDup) {
+                    DesktopTrackLog.log(
+                        "[Queue/Deduplication] Pruned upcoming duplicate '${song.title}' (${song.artist}) [tier=${song.queueTier}]"
+                    )
+                    continue
+                }
+            }
             kept += song
-            if (song.fromAutoplay) known += song
+            known += song
+        }
+        return if (kept.size == songs.size) this else copy(songs = kept)
+    }
+
+    fun withoutAutoplayDuplicates(): DesktopQueue {
+        if (songs.isEmpty() || index !in songs.indices) return this
+        val known = songs.take(index + 1).toMutableList()
+        val kept = songs.take(index + 1).toMutableList()
+        for (song in upcoming) {
+            val isAutoplay = song.fromAutoplay || song.queueTier == QueueTier.AUTOPLAY
+            if (isAutoplay) {
+                val recentWindow = known.takeLast(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)
+                val isSimDup = DesktopTrackSimilarity.isDuplicateOfAny(song, recentWindow)
+                val isRecDup = known.any { com.music.mavimusic.playback.QueueBuilder.isSameTrackOrVariant(it, song) }
+                if (isSimDup || isRecDup) {
+                    DesktopTrackLog.log(
+                        "[Queue/Deduplication] Pruned autoplay duplicate '${song.title}' (${song.artist})"
+                    )
+                    continue
+                }
+            }
+            kept += song
+            known += song
         }
         return if (kept.size == songs.size) this else copy(songs = kept)
     }

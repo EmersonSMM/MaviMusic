@@ -393,6 +393,8 @@ internal fun DesktopSettingsScreen(
     onOpenSpotifyCanvasSetup: () -> Unit,
     dontRepeatSuggestions: Boolean,
     onDontRepeatSuggestionsChange: (Boolean) -> Unit,
+    preferAudioTracks: Boolean = true,
+    onPreferAudioTracksChange: (Boolean) -> Unit = {},
     filterNonMusicAudio: Boolean,
     onFilterNonMusicAudioChange: (Boolean) -> Unit,
     onChooseLocalMusicFolder: (onChosen: () -> Unit) -> Unit,
@@ -488,6 +490,18 @@ internal fun DesktopSettingsScreen(
             DesktopSettingsSection.entries.forEach { section ->
             if (section == DesktopSettingsSection.PLAYBACK) item {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                    SettingsToggle(
+                        DesktopStrings["prefer_audio_tracks", "Modo Solo Canción (Evitar videos musicales)"],
+                        DesktopStrings[
+                            "prefer_audio_tracks_subtitle",
+                            "Prioriza siempre masters oficiales de estudio (audio limpio y carátula 1:1) sobre videoclips con intros",
+                        ],
+                        preferAudioTracks,
+                        {
+                            onPreferAudioTracksChange(it)
+                            DesktopPersistence.savePreferAudioTracks(it)
+                        },
+                    )
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {

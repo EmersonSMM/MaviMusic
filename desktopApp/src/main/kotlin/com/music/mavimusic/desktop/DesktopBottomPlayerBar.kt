@@ -111,13 +111,16 @@ internal fun DesktopBottomPlayerBar(
     sidePanel: DesktopSidePanel?,
     isLiked: Boolean,
     onToggleLike: () -> Unit,
+    onToggleVideoMode: () -> Unit = {},
     onToggleMiniPlayer: () -> Unit = {},
     onOpenSongMenu: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var showOutputPopover by remember { mutableStateOf(false) }
-    var draggingScrubber by remember { mutableStateOf(false) }
-    var scrubFraction by remember { mutableFloatStateOf(0f) }
+    var draggingScrubber by remember(song?.videoId) { mutableStateOf(false) }
+    var scrubFraction by remember(song?.videoId) { mutableFloatStateOf(0f) }
+    var pendingSeekMs by remember(song?.videoId) { mutableStateOf<Long?>(null) }
+    var pendingSeekAt by remember(song?.videoId) { mutableStateOf(0L) }
     var showDjTooltip by remember { mutableStateOf(false) }
 
     Box(
@@ -185,6 +188,11 @@ internal fun DesktopBottomPlayerBar(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
+
+                        DesktopSongVideoTogglePill(
+                            isVideo = song.isVideo,
+                            onToggle = onToggleVideoMode,
+                        )
 
                         DesktopToolbarButton(
                             onClick = onToggleLike,
@@ -405,15 +413,19 @@ internal fun DesktopBottomPlayerBar(
                 }
 
                 // Timeline Scrubber Row
-                val displayPositionMs = if (draggingScrubber && durationMs > 0) {
-                    (scrubFraction * durationMs).toLong()
-                } else {
-                    positionMs
+                val settledSeekMs = pendingSeekMs?.takeIf { target ->
+                    val elapsed = System.currentTimeMillis() - pendingSeekAt
+                    elapsed < 650L && kotlin.math.abs(positionMs - target) > 1_200L
                 }
-                val displayProgress = if (draggingScrubber) {
-                    scrubFraction
-                } else {
-                    progress.coerceIn(0f, 1f)
+                val displayPositionMs = when {
+                    draggingScrubber && durationMs > 0 -> (scrubFraction.toDouble() * durationMs.toDouble()).toLong()
+                    settledSeekMs != null -> settledSeekMs
+                    else -> positionMs
+                }
+                val displayProgress = when {
+                    draggingScrubber -> scrubFraction
+                    settledSeekMs != null && durationMs > 0 -> (settledSeekMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                    else -> progress.coerceIn(0f, 1f)
                 }
 
                 Row(
@@ -432,13 +444,23 @@ internal fun DesktopBottomPlayerBar(
                         value = displayProgress,
                         onValueChange = { fraction ->
                             draggingScrubber = true
-                            scrubFraction = fraction
+                            scrubFraction = fraction.coerceIn(0f, 1f)
                         },
                         onValueChangeFinished = {
                             if (durationMs > 0) {
-                                onSeek((scrubFraction * durationMs).toLong())
+                                val targetMs = (scrubFraction.toDouble() * durationMs.toDouble()).toLong().coerceIn(0L, durationMs)
+                                pendingSeekMs = targetMs
+                                pendingSeekAt = System.currentTimeMillis()
+                                onSeek(targetMs)
                             }
                             draggingScrubber = false
+                        },
+                        tooltipText = { fraction ->
+                            if (durationMs > 0) {
+                                formatTimestamp((fraction.toDouble() * durationMs.toDouble()).toLong().coerceIn(0L, durationMs))
+                            } else {
+                                "0:00"
+                            }
                         },
                         idleHeight = 4.dp,
                         activeHeight = 7.dp,
@@ -520,7 +542,7 @@ internal fun DesktopBottomPlayerBar(
                     DesktopToolbarButton(onClick = onOpenImmersive, size = 32.dp) {
                         Icon(
                             Icons.Rounded.GraphicEq,
-                            DesktopStrings["immersive_lyrics", "Modo Inmersivo Winamp / Ondas"],
+                            DesktopStrings["immersive_lyrics", "Modo Inmersivo Classic / Ondas"],
                             tint = Color(0xFF00E5FF),
                             modifier = Modifier.size(19.dp),
                         )
@@ -577,4 +599,53 @@ private fun formatTimestamp(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
+}
+
+@Composable
+private fun DesktopSongVideoTogglePill(
+    isVideo: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onToggle,
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        modifier = modifier.height(24.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 3.dp, vertical = 2.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (!isVideo) Color.White.copy(alpha = 0.22f) else Color.Transparent)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = "Canción",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp,
+                    fontWeight = if (!isVideo) FontWeight.Bold else FontWeight.Normal,
+                    color = if (!isVideo) Color.White else DesktopSecondary,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (isVideo) Color(0xFF0A84FF).copy(alpha = 0.35f) else Color.Transparent)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = "Video",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp,
+                    fontWeight = if (isVideo) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isVideo) Color.White else DesktopSecondary,
+                )
+            }
+        }
+    }
 }

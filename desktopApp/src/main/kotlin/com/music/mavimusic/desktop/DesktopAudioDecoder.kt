@@ -512,7 +512,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         const val IO_BUFFER_BYTES = 64 * 1024
 
         /** Further apart than any index point, cue or segment lands before its target. */
-        const val MAX_SEEK_TRIM_US = 300_000_000L
+        const val MAX_SEEK_TRIM_US = 15_000_000L
 
         /** `whence` values, which FFmpeg takes straight from stdio. */
         const val SEEK_CUR = 1

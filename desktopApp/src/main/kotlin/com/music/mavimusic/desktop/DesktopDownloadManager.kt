@@ -155,7 +155,7 @@ object DesktopDownloadManager {
      * open stream".
      */
     fun defaultDownloadDirectory(): Path =
-        Path.of(System.getProperty("user.home"), "Downloads", "MaviMusic")
+        Path.of(System.getProperty("user.home"), "Music", "MaviMusic")
 
     fun getDownloadDirectory(): Path {
         val configured = DesktopPersistence().string("download_folder", "").trim()
@@ -168,31 +168,30 @@ object DesktopDownloadManager {
         return path
     }
 
-    fun savedFile(song: Song): Path? {
+    fun savedFile(song: Song): Path? = runCatching {
         val path = song.localPath?.let { runCatching { Path.of(it) }.getOrNull() }
             ?: song.localUri?.takeIf { it.startsWith("file:") }
                 ?.let { runCatching { Path.of(URI(it)) }.getOrNull() }
-        if (path != null && Files.isRegularFile(path) && runCatching { Files.size(path) > 0 }.getOrDefault(false)) {
+        if (path != null && runCatching { Files.isRegularFile(path) && Files.size(path) > 0 }.getOrDefault(false)) {
             return path
         }
         if (song.videoId.startsWith("local:")) return null
         val structured = DesktopDownloadPaths.target(getDownloadDirectory(), song, DesktopDownloadContext())
-        if (Files.isRegularFile(structured) && Files.size(structured) > 0) return structured
+        if (runCatching { Files.isRegularFile(structured) && Files.size(structured) > 0 }.getOrDefault(false)) return structured
         val safeName = safeName(song)
 
-        val checkDirs = listOf(
+        val checkDirs = listOfNotNull(
             getDownloadDirectory(),
             defaultDownloadDirectory(),
-            Path.of(System.getProperty("user.home"), "Music", "MaviMusic"),
-        )
+        ).distinct()
         for (dir in checkDirs) {
             val candidateMp3 = dir.resolve("$safeName.mp3")
-            if (Files.isRegularFile(candidateMp3) && runCatching { Files.size(candidateMp3) > 0 }.getOrDefault(false)) {
+            if (runCatching { Files.isRegularFile(candidateMp3) && Files.size(candidateMp3) > 0 }.getOrDefault(false)) {
                 return candidateMp3
             }
         }
-        return null
-    }
+        null
+    }.getOrNull()
 
     /** Whether [song] is really on this computer, rather than merely recorded as being. */
     fun isSaved(song: Song): Boolean = savedFile(song) != null

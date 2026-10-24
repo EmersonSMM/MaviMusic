@@ -16,15 +16,17 @@ import kotlin.io.path.nameWithoutExtension
 object DesktopLocalMusic {
     internal val supportedExtensions = setOf("aac", "aiff", "aif", "flac", "m4a", "mp3", "ogg", "opus", "wav", "webm")
 
-    fun scan(): List<Song> {
+    fun scan(): List<Song> = runCatching {
         val filterNonMusic = DesktopPersistence().boolean(KEY_FILTER_NON_MUSIC_AUDIO, false)
         val explicitFolders = importedFolders().toSet()
-        return (roots().filter(Files::isDirectory).flatMap { scanDirectory(it, filterNonMusic && it !in explicitFolders) } +
-            importedPaths().filter(Files::isRegularFile).filter(::supports).map { it.toSong() })
+        (roots().filter { runCatching { Files.isDirectory(it) }.getOrDefault(false) }
+            .flatMap { scanDirectory(it, filterNonMusic && it !in explicitFolders) } +
+            importedPaths().filter { runCatching { Files.isRegularFile(it) }.getOrDefault(false) }
+                .filter(::supports).mapNotNull { runCatching { it.toSong() }.getOrNull() })
             .distinctBy(Song::localPath)
             .sortedBy { it.title.lowercase(Locale.ROOT) }
             .also { DesktopMediaCache.trim() }
-    }
+    }.getOrDefault(emptyList())
 
     internal fun supports(path: Path): Boolean = path.extension.lowercase(Locale.ROOT) in supportedExtensions
 
@@ -67,9 +69,18 @@ object DesktopLocalMusic {
 
     /** The selected/default library, plus folders explicitly imported by the listener. */
     internal fun roots(): List<Path> {
-        val home = Paths.get(System.getProperty("user.home"))
-        val defaults = folder()?.let { listOf(it) } ?: listOf(home.resolve("Music"), home.resolve("Downloads"))
-        return (defaults + importedFolders()).distinct()
+        val configured = folder()
+        if (configured != null) {
+            return (listOf(configured) + importedFolders()).distinct()
+        }
+        val imported = importedFolders()
+        if (imported.isNotEmpty()) {
+            return imported.distinct()
+        }
+        // If the user hasn't configured a local music folder or imported files,
+        // we do NOT scan unprompted. Scanning ~/Downloads or Apple Music on startup
+        // triggers macOS system permission prompts (TCC) on every app restart/update.
+        return emptyList()
     }
 
     /** The folder the listener picked, or null for all of them. */
@@ -83,7 +94,7 @@ object DesktopLocalMusic {
     }
 
     /** What the Local Music settings row says underneath its title. */
-    fun folderLabel(): String = folder()?.fileName?.toString() ?: "All audio folders"
+    fun folderLabel(): String = folder()?.fileName?.toString() ?: "Sin carpeta configurada (Haz clic para seleccionar)"
 
     internal const val KEY_LOCAL_MUSIC_FOLDER = "local_music_folder"
 
@@ -104,6 +115,21 @@ object DesktopLocalMusic {
     private fun scanDirectory(root: Path, filterNonMusic: Boolean): List<Song> = buildList {
         runCatching {
             Files.walkFileTree(root, emptySet(), 32, object : java.nio.file.SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                    val name = dir.fileName?.toString()?.lowercase(Locale.ROOT) ?: ""
+                    // Skip Apple Music / iTunes library packages and system directories that trigger TCC permission prompts
+                    if (name.startsWith(".") ||
+                        name.endsWith(".musiclibrary") ||
+                        name.endsWith(".itdb") ||
+                        name.endsWith(".photoslibrary") ||
+                        name == "music library" ||
+                        (name == "music" && dir.parent?.fileName?.toString()?.lowercase(Locale.ROOT) == "music")
+                    ) {
+                        return java.nio.file.FileVisitResult.SKIP_SUBTREE
+                    }
+                    return java.nio.file.FileVisitResult.CONTINUE
+                }
+
                 override fun visitFile(path: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
                     if (Files.isRegularFile(path) && supports(path) && (!filterNonMusic || isMusic(path))) {
                         runCatching { path.toSong() }.getOrNull()?.let { add(it) }

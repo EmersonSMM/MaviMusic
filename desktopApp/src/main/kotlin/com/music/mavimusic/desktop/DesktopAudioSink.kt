@@ -95,22 +95,33 @@ internal class DesktopAudioSink {
         val accepted = ladder.firstOrNull(supports)
             ?: error("no audio line for any supported format")
 
-        val opened = if (mixer == null) {
-            AudioSystem.getLine(infoFor(accepted)) as SourceDataLine
-        } else {
-            mixer.getLine(infoFor(accepted)) as SourceDataLine
-        }
         val previous = line
-        if (previous != null && DesktopPlatform.isMac) {
+        if (previous != null) {
             closeLine(previous)
+            line = null
         }
-        try {
-            // Roughly a fifth of a second in the device's hands.
-            opened.open(accepted.toAudioFormat(), accepted.byteRate / 5)
-            opened.start()
-        } catch (failure: Throwable) {
-            runCatching { opened.close() }
-            throw failure
+
+        val opened = try {
+            val targetLine = if (mixer == null) {
+                AudioSystem.getLine(infoFor(accepted)) as SourceDataLine
+            } else {
+                mixer.getLine(infoFor(accepted)) as SourceDataLine
+            }
+            targetLine.open(accepted.toAudioFormat(), accepted.byteRate / 5)
+            targetLine.start()
+            targetLine
+        } catch (initialFailure: Throwable) {
+            DesktopTrackLog.log("audio sink: initial open failed on '${mixer?.mixerInfo?.name ?: "default"}', retrying with fallback: ${initialFailure.message}")
+            // Fallback: try opening on system default line if specific mixer rejected the line
+            try {
+                Thread.sleep(150)
+                val fallbackLine = AudioSystem.getLine(infoFor(accepted)) as SourceDataLine
+                fallbackLine.open(accepted.toAudioFormat(), accepted.byteRate / 5)
+                fallbackLine.start()
+                fallbackLine
+            } catch (fallbackFailure: Throwable) {
+                throw initialFailure
+            }
         }
 
         line = opened
@@ -118,9 +129,6 @@ internal class DesktopAudioSink {
         openedForSelection = selectedDevice
         format = accepted
         diagnosticBlocks = 0
-        if (!DesktopPlatform.isMac) {
-            closeLine(previous)
-        }
         DesktopTrackLog.log(
             "audio output opened: ${deviceName ?: "system default"} · " +
                 "${accepted.sampleRate} Hz · ${accepted.channels} ch · " +

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -65,6 +66,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +76,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import java.awt.KeyEventDispatcher
+import java.awt.KeyboardFocusManager
+import java.awt.event.KeyEvent
+import java.util.Locale
+import javax.swing.text.JTextComponent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -107,8 +114,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 internal enum class ImmersiveVisualMode(val label: String) {
-    WINAMP_WAVES("Ondas Winamp"),
-    WINAMP_SPECTRUM("Espectro Winamp"),
+    WINAMP_WAVES("Ondas Classic"),
+    WINAMP_SPECTRUM("Espectro Classic"),
     WINAMP_MILKDROP("Plasma MilkDrop"),
     WINAMP_TUNNEL("Túnel Retro 3D"),
     WINAMP_LASER("Láser Osciloscopio"),
@@ -148,7 +155,7 @@ internal enum class ImmersiveColorPalette(
         accent = Color(0xFFFFEA00),
     ),
     CLASSIC_WINAMP(
-        label = "Winamp Clásico",
+        label = "Verde Classic",
         primary = Color(0xFF00FF66),
         secondary = Color(0xFF76FF03),
         tertiary = Color(0xFF00E5FF),
@@ -230,9 +237,12 @@ internal fun DesktopImmersiveLyricsScreen(
     onSelectLyricsProvider: (LyricsSource) -> Unit,
     lyricsUnavailable: Boolean,
     volumeNormalizationActive: Boolean,
+    streamFormat: DesktopStreamFormat? = null,
     queue: List<Song> = emptyList(),
     queueIndex: Int = 0,
     onPlayQueueIndex: (Int) -> Unit = {},
+    onRemoveQueueIndex: (Int) -> Unit = {},
+    onMoveQueueItem: (Int, Int) -> Unit = { _, _ -> },
     automix: Boolean = false,
     onAutomixChange: (Boolean) -> Unit = {},
     djMixState: DjMixState = DjMixState(),
@@ -240,13 +250,54 @@ internal fun DesktopImmersiveLyricsScreen(
     modifier: Modifier = Modifier,
 ) {
     val artworkPalette = rememberArtworkColors(song.thumbnailUrl, null)
-    var visualMode by remember { mutableStateOf(ImmersiveVisualMode.WINAMP_WAVES) }
-    var colorPalette by remember { mutableStateOf(ImmersiveColorPalette.DYNAMIC_ARTWORK) }
-    var classicEffectsMode by remember { mutableStateOf(false) }
-    var showLyricsInWinamp by remember { mutableStateOf(false) }
+    var visualMode by remember {
+        val saved = DesktopPersistence.immersiveVisualMode(ImmersiveVisualMode.WINAMP_WAVES.name)
+        val initial = ImmersiveVisualMode.entries.firstOrNull { it.name == saved } ?: ImmersiveVisualMode.WINAMP_WAVES
+        mutableStateOf(initial)
+    }
+    var colorPalette by remember {
+        val saved = DesktopPersistence.immersiveColorPalette(ImmersiveColorPalette.DYNAMIC_ARTWORK.name)
+        val initial = ImmersiveColorPalette.entries.firstOrNull { it.name == saved } ?: ImmersiveColorPalette.DYNAMIC_ARTWORK
+        mutableStateOf(initial)
+    }
+    var classicEffectsMode by remember {
+        mutableStateOf(DesktopPersistence.immersiveClassicMode(false))
+    }
+    var showLyricsInWinamp by remember {
+        mutableStateOf(DesktopPersistence.immersiveShowLyrics(false))
+    }
+    var avoidDuplicateVersions by remember {
+        mutableStateOf(DesktopTrackSimilarity.avoidDuplicateVersions)
+    }
+    var allowRemixesAndLive by remember {
+        mutableStateOf(DesktopTrackSimilarity.allowRemixesAndLive)
+    }
     var showQueuePanel by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var activeSubmenu by remember { mutableStateOf(VisualizerSubmenu.NONE) }
+
+    // Keyboard shortcut 'Q' to toggle the dedicated floating glass queue panel in Immersive Mode
+    DisposableEffect(Unit) {
+        val dispatcher = KeyEventDispatcher { event ->
+            if (event.id == KeyEvent.KEY_PRESSED &&
+                event.keyCode == KeyEvent.VK_Q &&
+                !event.isMetaDown &&
+                !event.isControlDown &&
+                !event.isAltDown
+            ) {
+                val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+                if (focusOwner !is JTextComponent) {
+                    showQueuePanel = !showQueuePanel
+                    return@KeyEventDispatcher true
+                }
+            }
+            false
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(dispatcher)
+        onDispose {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(dispatcher)
+        }
+    }
 
     val activePalette = remember(colorPalette, artworkPalette) {
         if (colorPalette == ImmersiveColorPalette.DYNAMIC_ARTWORK && artworkPalette.colors.size >= 4) {
@@ -366,25 +417,78 @@ internal fun DesktopImmersiveLyricsScreen(
 
                 Spacer(Modifier.weight(1f))
 
-                // Discreet, sober dark-gray technical audio spec readout
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.White.copy(alpha = 0.06f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                    modifier = Modifier.height(26.dp),
+                // Dynamic real audio quality indicator (Point B.7) + Floating Queue toggle button (Q)
+                val qualityBadgeText = remember(streamFormat, song.videoId, song.sourceQuality) {
+                    formatDynamicStreamQuality(streamFormat, song)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0x8812141E),
+                        border = BorderStroke(
+                            1.dp,
+                            if (streamFormat?.isLossless == true) Color(0xFF00E5FF).copy(alpha = 0.38f)
+                            else Color.White.copy(alpha = 0.16f),
+                        ),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.height(28.dp),
                     ) {
-                        Text(
-                            text = "320 kbps • 48 kHz • STEREO",
-                            color = Color.White.copy(alpha = 0.60f),
-                            fontSize = 10.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.3.sp,
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (streamFormat?.isLossless == true) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF00E5FF)),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = qualityBadgeText,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 10.5.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.3.sp,
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = { showQueuePanel = !showQueuePanel },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (showQueuePanel) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color(0x8812141E),
+                        border = BorderStroke(
+                            1.dp,
+                            if (showQueuePanel) Color(0xFF00E5FF).copy(alpha = 0.55f) else Color.White.copy(alpha = 0.16f),
+                        ),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.height(28.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.QueueMusic,
+                                contentDescription = "Cola de reproducción (Q)",
+                                tint = if (showQueuePanel) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = "Cola (Q)",
+                                color = if (showQueuePanel) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
                     }
                 }
             }
@@ -713,6 +817,7 @@ internal fun DesktopImmersiveLyricsScreen(
                                                         .fillMaxWidth()
                                                         .clickable {
                                                             visualMode = mode
+                                                            DesktopPersistence.saveImmersiveVisualMode(mode.name)
                                                             menuExpanded = false
                                                             activeSubmenu = VisualizerSubmenu.NONE
                                                         }
@@ -751,6 +856,7 @@ internal fun DesktopImmersiveLyricsScreen(
                                                         .fillMaxWidth()
                                                         .clickable {
                                                             colorPalette = pal
+                                                            DesktopPersistence.saveImmersiveColorPalette(pal.name)
                                                             menuExpanded = false
                                                             activeSubmenu = VisualizerSubmenu.NONE
                                                         }
@@ -789,7 +895,11 @@ internal fun DesktopImmersiveLyricsScreen(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clickable { classicEffectsMode = !classicEffectsMode }
+                                                    .clickable {
+                                                        val next = !classicEffectsMode
+                                                        classicEffectsMode = next
+                                                        DesktopPersistence.saveImmersiveClassicMode(next)
+                                                    }
                                                     .padding(horizontal = 14.dp, vertical = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -801,7 +911,10 @@ internal fun DesktopImmersiveLyricsScreen(
                                                 )
                                                 Switch(
                                                     checked = classicEffectsMode,
-                                                    onCheckedChange = { classicEffectsMode = it },
+                                                    onCheckedChange = {
+                                                        classicEffectsMode = it
+                                                        DesktopPersistence.saveImmersiveClassicMode(it)
+                                                    },
                                                     modifier = Modifier.scale(0.75f),
                                                 )
                                             }
@@ -830,7 +943,9 @@ internal fun DesktopImmersiveLyricsScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clickable {
-                                                        showLyricsInWinamp = !showLyricsInWinamp
+                                                        val next = !showLyricsInWinamp
+                                                        showLyricsInWinamp = next
+                                                        DesktopPersistence.saveImmersiveShowLyrics(next)
                                                     }
                                                     .padding(horizontal = 14.dp, vertical = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -843,7 +958,73 @@ internal fun DesktopImmersiveLyricsScreen(
                                                 )
                                                 Switch(
                                                     checked = showLyricsInWinamp,
-                                                    onCheckedChange = { showLyricsInWinamp = it },
+                                                    onCheckedChange = {
+                                                        showLyricsInWinamp = it
+                                                        DesktopPersistence.saveImmersiveShowLyrics(it)
+                                                    },
+                                                    modifier = Modifier.scale(0.75f),
+                                                )
+                                            }
+
+                                            HorizontalDivider(
+                                                color = Color.White.copy(alpha = 0.08f),
+                                                modifier = Modifier.padding(vertical = 4.dp),
+                                            )
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        val next = !avoidDuplicateVersions
+                                                        avoidDuplicateVersions = next
+                                                        DesktopTrackSimilarity.avoidDuplicateVersions = next
+                                                        DesktopPersistence.saveAvoidDuplicateVersions(next)
+                                                    }
+                                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    text = "Evitar versiones repetidas",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                )
+                                                Switch(
+                                                    checked = avoidDuplicateVersions,
+                                                    onCheckedChange = {
+                                                        avoidDuplicateVersions = it
+                                                        DesktopTrackSimilarity.avoidDuplicateVersions = it
+                                                        DesktopPersistence.saveAvoidDuplicateVersions(it)
+                                                    },
+                                                    modifier = Modifier.scale(0.75f),
+                                                )
+                                            }
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        val next = !allowRemixesAndLive
+                                                        allowRemixesAndLive = next
+                                                        DesktopTrackSimilarity.allowRemixesAndLive = next
+                                                        DesktopPersistence.saveAllowRemixesAndLive(next)
+                                                    }
+                                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    text = "Permitir remixes/en vivo",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                )
+                                                Switch(
+                                                    checked = allowRemixesAndLive,
+                                                    onCheckedChange = {
+                                                        allowRemixesAndLive = it
+                                                        DesktopTrackSimilarity.allowRemixesAndLive = it
+                                                        DesktopPersistence.saveAllowRemixesAndLive(it)
+                                                    },
                                                     modifier = Modifier.scale(0.75f),
                                                 )
                                             }
@@ -858,133 +1039,257 @@ internal fun DesktopImmersiveLyricsScreen(
             }
         }
 
-        // Floating Upcoming Songs (Queue) drawer panel on the right
+        // Dedicated Floating Glass Queue Panel on the right (Point B.6)
         if (showQueuePanel) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 20.dp, top = 70.dp, bottom = 20.dp)
-                    .widthIn(max = 380.dp)
+                    .widthIn(min = 340.dp, max = 400.dp)
                     .fillMaxHeight(),
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xE6121218),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
-                shadowElevation = 24.dp,
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xD9111420),
+                border = BorderStroke(
+                    1.dp,
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.10f),
+                        ),
+                    ),
+                ),
+                shadowElevation = 28.dp,
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.06f),
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.20f),
+                                ),
+                            ),
+                        ),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.QueueMusic,
-                                contentDescription = null,
-                                tint = Color(0xFF00E5FF),
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "Canciones siguientes",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
+                        val upcoming = remember(queue, queueIndex) {
+                            if (queue.isEmpty()) emptyList()
+                            else queue.drop((queueIndex + 1).coerceAtMost(queue.size))
                         }
-                        IconButton(
-                            onClick = { showQueuePanel = false },
-                            modifier = Modifier.size(28.dp),
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = "Cerrar",
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp),
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.QueueMusic,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E5FF),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Cola de reproducción",
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = "${upcoming.size} en espera • Atajo: Q",
+                                        color = Color.White.copy(alpha = 0.55f),
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = { showQueuePanel = false },
+                                modifier = Modifier.size(28.dp),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Close,
+                                    contentDescription = "Cerrar (Q)",
+                                    tint = Color.White.copy(alpha = 0.75f),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
                         }
-                    }
 
-                    Spacer(Modifier.height(12.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                    Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
 
-                    val upcoming = remember(queue, queueIndex) {
-                        if (queue.isEmpty()) emptyList()
-                        else queue.drop((queueIndex + 1).coerceAtMost(queue.size))
-                    }
-
-                    if (upcoming.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
+                        // Currently playing card inside the floating glass queue
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF00E5FF).copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.30f)),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(
-                                text = "No hay más canciones en la cola",
-                                color = Color.White.copy(alpha = 0.45f),
-                                fontSize = 13.sp,
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            itemsIndexed(upcoming) { offset, songItem ->
-                                val realIndex = queueIndex + 1 + offset
-                                Surface(
-                                    onClick = { onPlayQueueIndex(realIndex) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color.White.copy(alpha = 0.04f),
-                                    modifier = Modifier.fillMaxWidth(),
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(6.dp)),
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    DesktopArtwork(
+                                        url = song.thumbnailUrl,
+                                        modifier = Modifier.fillMaxSize(),
+                                        px = 80,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "SONANDO AHORA",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = song.title,
+                                        color = Color.White,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = song.artist,
+                                        color = Color.White.copy(alpha = 0.65f),
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.10f))
+                        Spacer(Modifier.height(8.dp))
+
+                        if (upcoming.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "No hay más canciones en la cola",
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                itemsIndexed(
+                                    items = upcoming,
+                                    key = { offset, item -> "${item.queueEntryId ?: item.videoId}_$offset" },
+                                ) { offset, songItem ->
+                                    val realIndex = queueIndex + 1 + offset
+                                    Surface(
+                                        onClick = { onPlayQueueIndex(realIndex) },
+                                        shape = RoundedCornerShape(11.dp),
+                                        color = Color.White.copy(alpha = 0.05f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+                                        modifier = Modifier.fillMaxWidth(),
                                     ) {
-                                        Box(
+                                        Row(
                                             modifier = Modifier
-                                                .size(38.dp)
-                                                .clip(RoundedCornerShape(6.dp)),
+                                                .fillMaxWidth()
+                                                .padding(start = 10.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            DesktopArtwork(
-                                                url = songItem.thumbnailUrl,
-                                                modifier = Modifier.fillMaxSize(),
-                                                px = 80,
-                                            )
-                                        }
-                                        Spacer(Modifier.width(10.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = songItem.title,
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                            Text(
-                                                text = songItem.artist,
-                                                color = Color.White.copy(alpha = 0.6f),
-                                                fontSize = 11.5.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        }
-                                        val dur = songItem.durationText
-                                        if (!dur.isNullOrBlank()) {
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = dur,
-                                                color = Color.White.copy(alpha = 0.45f),
-                                                fontSize = 11.sp,
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(RoundedCornerShape(6.dp)),
+                                            ) {
+                                                DesktopArtwork(
+                                                    url = songItem.thumbnailUrl,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    px = 80,
+                                                )
+                                            }
+                                            Spacer(Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = songItem.title,
+                                                    color = Color.White,
+                                                    fontSize = 12.5.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                                Text(
+                                                    text = songItem.artist,
+                                                    color = Color.White.copy(alpha = 0.60f),
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                            val dur = songItem.durationText
+                                            if (!dur.isNullOrBlank()) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = dur,
+                                                    color = Color.White.copy(alpha = 0.45f),
+                                                    fontSize = 10.5.sp,
+                                                )
+                                            }
+                                            // Reorder Up / Down + Remove buttons
+                                            IconButton(
+                                                onClick = { if (offset > 0) onMoveQueueItem(realIndex, realIndex - 1) },
+                                                enabled = offset > 0,
+                                                modifier = Modifier.size(24.dp),
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.KeyboardArrowUp,
+                                                    contentDescription = "Subir en la cola",
+                                                    tint = if (offset > 0) Color.White.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.20f),
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    if (offset < upcoming.lastIndex) onMoveQueueItem(realIndex, realIndex + 1)
+                                                },
+                                                enabled = offset < upcoming.lastIndex,
+                                                modifier = Modifier.size(24.dp),
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.KeyboardArrowDown,
+                                                    contentDescription = "Bajar en la cola",
+                                                    tint = if (offset < upcoming.lastIndex) Color.White.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.20f),
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { onRemoveQueueIndex(realIndex) },
+                                                modifier = Modifier.size(24.dp),
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.Close,
+                                                    contentDescription = "Quitar de la cola",
+                                                    tint = Color.White.copy(alpha = 0.60f),
+                                                    modifier = Modifier.size(14.dp),
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -2218,11 +2523,18 @@ private fun ImmersiveHeroPlayer(
     isQueueVisible: Boolean = false,
     onToggleQueue: () -> Unit = {},
 ) {
-    var draggingScrubber by remember { mutableStateOf(false) }
-    var scrubFraction by remember { mutableFloatStateOf(0f) }
+    var draggingScrubber by remember(song.videoId) { mutableStateOf(false) }
+    var scrubFraction by remember(song.videoId) { mutableFloatStateOf(0f) }
+    var pendingSeekMs by remember(song.videoId) { mutableStateOf<Long?>(null) }
+    var pendingSeekAt by remember(song.videoId) { mutableStateOf(0L) }
 
+    val settledSeekMs = pendingSeekMs?.takeIf { target ->
+        val elapsed = System.currentTimeMillis() - pendingSeekAt
+        elapsed < 650L && kotlin.math.abs(position.positionMs - target) > 1_200L
+    }
     val liveProgress = if (durationMs > 0) {
-        (position.positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+        val ms = settledSeekMs ?: position.positionMs
+        (ms.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
     val currentDisplayFraction = if (draggingScrubber) scrubFraction else liveProgress
 
@@ -2236,10 +2548,10 @@ private fun ImmersiveHeroPlayer(
         val artShape = RoundedCornerShape(20.dp)
         Box(
             modifier = Modifier
-                .size(290.dp)
+                .size(265.dp)
                 .shadow(24.dp, artShape, spotColor = Color.Black.copy(alpha = 0.5f))
                 .clip(artShape)
-                .graphicsLayer { alpha = 0.78f },
+                .graphicsLayer { alpha = 0.84f },
         ) {
             DesktopArtwork(
                 url = song.thumbnailUrl,
@@ -2248,19 +2560,19 @@ private fun ImmersiveHeroPlayer(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(18.dp))
 
         Text(
             text = song.title,
             color = Color.White,
-            fontSize = 22.sp,
+            fontSize = 21.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
 
         Text(
             text = song.artist,
@@ -2274,11 +2586,11 @@ private fun ImmersiveHeroPlayer(
 
         val album = song.albumName
         if (!album.isNullOrBlank()) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(3.dp))
             Text(
                 text = album,
                 color = Color.White.copy(alpha = 0.50f),
-                fontSize = 13.sp,
+                fontSize = 12.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -2315,201 +2627,308 @@ private fun ImmersiveHeroPlayer(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(10.dp))
 
-        DesktopThinSlider(
-            value = currentDisplayFraction,
-            onValueChange = {
-                draggingScrubber = true
-                scrubFraction = it
-            },
-            onValueChangeFinished = {
-                if (durationMs > 0) {
-                    onSeek((scrubFraction * durationMs).toLong())
-                }
-                draggingScrubber = false
-            },
-            modifier = Modifier.fillMaxWidth().height(14.dp),
-            activeColor = Color.White,
-            inactiveColor = Color.White.copy(alpha = 0.22f),
-        )
-
-        Spacer(Modifier.height(6.dp))
-
-        Row(
+        // macOS Frosted Glass Playback Controls Card (Point B.5)
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0x9E121521),
+            border = BorderStroke(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.28f),
+                        Color.White.copy(alpha = 0.09f),
+                    ),
+                ),
+            ),
+            shadowElevation = 22.dp,
         ) {
-            val displayMs = if (draggingScrubber && durationMs > 0) {
-                (scrubFraction * durationMs).toLong()
-            } else {
-                position.positionMs
-            }
-            Text(
-                text = formatDuration(displayMs),
-                color = Color.White.copy(alpha = 0.60f),
-                fontSize = 11.5.sp,
-            )
-            Text(
-                text = formatDuration(durationMs),
-                color = Color.White.copy(alpha = 0.60f),
-                fontSize = 11.5.sp,
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = { onShuffleChange(!shuffle) }) {
-                Icon(
-                    Icons.Rounded.Shuffle,
-                    contentDescription = DesktopStrings["shuffle", "Aleatorio"],
-                    tint = if (shuffle) DesktopAccent else Color.White.copy(alpha = 0.45f),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-
-            DesktopToolbarButton(onClick = onPrevious, size = 42.dp) {
-                Icon(
-                    Icons.Rounded.SkipPrevious,
-                    contentDescription = DesktopStrings["previous", "Anterior"],
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp),
-                )
-            }
-
-            Surface(
-                onClick = onPlayPause,
-                shape = CircleShape,
-                color = Color.White,
-                shadowElevation = 8.dp,
-                modifier = Modifier.size(60.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (isPlaying) DesktopStrings["pause", "Pausar"] else DesktopStrings["play", "Reproducir"],
-                        tint = Color.Black,
-                        modifier = Modifier.size(34.dp),
-                    )
-                }
-            }
-
-            DesktopToolbarButton(onClick = onNext, size = 42.dp) {
-                Icon(
-                    Icons.Rounded.SkipNext,
-                    contentDescription = DesktopStrings["next", "Siguiente"],
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp),
-                )
-            }
-
-            IconButton(
-                onClick = {
-                    val nextMode = when (repeatMode) {
-                        DesktopRepeatMode.OFF -> DesktopRepeatMode.ALL
-                        DesktopRepeatMode.ALL -> DesktopRepeatMode.ONE
-                        DesktopRepeatMode.ONE -> DesktopRepeatMode.OFF
-                    }
-                    onRepeatModeChange(nextMode)
-                },
-            ) {
-                Icon(
-                    when (repeatMode) {
-                        DesktopRepeatMode.ONE -> Icons.Rounded.RepeatOne
-                        else -> Icons.Rounded.Repeat
-                    },
-                    contentDescription = DesktopStrings["repeat", "Repetir"],
-                    tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else Color.White.copy(alpha = 0.45f),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-
-            var showDjTooltip by remember { mutableStateOf(false) }
             Box(
-                modifier = Modifier.pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            when (event.type) {
-                                PointerEventType.Enter -> showDjTooltip = true
-                                PointerEventType.Exit -> showDjTooltip = false
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.08f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.22f),
+                            ),
+                        ),
+                    )
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    DesktopThinSlider(
+                        value = currentDisplayFraction,
+                        onValueChange = {
+                            draggingScrubber = true
+                            scrubFraction = it.coerceIn(0f, 1f)
+                        },
+                        onValueChangeFinished = {
+                            if (durationMs > 0) {
+                                val targetMs = (scrubFraction.toDouble() * durationMs.toDouble()).toLong().coerceIn(0L, durationMs)
+                                pendingSeekMs = targetMs
+                                pendingSeekAt = System.currentTimeMillis()
+                                onSeek(targetMs)
+                            }
+                            draggingScrubber = false
+                        },
+                        tooltipText = { fraction ->
+                            if (durationMs > 0) {
+                                formatDuration((fraction.toDouble() * durationMs.toDouble()).toLong().coerceIn(0L, durationMs))
+                            } else {
+                                "0:00"
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(14.dp),
+                        activeColor = Color.White,
+                        inactiveColor = Color.White.copy(alpha = 0.26f),
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        val displayMs = when {
+                            draggingScrubber && durationMs > 0 -> (scrubFraction.toDouble() * durationMs.toDouble()).toLong()
+                            settledSeekMs != null -> settledSeekMs
+                            else -> position.positionMs
+                        }
+                        Text(
+                            text = formatDuration(displayMs),
+                            color = Color.White.copy(alpha = 0.72f),
+                            fontSize = 11.5.sp,
+                        )
+                        Text(
+                            text = formatDuration(durationMs),
+                            color = Color.White.copy(alpha = 0.72f),
+                            fontSize = 11.5.sp,
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { onShuffleChange(!shuffle) }) {
+                            Icon(
+                                Icons.Rounded.Shuffle,
+                                contentDescription = DesktopStrings["shuffle", "Aleatorio"],
+                                tint = if (shuffle) DesktopAccent else Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+
+                        DesktopToolbarButton(onClick = onPrevious, size = 42.dp) {
+                            Icon(
+                                Icons.Rounded.SkipPrevious,
+                                contentDescription = DesktopStrings["previous", "Anterior"],
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+
+                        Surface(
+                            onClick = onPlayPause,
+                            shape = CircleShape,
+                            color = Color.White,
+                            shadowElevation = 10.dp,
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    contentDescription = if (isPlaying) DesktopStrings["pause", "Pausar"] else DesktopStrings["play", "Reproducir"],
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                            }
+                        }
+
+                        DesktopToolbarButton(onClick = onNext, size = 42.dp) {
+                            Icon(
+                                Icons.Rounded.SkipNext,
+                                contentDescription = DesktopStrings["next", "Siguiente"],
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                val nextMode = when (repeatMode) {
+                                    DesktopRepeatMode.OFF -> DesktopRepeatMode.ALL
+                                    DesktopRepeatMode.ALL -> DesktopRepeatMode.ONE
+                                    DesktopRepeatMode.ONE -> DesktopRepeatMode.OFF
+                                }
+                                onRepeatModeChange(nextMode)
+                            },
+                        ) {
+                            Icon(
+                                when (repeatMode) {
+                                    DesktopRepeatMode.ONE -> Icons.Rounded.RepeatOne
+                                    else -> Icons.Rounded.Repeat
+                                },
+                                contentDescription = DesktopStrings["repeat", "Repetir"],
+                                tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+
+                        var showDjTooltip by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier.pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        when (event.type) {
+                                            PointerEventType.Enter -> showDjTooltip = true
+                                            PointerEventType.Exit -> showDjTooltip = false
+                                        }
+                                    }
+                                }
+                            },
+                        ) {
+                            IconButton(onClick = { onAutomixChange(!automix) }) {
+                                Icon(
+                                    Icons.Rounded.AutoAwesome,
+                                    contentDescription = DesktopStrings["automix", "Modo DJ Automix"],
+                                    tint = if (automix) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.65f),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+
+                            if (showDjTooltip) {
+                                Popup(
+                                    alignment = Alignment.TopCenter,
+                                    offset = IntOffset(0, -32),
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xF21C1C24),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                        shadowElevation = 6.dp,
+                                    ) {
+                                        Text(
+                                            text = "Modo DJ Automix: Mezclas y transiciones automáticas",
+                                            color = Color.White.copy(alpha = 0.92f),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                },
-            ) {
-                IconButton(onClick = { onAutomixChange(!automix) }) {
-                    Icon(
-                        Icons.Rounded.AutoAwesome,
-                        contentDescription = DesktopStrings["automix", "Modo DJ Automix"],
-                        tint = if (automix) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.45f),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
 
-                if (showDjTooltip) {
-                    Popup(
-                        alignment = Alignment.TopCenter,
-                        offset = IntOffset(0, -32),
+                    Spacer(Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xF21C1C24),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                            shadowElevation = 6.dp,
+                        Icon(
+                            if (volume <= 0.01f) Icons.Rounded.VolumeMute else Icons.Rounded.VolumeUp,
+                            contentDescription = DesktopStrings["volume", "Volumen"],
+                            tint = Color.White.copy(alpha = 0.72f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        DesktopBareSlider(
+                            value = volume,
+                            onValueChange = onVolumeChange,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        IconButton(
+                            onClick = onToggleQueue,
+                            modifier = Modifier.size(34.dp),
                         ) {
-                            Text(
-                                text = "Modo DJ Automix: Mezclas y transiciones automáticas",
-                                color = Color.White.copy(alpha = 0.92f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            Icon(
+                                Icons.AutoMirrored.Rounded.QueueMusic,
+                                contentDescription = DesktopStrings["queue", "Cola de reproducción (Q)"],
+                                tint = if (isQueueVisible) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.78f),
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
+/**
+ * Formats the real measured audio quality of the active stream for the Immersive Mode header badge.
+ * Never falls back to a fake static string; returns "N/D" if stream metadata is unavailable.
+ */
+internal fun formatDynamicStreamQuality(
+    format: DesktopStreamFormat?,
+    song: Song? = null,
+): String {
+    if (format != null) {
+        val rawCodec = format.codec
+            ?.trim()
+            ?.uppercase(Locale.ROOT)
+            ?.removePrefix("AUDIO/")
+            ?.substringBefore(".")
+            ?.takeIf { it.isNotBlank() }
 
-        Row(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                if (volume <= 0.01f) Icons.Rounded.VolumeMute else Icons.Rounded.VolumeUp,
-                contentDescription = DesktopStrings["volume", "Volumen"],
-                tint = Color.White.copy(alpha = 0.65f),
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            DesktopBareSlider(
-                value = volume,
-                onValueChange = onVolumeChange,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(12.dp))
-            IconButton(
-                onClick = onToggleQueue,
-                modifier = Modifier.size(34.dp),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.QueueMusic,
-                    contentDescription = DesktopStrings["queue", "Canciones siguientes"],
-                    tint = if (isQueueVisible) DesktopAccent else Color.White.copy(alpha = 0.70f),
-                    modifier = Modifier.size(20.dp),
-                )
+        val codecLabel = when (rawCodec) {
+            "MP4A", "AAC", "M4A" -> "AAC"
+            "VORBIS" -> "VORBIS"
+            "OPUS" -> "OPUS"
+            "FLAC" -> "FLAC"
+            "ALAC" -> "ALAC"
+            "PCM", "WAV", "S16LE", "F32LE" -> "PCM"
+            "MP3", "MPEG" -> "MP3"
+            else -> rawCodec
+        }
+
+        val depthOrRate = when {
+            format.bitDepth != null && format.bitDepth > 0 -> "${format.bitDepth}-bit"
+            format.kbps != null && format.kbps > 0 -> "${format.kbps} kbps"
+            format.isLossless -> "Lossless"
+            else -> null
+        }
+
+        val firstToken = listOfNotNull(codecLabel, depthOrRate).joinToString(" ").ifBlank { null }
+
+        val sampleRateToken = format.sampleRateHz?.takeIf { it > 0 }?.let { hz ->
+            if (hz % 1000 == 0) {
+                "${hz / 1000} kHz"
+            } else {
+                "${"%.1f".format(Locale.US, hz / 1000.0)} kHz"
             }
         }
+
+        val channelToken = when {
+            format.isDolbyAtmos -> "DOLBY ATMOS"
+            format.channels == 2 -> "STEREO"
+            format.channels == 1 -> "MONO"
+            (format.channels ?: 0) > 2 -> "${format.channels} CH"
+            else -> null
+        }
+
+        val parts = listOfNotNull(firstToken, sampleRateToken, channelToken)
+        if (parts.isNotEmpty()) {
+            return parts.joinToString(" • ")
+        }
     }
+
+    val songQuality = song?.sourceQuality?.trim()?.takeIf { it.isNotBlank() }
+    return songQuality ?: "N/D"
 }
 
 private fun formatDuration(ms: Long): String {

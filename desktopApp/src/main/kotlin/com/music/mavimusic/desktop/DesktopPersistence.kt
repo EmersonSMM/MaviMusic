@@ -293,7 +293,15 @@ class DesktopPersistence {
     private fun decode(value: String): String =
         runCatching { String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8) }.getOrDefault("")
 
-    private companion object {
+    fun preferAudioTracks(): Boolean = boolean(KEY_PREFER_AUDIO_TRACKS, true)
+
+    fun savePreferAudioTracks(enabled: Boolean) = saveBoolean(KEY_PREFER_AUDIO_TRACKS, enabled)
+
+    fun allowRemixesAndLive(): Boolean = boolean(KEY_ALLOW_REMIXES_LIVE, false)
+
+    fun saveAllowRemixesAndLive(enabled: Boolean) = saveBoolean(KEY_ALLOW_REMIXES_LIVE, enabled)
+
+    companion object {
         const val KEY_LIKED_IDS = "liked_ids"
         const val KEY_DISLIKED_IDS = "disliked_ids"
         const val KEY_HISTORY = "history"
@@ -306,11 +314,107 @@ class DesktopPersistence {
         private const val KEY_AUDIO_QUALITY_RUNGS = "audio_quality_rungs"
         const val KEY_SOURCE_CONFIGS = "source_configs"
         const val KEY_SOURCE_CONFIGS_PROTECTED = "source_configs_dpapi_v1"
+        const val KEY_AVOID_DUPLICATE_VERSIONS = "avoid_duplicate_versions"
+        const val KEY_ALLOW_REMIXES_LIVE = "allow_remixes_live"
+        const val KEY_IMMERSIVE_VISUAL_MODE = "immersive_visual_mode"
+        const val KEY_IMMERSIVE_COLOR_PALETTE = "immersive_color_palette"
+        const val KEY_IMMERSIVE_CLASSIC_MODE = "immersive_classic_mode"
+        const val KEY_IMMERSIVE_SHOW_LYRICS = "immersive_show_lyrics"
+        const val KEY_PREFER_AUDIO_TRACKS = "prefer_audio_tracks"
+        const val KEY_DJ_MIX_CURVE = "dj_mix_curve"
         const val MAX_HISTORY = 100
         const val MAX_QUEUE = 200
         const val DELIMITER = "|"
         const val PLAYLIST_DELIMITER = "#"
         const val SONG_DELIMITER = ";"
+
+        fun avoidDuplicateVersions(): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_AVOID_DUPLICATE_VERSIONS, true) }.getOrDefault(true)
+
+        fun saveAvoidDuplicateVersions(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_AVOID_DUPLICATE_VERSIONS, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun allowRemixesAndLive(): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_ALLOW_REMIXES_LIVE, false) }.getOrDefault(false)
+
+        fun saveAllowRemixesAndLive(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_ALLOW_REMIXES_LIVE, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun immersiveVisualMode(default: String = "WINAMP_WAVES"): String =
+            runCatching { DesktopPreferenceMigration.open().get(KEY_IMMERSIVE_VISUAL_MODE, default) }.getOrDefault(default)
+
+        fun saveImmersiveVisualMode(modeName: String) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.put(KEY_IMMERSIVE_VISUAL_MODE, modeName)
+                prefs.flush()
+            }
+        }
+
+        fun immersiveColorPalette(default: String = "COVER_ART"): String =
+            runCatching { DesktopPreferenceMigration.open().get(KEY_IMMERSIVE_COLOR_PALETTE, default) }.getOrDefault(default)
+
+        fun saveImmersiveColorPalette(paletteName: String) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.put(KEY_IMMERSIVE_COLOR_PALETTE, paletteName)
+                prefs.flush()
+            }
+        }
+
+        fun immersiveClassicMode(default: Boolean = false): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_IMMERSIVE_CLASSIC_MODE, default) }.getOrDefault(default)
+
+        fun saveImmersiveClassicMode(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_IMMERSIVE_CLASSIC_MODE, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun immersiveShowLyrics(default: Boolean = true): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_IMMERSIVE_SHOW_LYRICS, default) }.getOrDefault(default)
+
+        fun saveImmersiveShowLyrics(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_IMMERSIVE_SHOW_LYRICS, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun preferAudioTracks(default: Boolean = true): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_PREFER_AUDIO_TRACKS, default) }.getOrDefault(default)
+
+        fun savePreferAudioTracks(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_PREFER_AUDIO_TRACKS, enabled)
+                prefs.flush()
+            }
+        }
+
+        fun djMixCurve(default: String = "EQUAL_POWER"): String =
+            runCatching { DesktopPreferenceMigration.open().get(KEY_DJ_MIX_CURVE, default) }.getOrDefault(default)
+
+        fun saveDjMixCurve(curve: String) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.put(KEY_DJ_MIX_CURVE, curve)
+                prefs.flush()
+            }
+        }
     }
 }
 

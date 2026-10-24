@@ -70,7 +70,23 @@ internal object DesktopAutoplay {
         }
         val related = DesktopSearchClient.radio(seed).getOrElse { return Result.failure(it) }
         DesktopTrackLog.log("autoplay: station for '${seedSong.title}' offered ${related.size} tracks")
-        val extra = QueueBuilder.extend(existing + seedSong, related, limit)
+        val recentHistory = (existing.takeLast(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW) + seedSong)
+            .distinctBy { it.videoId }
+        val filteredRelated = related.filterNot { candidate ->
+            val isVariant = recentHistory.any { QueueBuilder.isSameTrackOrVariant(it, candidate) }
+            val match = DesktopTrackSimilarity.findDuplicateMatch(candidate, recentHistory)
+            if (isVariant || match != null) {
+                val matchedTitle = match?.first?.title ?: "recent track"
+                val reason = match?.second?.reason ?: "variant_match"
+                DesktopTrackLog.log(
+                    "[Automix/Similarity] Autoplay filtered '${candidate.title}' (${candidate.artist}) matching '$matchedTitle' [$reason]"
+                )
+                true
+            } else {
+                false
+            }
+        }
+        val extra = QueueBuilder.extend(existing + seedSong, filteredRelated, limit)
         if (extra.isEmpty()) return Result.success(emptyList())
         return Result.success(extra.map { it.copy(queueTier = QueueTier.AUTOPLAY, radioName = seedSong.radioName) })
     }

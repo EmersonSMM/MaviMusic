@@ -12,16 +12,24 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,8 +40,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /** Apple Music's scrubber, ported from Android's `ThinSlider`. */
 @Composable
@@ -42,6 +57,8 @@ internal fun DesktopThinSlider(
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     onValueChangeFinished: (() -> Unit)? = null,
+    /** Optional formatter to display target timestamp in a floating tooltip while dragging. */
+    tooltipText: ((Float) -> String)? = null,
     /** Sends a sheen travelling along the bar for as long as it is true. */
     mixing: Boolean = false,
     /**
@@ -57,7 +74,12 @@ internal fun DesktopThinSlider(
     markerColor: Color = Color.White.copy(alpha = 0.5f),
 ) {
     var dragging by remember { mutableStateOf(false) }
-    var dragFraction by remember { mutableStateOf(0f) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+    var barWidthPx by remember { mutableIntStateOf(0) }
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
+    val currentTooltipText by rememberUpdatedState(tooltipText)
+
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
         animationSpec = spring(
@@ -71,14 +93,17 @@ internal fun DesktopThinSlider(
         modifier = modifier
             // Generous invisible hit target — the visible bar is only ~7dp.
             .height(activeHeight + 22.dp)
+            .onSizeChanged { barWidthPx = it.width }
             // One gesture loop for both clicks and drags.
+            // Uses rememberUpdatedState so song duration changes never read a stale closure.
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val widthPx = size.width.toFloat().coerceAtLeast(1f)
                     dragging = true
-                    val initialFraction = (down.position.x / size.width).coerceIn(0f, 1f)
+                    val initialFraction = (down.position.x / widthPx).coerceIn(0f, 1f)
                     dragFraction = initialFraction
-                    onValueChange(initialFraction)
+                    currentOnValueChange(initialFraction)
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -88,19 +113,49 @@ internal fun DesktopThinSlider(
                             break
                         }
                         if (pointer.positionChanged()) {
-                            val newFraction = (pointer.position.x / size.width).coerceIn(0f, 1f)
+                            val liveWidthPx = size.width.toFloat().coerceAtLeast(1f)
+                            val newFraction = (pointer.position.x / liveWidthPx).coerceIn(0f, 1f)
                             dragFraction = newFraction
-                            onValueChange(newFraction)
+                            currentOnValueChange(newFraction)
                             pointer.consume()
                         }
                     }
 
                     dragging = false
-                    onValueChangeFinished?.invoke()
+                    currentOnValueChangeFinished?.invoke()
                 }
             },
         contentAlignment = Alignment.Center,
     ) {
+        if (dragging && currentTooltipText != null) {
+            val label = currentTooltipText?.invoke(dragFraction).orEmpty()
+            if (label.isNotEmpty()) {
+                val xOffsetPx = if (barWidthPx > 0) {
+                    ((dragFraction - 0.5f) * barWidthPx).roundToInt()
+                } else {
+                    0
+                }
+                Popup(
+                    alignment = Alignment.TopCenter,
+                    offset = IntOffset(xOffsetPx, -30),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xF2161822),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+                        shadowElevation = 8.dp,
+                    ) {
+                        Text(
+                            text = label,
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+        }
         Canvas(
             Modifier
                 .fillMaxWidth()
@@ -186,3 +241,14 @@ private fun DesktopMixSheen(height: Dp) {
 
 /** Width of the travelling highlight, as a fraction of the whole bar. */
 private const val SHEEN_BAND_FRACTION = 0.7f
+
+/**
+ * Pure helper computing the exact seek target in milliseconds from a pointer X coordinate [xPx]
+ * and the real measured bar width [barWidthPx] for a track of length [durationMs].
+ * No segment snapping or coarse rounding is applied.
+ */
+internal fun computeSeekTargetMs(xPx: Float, barWidthPx: Float, durationMs: Long): Long {
+    if (durationMs <= 0L || barWidthPx <= 0f) return 0L
+    val fraction = (xPx / barWidthPx).coerceIn(0f, 1f)
+    return (fraction.toDouble() * durationMs.toDouble()).roundToLong().coerceIn(0L, durationMs)
+}

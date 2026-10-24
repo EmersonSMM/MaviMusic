@@ -384,6 +384,8 @@ object YtMusicRepository {
      * [InnertubeParser.parseSearch]), so every candidate here is audio-only
      * without a second check.
      */
+    fun getCachedAudio(videoId: String): Song? = audioVersionCache[videoId]
+
     suspend fun resolveAudio(song: Song): Song {
         if (!song.isVideo) return song
         audioVersionCache[song.videoId]?.let { return it }

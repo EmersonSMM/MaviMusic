@@ -121,6 +121,16 @@ internal object DesktopLocalMusicWatcher {
                 WATCH_DEPTH,
                 object : SimpleFileVisitor<Path>() {
                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                        val name = dir.fileName?.toString()?.lowercase(java.util.Locale.ROOT) ?: ""
+                        if (name.startsWith(".") ||
+                            name.endsWith(".musiclibrary") ||
+                            name.endsWith(".itdb") ||
+                            name.endsWith(".photoslibrary") ||
+                            name == "music library" ||
+                            (name == "music" && dir.parent?.fileName?.toString()?.lowercase(java.util.Locale.ROOT) == "music")
+                        ) {
+                            return FileVisitResult.SKIP_SUBTREE
+                        }
                         runCatching {
                             dir.register(
                                 service,

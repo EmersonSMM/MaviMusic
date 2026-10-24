@@ -541,6 +541,9 @@ fun MaviMusicDesktopApp() {
                 .getOrDefault(AutomixPerformanceMode.BALANCED),
         )
     }
+    var preferAudioTracks by remember {
+        mutableStateOf(persistence.preferAudioTracks())
+    }
     var shuffle by remember { mutableStateOf(persistence.boolean("shuffle", false)) }
     var repeatMode by remember {
         mutableStateOf(
@@ -704,7 +707,14 @@ fun MaviMusicDesktopApp() {
 
     /** Opens whatever the queue is currently pointing at. */
     fun playCurrent(startPlaying: Boolean = true) {
-        val song = liveQueue.current ?: return
+        val rawSong = liveQueue.current ?: return
+        val audioCached = if (preferAudioTracks && rawSong.isVideo) YtMusicRepository.getCachedAudio(rawSong.videoId) else null
+        val song = audioCached ?: rawSong
+        if (song.videoId != rawSong.videoId) {
+            liveQueue = liveQueue.copy(
+                songs = liveQueue.songs.map { if (it.videoId == rawSong.videoId) song else it },
+            )
+        }
         selectedSong = song
         history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
         saveQueue()
@@ -714,7 +724,7 @@ fun MaviMusicDesktopApp() {
         scope.launch { DesktopScrobbling.updateNowPlaying(song) }
 
         // Prefer songs over videos using YouTube Music's track matching engine
-        if (song.isVideo) {
+        if (preferAudioTracks && song.isVideo) {
             scope.launch {
                 runCatching {
                     val resolvedAudio = YtMusicRepository.resolveAudio(song)
@@ -728,6 +738,41 @@ fun MaviMusicDesktopApp() {
                             playbackEngine.load(resolvedAudio, playbackEngine.state.value.isPlaying)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    fun toggleAudioVideoMode(song: Song) {
+        val targetIsVideo = !song.isVideo
+        preferAudioTracks = !targetIsVideo
+        persistence.savePreferAudioTracks(!targetIsVideo)
+        scope.launch {
+            if (targetIsVideo) {
+                DesktopTrackLog.log("video switch: user requested music video for '${song.title}'")
+                val videoCut = YtMusicRepository.resolveVideo(song)
+                if (videoCut != null) {
+                    selectedSong = videoCut
+                    liveQueue = liveQueue.copy(
+                        songs = liveQueue.songs.map { if (it.videoId == song.videoId) videoCut else it },
+                    )
+                    playbackEngine.load(videoCut, playbackEngine.state.value.isPlaying)
+                    DesktopPlayerHost.showMessage("Modo Video Musical activado")
+                } else {
+                    DesktopPlayerHost.showMessage("No se encontró versión videoclip para esta canción")
+                }
+            } else {
+                DesktopTrackLog.log("audio switch: user requested official song for '${song.title}'")
+                val audioCut = YtMusicRepository.resolveAudio(song)
+                if (audioCut.videoId != song.videoId) {
+                    selectedSong = audioCut
+                    liveQueue = liveQueue.copy(
+                        songs = liveQueue.songs.map { if (it.videoId == song.videoId) audioCut else it },
+                    ).withoutDuplicates()
+                    playbackEngine.load(audioCut, playbackEngine.state.value.isPlaying)
+                    DesktopPlayerHost.showMessage("Modo Canción Oficial (álbum) activado")
+                } else {
+                    DesktopPlayerHost.showMessage("Ya estás reproduciendo la versión oficial de estudio")
                 }
             }
         }
@@ -847,10 +892,10 @@ fun MaviMusicDesktopApp() {
             contextSource = playable[at].queueSource(),
         )
         liveQueue = if (shuffle) {
-            DesktopQueue.shuffledStartingAt(built.timeline, built.startIndex)
+            DesktopQueue.shuffledStartingAt(built.timeline, built.startIndex).withoutDuplicates()
         } else {
             // Keep the complete queue so Previous can navigate to the tracks before the selected one.
-            DesktopQueue.startingAt(built.timeline, built.startIndex)
+            DesktopQueue.startingAt(built.timeline, built.startIndex).withoutDuplicates()
         }
         preShuffleOrder = if (shuffle) built.timeline.map(DesktopQueue::orderKey) else emptyList()
         playCurrent()
@@ -958,7 +1003,7 @@ fun MaviMusicDesktopApp() {
         }
         val queued = canonicalSong(song).copy(radioName = liveQueue.current?.radioName)
             .withSource(currentQueueSource())
-        liveQueue = liveQueue.enqueue(queued, playNext = next)
+        liveQueue = liveQueue.enqueue(queued, playNext = next, recent = history.take(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW))
         saveQueue()
         partySyncHolder[0]?.onLocalIntent()
     }
@@ -1314,14 +1359,14 @@ fun MaviMusicDesktopApp() {
         if (automixOnSkip && repeatMode != DesktopRepeatMode.ONE) {
             val currentId = selectedSong?.videoId
             val upcoming = currentId?.let {
-                liveQueue.followingFor(it, repeatAll = repeatMode == DesktopRepeatMode.ALL, recent = history.take(6))
+                liveQueue.followingFor(it, repeatAll = repeatMode == DesktopRepeatMode.ALL, recent = history.take(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW))
             }
             if (upcoming != null && playbackEngine.beginSkipMix(upcoming.videoId, SKIP_MIX_ON_SKIP_SECONDS)) {
                 return
             }
         }
         val nextIndex = selectedSong?.let {
-            liveQueue.nextDistinctIndex(it.videoId, repeatMode == DesktopRepeatMode.ALL, history.take(6))
+            liveQueue.nextDistinctIndex(it.videoId, repeatMode == DesktopRepeatMode.ALL, history.take(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW))
         }
         if (nextIndex != null) {
             liveQueue = liveQueue.jumpTo(nextIndex)
@@ -1802,7 +1847,7 @@ fun MaviMusicDesktopApp() {
         // blending into the next one.
         val next = selectedSong
             ?.takeIf { repeatMode != DesktopRepeatMode.ONE }
-            ?.let { liveQueue.followingFor(it.videoId, repeatAll = repeatMode == DesktopRepeatMode.ALL, recent = history.take(6)) }
+            ?.let { liveQueue.followingFor(it.videoId, repeatAll = repeatMode == DesktopRepeatMode.ALL, recent = history.take(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)) }
         playbackEngine.prepareNext(next)
     }
     // Topped up on every track change, the way Android does it, rather than only once the queue has
@@ -1841,6 +1886,36 @@ fun MaviMusicDesktopApp() {
             autoplayJob = null
             autoplaySeed = null
             loadAutoplaySongs()
+        }
+    }
+    // Background pre-resolution of upcoming queue videos to official studio cuts (when preferAudioTracks is active)
+    LaunchedEffect(liveQueue.upcoming.map { it.videoId }, preferAudioTracks) {
+        if (!preferAudioTracks) return@LaunchedEffect
+        val candidateVideos = liveQueue.upcoming
+            .filter { it.isVideo && !it.videoId.startsWith("local:") }
+            .take(5)
+        if (candidateVideos.isEmpty()) return@LaunchedEffect
+
+        withContext(Dispatchers.IO) {
+            var changed = false
+            val currentSongs = liveQueue.songs.toMutableList()
+            for (videoSong in candidateVideos) {
+                runCatching {
+                    val resolvedAudio = YtMusicRepository.resolveAudio(videoSong)
+                    if (resolvedAudio.videoId != videoSong.videoId && !resolvedAudio.isVideo) {
+                        val idx = currentSongs.indexOfFirst { it.videoId == videoSong.videoId }
+                        if (idx >= 0) {
+                            currentSongs[idx] = resolvedAudio.copy(queueTier = currentSongs[idx].queueTier)
+                            changed = true
+                        }
+                    }
+                }
+            }
+            if (changed) {
+                withContext(Dispatchers.Main) {
+                    liveQueue = liveQueue.copy(songs = currentSongs).withoutDuplicates()
+                }
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -2853,19 +2928,26 @@ fun MaviMusicDesktopApp() {
     }
 
     LaunchedEffect(Unit) {
-        // Unpacks the analyser and its models on first run.
-        DesktopAnalysisRuntime.ensureStarted()
-        DesktopHorizontalScroll.install()
-        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
-        // A download record is a claim about a folder this app does not own, so it can outlive the
-        // file it names. Checked once at startup rather than trusted: a stale entry showed the
-        // track as downloaded, refused to fetch it again, and then would not play.
-        val checked = downloads
-        withContext(Dispatchers.IO) {
-            val onDisk = DesktopDownloadManager.verified(checked)
-            if (onDisk.size != checked.size) DesktopDownloadLibrary.verified(checked, onDisk)
-        }
+        // Loads the main Home feed immediately on app launch
         loadHome()
+    }
+
+    LaunchedEffect(Unit) {
+        // Background initialization: analysis runtime, local music, and offline downloads check
+        runCatching {
+            DesktopAnalysisRuntime.ensureStarted()
+            DesktopHorizontalScroll.install()
+        }
+        runCatching {
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        }
+        runCatching {
+            val checked = downloads
+            withContext(Dispatchers.IO) {
+                val onDisk = DesktopDownloadManager.verified(checked)
+                if (onDisk.size != checked.size) DesktopDownloadLibrary.verified(checked, onDisk)
+            }
+        }
     }
 
     // The feed is the account's: signing in, out or across to another channel is a different Home,
@@ -3621,6 +3703,7 @@ fun MaviMusicDesktopApp() {
                                 sidePanel = overlays.sidePanel,
                                 isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
                                 onToggleLike = { selectedSong?.let { toggleLike(it) } },
+                                onToggleVideoMode = { selectedSong?.let(::toggleAudioVideoMode) },
                                 onToggleMiniPlayer = { overlays.miniPlayer = !overlays.miniPlayer },
                                 onOpenSongMenu = ::openMenu,
                             )
@@ -3916,9 +3999,12 @@ fun MaviMusicDesktopApp() {
                                 persistence.saveBoolean("automix", it)
                             },
                             djMixState = djMixState,
+                            streamFormat = playback.streamFormat,
                             queue = queue,
                             queueIndex = liveQueue.index,
                             onPlayQueueIndex = { idx -> playQueueIndex(idx) },
+                            onRemoveQueueIndex = ::removeFromQueue,
+                            onMoveQueueItem = ::moveInQueue,
                             lyrics = sharedLyrics,
                             lyricsSource = sharedLyricsSource,
                             lyricsProviderStates = providerStates,
@@ -4253,6 +4339,11 @@ fun MaviMusicDesktopApp() {
                                     onDontRepeatSuggestionsChange = {
                                         dontRepeatSuggestions = it
                                         persistence.saveBoolean(KEY_DONT_REPEAT_SUGGESTIONS, it)
+                                    },
+                                    preferAudioTracks = preferAudioTracks,
+                                    onPreferAudioTracksChange = {
+                                        preferAudioTracks = it
+                                        persistence.savePreferAudioTracks(it)
                                     },
                                     onChooseLocalMusicFolder = { onChosen ->
                                         DesktopLocalMusic.chooseFolder()?.let { chosen ->

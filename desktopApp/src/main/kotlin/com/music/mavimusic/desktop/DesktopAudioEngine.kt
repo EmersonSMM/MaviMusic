@@ -90,6 +90,7 @@ class DesktopPlaybackEngine(
         // there; the plain `default` mixer follows the desktop's routing on its own under
         // PipeWire, so it needs no help.
         DesktopLinuxAudioWatcher.ensureStarted()
+        DesktopMacAudioWatcher.ensureStarted()
         scope.launch {
             DesktopAudioDevices.changes.collect {
                 if (DesktopPlatform.isWindows) return@collect // its native side moves the stream itself
@@ -476,15 +477,32 @@ class DesktopPlaybackEngine(
         audioQuality = quality.uppercase()
     }
 
+    @Volatile private var nextResolveGeneration = 0L
+    @Volatile private var resolvingUpcomingId: String? = null
+    @Volatile private var lastRequestedNextSong: Song? = null
+
     fun setCrossfadeSeconds(seconds: Int) {
         crossfadeSeconds = seconds.coerceIn(0, MAX_CROSSFADE_SECONDS)
-        if (crossfadeSeconds == 0 && !automixEnabled && !skipMixEnabled) clearUpcoming()
+        if (crossfadeSeconds == 0 && !automixEnabled && !skipMixEnabled) {
+            clearUpcoming()
+            DesktopDjState.reset("crossfade_disabled")
+        } else if (upcoming == null && nextSong == null && lastRequestedNextSong != null) {
+            prepareNext(lastRequestedNextSong)
+        }
     }
 
     /** Enables Android's separate Automix setting. */
     fun setAutomixEnabled(enabled: Boolean) {
         automixEnabled = enabled
-        if (!enabled && crossfadeSeconds == 0 && !skipMixEnabled) clearUpcoming()
+        if (!enabled && crossfadeSeconds == 0 && !skipMixEnabled) {
+            clearUpcoming()
+            DesktopDjState.reset("automix_disabled")
+        } else if (enabled) {
+            val candidate = nextSong ?: lastRequestedNextSong
+            if (candidate != null && upcoming == null && nextResolveJob?.isActive != true) {
+                prepareNext(candidate)
+            }
+        }
     }
 
     /** Enables blending into the next track on a manual skip; see [beginSkipMix]. */
@@ -518,6 +536,7 @@ class DesktopPlaybackEngine(
 
     /** Resolves and prepares the next queue item without starting it. */
     fun prepareNext(song: Song?) {
+        lastRequestedNextSong = song
         // Past the midpoint of a blend the player already shows the incoming song, and the app
         // answers that by asking for the track *after* it — which would clear the upcoming track
         // this blend is still playing. Held until the blend ends, and then carried out.
@@ -528,9 +547,35 @@ class DesktopPlaybackEngine(
                 return
             }
         }
+        if (song == null || transitionSecondsFor(song) == 0) {
+            nextResolveGeneration++
+            resolvingUpcomingId = null
+            nextResolveJob?.cancel()
+            clearUpcoming()
+            DesktopDjState.reset(if (song == null) "no_next_track" else "transitions_off")
+            return
+        }
+
+        // Idempotency guard: if the exact same song is already preloaded, currently preloading, or
+        // waiting on addon arming, do NOT cancel the active job or close the ready decoder.
+        val alreadyPrepared = nextSong?.videoId == song.videoId && (
+            nextDeckOpenId == song.videoId ||
+                upcoming?.song?.videoId == song.videoId ||
+                (resolvingUpcomingId == song.videoId && nextResolveJob?.isActive == true) ||
+                awaitingArm.get()?.videoId == song.videoId
+            )
+        if (alreadyPrepared) {
+            nextSong = song
+            if (automixEnabled && !song.isVideoOrigin) {
+                analyzer.request(song, nextLocalStream, song.durationText.durationSeconds())
+            }
+            return
+        }
+
+        nextResolveGeneration++
+        resolvingUpcomingId = null
         nextResolveJob?.cancel()
         clearUpcoming()
-        if (song == null || transitionSecondsFor(song) == 0) return
         nextSong = song
         // A download plays from its file, here as in [loadInternal] — never from whichever source
         // would have answered for it.
@@ -541,6 +586,12 @@ class DesktopPlaybackEngine(
         if (automixEnabled && !song.isVideoOrigin) {
             analyzer.request(song, local, song.durationText.durationSeconds())
         }
+        DesktopDjState.recordDiagnostic(
+            automixState = AutomixState.ARMED,
+            currentTitle = _state.value.song?.title.orEmpty(),
+            nextTitle = song.title,
+            reason = "armed_next_track",
+        )
         if (local == null && DesktopMusicSources.mayServeFromAddon(song)) {
             // Android does not read an addon's track ahead; it is asked for a stream only once the
             // track is about to play. Held here and armed shortly before the transition — see
@@ -562,40 +613,81 @@ class DesktopPlaybackEngine(
      * on is swapped in when it answers; see [upgradeIncoming].
      */
     private fun resolveUpcoming(song: Song, local: DesktopStream? = null, race: Boolean = false) {
+        val generation = ++nextResolveGeneration
+        resolvingUpcomingId = song.videoId
+        DesktopDjState.recordDiagnostic(
+            automixState = AutomixState.PRELOADING,
+            currentTitle = _state.value.song?.title.orEmpty(),
+            nextTitle = song.title,
+            reason = if (race) "preloading_addon_race" else "preloading_stream",
+        )
         nextResolveJob = scope.launch {
             val askedAt = System.nanoTime()
-            val resolved: Result<DesktopLiveResolution> = when {
+            val primary: Result<DesktopLiveResolution> = when {
                 local != null -> Result.success(DesktopLiveResolution(local))
                 race -> DesktopMusicSources.resolveLive(song, audioQuality)
                 else -> DesktopMusicSources.resolve(song, audioQuality).map { DesktopLiveResolution(it) }
+            }
+            val resolved = if (primary.isFailure && local == null && !race) {
+                DesktopMusicSources.resolveLive(song, audioQuality)
+            } else {
+                primary
+            }
+            if (generation != nextResolveGeneration || nextSong?.videoId != song.videoId) {
+                return@launch
             }
             resolved.fold(
                 onSuccess = { live ->
                     openTrack(song, live.stream, startAtMs = 0).fold(
                         onSuccess = { track ->
-                            // A newer [prepareNext] may have asked for another track while this one
-                            // was resolving.
-                            if (nextSong?.videoId != song.videoId) {
+                            if (generation != nextResolveGeneration || nextSong?.videoId != song.videoId) {
                                 track.decoder.close()
                                 live.pendingSubstitute?.cancel()
                                 return@fold
                             }
+                            resolvingUpcomingId = null
                             DesktopTrackLog.log(
                                 "incoming '${song.title}' ready from ${DesktopMusicSources.sourceNameFor(live.stream)}" +
                                     " in ${(System.nanoTime() - askedAt) / 1_000_000}ms",
+                            )
+                            DesktopDjState.recordDiagnostic(
+                                automixState = AutomixState.ARMED,
+                                currentTitle = _state.value.song?.title.orEmpty(),
+                                nextTitle = song.title,
+                                reason = "preload_ready",
                             )
                             commands += Command.Upcoming(track)
                             live.pendingSubstitute?.let { upgradeIncoming(song, track.stream, it) }
                         },
                         onFailure = { failure ->
-                            DesktopTrackLog.log("could not open incoming '${song.title}': ${failure.message}")
                             live.pendingSubstitute?.cancel()
+                            if (failure is kotlinx.coroutines.CancellationException || generation != nextResolveGeneration) {
+                                return@fold
+                            }
+                            resolvingUpcomingId = null
+                            DesktopTrackLog.log("could not open incoming '${song.title}': ${failure.message}")
+                            DesktopDjState.recordDiagnostic(
+                                automixState = AutomixState.INACTIVE,
+                                currentTitle = _state.value.song?.title.orEmpty(),
+                                nextTitle = song.title,
+                                reason = "fallback_clean_cut_open_failed:${failure.message}",
+                            )
                             if (nextSong?.videoId == song.videoId) nextSong = null
                         },
                     )
                 },
                 onFailure = { failure ->
+                    if (failure is kotlinx.coroutines.CancellationException || generation != nextResolveGeneration) {
+                        return@fold
+                    }
+                    resolvingUpcomingId = null
                     DesktopTrackLog.log("could not resolve incoming '${song.title}': ${failure.message}")
+                    DesktopDjState.recordDiagnostic(
+                        automixState = AutomixState.INACTIVE,
+                        currentTitle = _state.value.song?.title.orEmpty(),
+                        nextTitle = song.title,
+                        reason = "fallback_clean_cut_resolve_failed:${failure.message}",
+                    )
                     if (nextSong?.videoId == song.videoId) nextSong = null
                 },
             )
@@ -1152,6 +1244,12 @@ class DesktopPlaybackEngine(
             promoteUpcoming()
             return
         }
+        DesktopDjState.recordDiagnostic(
+            automixState = AutomixState.COMPLETED,
+            currentTitle = track.song.title,
+            nextTitle = nextSong?.title.orEmpty(),
+            reason = if (automixEnabled || crossfadeSeconds > 0) "fallback_clean_cut_no_upcoming_deck" else "track_ended_normal",
+        )
         track.finished = true
         sink.drain()
         current = null
@@ -1215,6 +1313,7 @@ class DesktopPlaybackEngine(
         publishTrack(incoming, isPlaying = !paused, positionUs = handoverUs)
         incomingSourceFrames = 0.0
         val announced = displaySwitched
+        DesktopDjState.markCompleted(incoming.song.title)
         endBlend()
         nextDeckOpenId = null
         blendActive = false
@@ -1520,29 +1619,39 @@ class DesktopPlaybackEngine(
         held?.let { analyzer.request(it, nextLocalStream, it.durationText.durationSeconds()) }
     }
 
-    @Volatile
-    private var lastManualSeekTimeMs = 0L
-
-    @Volatile
-    private var lastManualSeekPositionMs = 0L
-
     private fun performSeek(millis: Long) {
-        lastManualSeekTimeMs = System.currentTimeMillis()
-        lastManualSeekPositionMs = millis
-        if (fadeRemaining > 0 || blendActive) {
+        // Case 1: Past the midpoint of a blend the listener is already looking at — and seeking in —
+        // the incoming song, so promote the incoming track first and apply the seek to it.
+        if (displaySwitched && upcoming != null) {
+            promoteUpcoming()
+        } else if (fadeRemaining > 0 || blendActive) {
+            // Case 2: Seeking backward (or before midpoint) after a transition has started.
+            // Cancel the active blend and rewind the incoming deck to 0 so it remains armed for the
+            // recalculated transition point rather than destroying upcoming!
             fadeRemaining = 0
             blendActive = false
-            upcoming?.decoder?.close()
-            upcoming = null
-            nextDeckOpenId = null
-            endBlend()
+            activePlan = null
+            transitionEcho = null
+            transitionBeatRepeat = null
+            transitionReverb = null
+            transitionTexture = null
+            beatRepeatActive = false
+            beatRepeatLatched = false
+            reverbActive = false
+            textureActive = false
+            incomingSourceFrames = 0.0
+            outgoingFilter.open()
+            incomingFilter.open()
+            upcoming?.let { inc ->
+                inc.decoder.seek(0L)
+                inc.startUs = 0L
+                inc.dropTempo()
+            }
+            DesktopPlayerSettings.smartMixBlend.value = null
+            DesktopDjState.reset("seek_rewound_active_blend")
         }
-        // Past the midpoint the listener is looking at — and seeking in — the incoming song, so
-        // the blend is finished on the spot and the seek lands on that one.
-        if (displaySwitched && upcoming != null) promoteUpcoming()
         val track = current ?: return
         val landed = track.decoder.seek(millis * 1_000)
-        // TEMP seek diagnostics.
         DesktopTrackLog.log("seek performed: ${millis}ms on '${track.song.title}' ${if (landed) "ok" else "FAILED"}")
         // The stretcher still holds audio from before the seek, which would play first; and a
         // listener who has moved the playhead is past the handoff, so the ease ends here — as it
@@ -1569,6 +1678,83 @@ class DesktopPlaybackEngine(
                 awaitingAudio = true,
             )
         }
+        // Ensure the next track is still armed/preloading after seek and immediately recalculate the
+        // transition point with the new position and remaining time.
+        val candidateNext = nextSong ?: lastRequestedNextSong
+        if (upcoming == null && candidateNext != null && transitionSecondsFor(candidateNext) > 0) {
+            if (nextResolveJob?.isActive != true && awaitingArm.get() == null) {
+                nextSong = candidateNext
+                resolveUpcoming(candidateNext, nextLocalStream)
+            }
+        }
+        recalculateTransitionAfterSeek(track, millis)
+    }
+
+    private fun recalculateTransitionAfterSeek(track: Track, positionMs: Long) {
+        val duration = (track.decoder.durationUs ?: 0L) / 1_000
+        if (duration <= 0L) return
+        val incoming = upcoming
+        val next = incoming?.song ?: nextSong ?: return
+        val nextDurMs = incoming?.decoder?.durationUs?.let { it / 1_000 }
+            ?: (next.durationText.durationSeconds() * 1_000).toLong()
+        val rawPlan = transitionPlan(track, next, nextDurMs, positionMs, duration)
+        val effectivePlan = adjustPlanForRemainingTime(rawPlan, next, positionMs, duration)
+        publishTransitionWindow(track, effectivePlan, duration)
+        DesktopDjState.recordDiagnostic(
+            automixState = if (incoming != null) AutomixState.ARMED else AutomixState.PRELOADING,
+            currentTitle = track.song.title,
+            nextTitle = next.title,
+            transitionPointSec = effectivePlan.transitionStart,
+            fadeDurationSec = effectivePlan.fadeSeconds,
+            reason = "recalculated_after_seek(pos=${positionMs}ms,rem=${(duration - positionMs).coerceAtLeast(0L)}ms)",
+        )
+    }
+
+    /**
+     * Adjusts a [TransitionPlan] when a seek lands inside the transition window or when remaining
+     * time is shorter than the nominal crossfade duration: shortens the crossfade dynamically
+     * instead of cancelling the transition.
+     */
+    private fun adjustPlanForRemainingTime(
+        plan: TransitionPlan,
+        next: Song,
+        positionMs: Long,
+        durationMs: Long,
+    ): TransitionPlan {
+        if (plan.blocked) return plan
+        val remainingSec = (durationMs - positionMs).coerceAtLeast(0L) / 1_000.0
+        val defaultFadeSec = transitionSecondsFor(next).toDouble()
+        if (defaultFadeSec <= 0.0 || remainingSec <= 0.6) return plan
+
+        val nowSec = positionMs / 1_000.0
+        val durSec = durationMs / 1_000.0
+        val plannedFade = if (plan.fadeSeconds > 0.0) plan.fadeSeconds else defaultFadeSec
+
+        // If the planner already wants to start, or if the user sought past transitionStart (or into
+        // the final crossfade window where remainingSec < plannedFade), shorten fadeSeconds to fit!
+        val insideOrPastWindow = (plan.transitionStart > 0.0 && nowSec >= plan.transitionStart) ||
+            remainingSec <= plannedFade
+        if (plan.shouldStart || insideOrPastWindow) {
+            if (remainingSec < plannedFade) {
+                val shortenedFade = remainingSec.coerceIn(0.8, plannedFade)
+                return plan.copy(
+                    shouldStart = true,
+                    fadeSeconds = shortenedFade,
+                    transitionStart = nowSec,
+                    transitionEnd = (nowSec + shortenedFade).coerceAtMost(durSec),
+                )
+            }
+            if (!plan.shouldStart && plan.transitionStart > 0.0 && nowSec >= plan.transitionStart) {
+                val shortenedFade = remainingSec.coerceIn(0.8, plannedFade)
+                return plan.copy(
+                    shouldStart = true,
+                    fadeSeconds = shortenedFade,
+                    transitionStart = nowSec,
+                    transitionEnd = (nowSec + shortenedFade).coerceAtMost(durSec),
+                )
+            }
+        }
+        return plan
     }
 
     /** The track a second look is running for, started as it began playing. */
@@ -1689,7 +1875,8 @@ class DesktopPlaybackEngine(
                 return
             }
             val nextMs = (held.durationText.durationSeconds() * 1_000).toLong()
-            val plan = transitionPlan(track, held, nextMs, positionMs, duration)
+            val rawPlan = transitionPlan(track, held, nextMs, positionMs, duration)
+            val plan = adjustPlanForRemainingTime(rawPlan, held, positionMs, duration)
             publishTransitionWindow(track, plan, duration)
             armAddonUpcoming(held, plan, positionMs, duration)
             return
@@ -1698,18 +1885,31 @@ class DesktopPlaybackEngine(
         val duration = (track.decoder.durationUs ?: return) / 1_000
         if (duration <= 0) return
 
-        val plan = transitionPlan(track, incoming.song, (incoming.decoder.durationUs ?: 0L) / 1_000, positionMs, duration)
+        val rawPlan = transitionPlan(track, incoming.song, (incoming.decoder.durationUs ?: 0L) / 1_000, positionMs, duration)
+        val plan = adjustPlanForRemainingTime(rawPlan, incoming.song, positionMs, duration)
         publishTransitionWindow(track, plan, duration)
 
-        if (!plan.shouldStart || plan.blocked) return
-
-        // When a user manually seeks near the end of the track to hear the outro or ending,
-        // do not abruptly skip or force an early blend. Allow the song to play until the natural end.
-        val timeSinceManualSeek = System.currentTimeMillis() - lastManualSeekTimeMs
-        if (timeSinceManualSeek < 12_000L && lastManualSeekPositionMs >= duration - 35_000L) {
-            if (positionMs < duration - 2_500L) return
+        if (plan.blocked) {
+            DesktopDjState.recordDiagnostic(
+                automixState = AutomixState.ARMED,
+                currentTitle = track.song.title,
+                nextTitle = incoming.song.title,
+                transitionPointSec = plan.transitionStart,
+                fadeDurationSec = plan.fadeSeconds,
+                reason = "planner_blocked_waiting_for_clean_cut",
+            )
+            return
         }
+        if (!plan.shouldStart) return
 
+        DesktopDjState.recordDiagnostic(
+            automixState = AutomixState.TRANSITIONING,
+            currentTitle = track.song.title,
+            nextTitle = incoming.song.title,
+            transitionPointSec = plan.transitionStart,
+            fadeDurationSec = plan.fadeSeconds,
+            reason = "transition_started(${plan.transitionStyle})",
+        )
         armIncomingBlend(incoming, plan)
     }
 
