@@ -10,6 +10,9 @@ import java.awt.Frame
 import java.awt.Rectangle
 import javax.swing.JFrame
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -30,6 +33,20 @@ class DesktopWindowsWindowIntegrationTest {
             assertTrue(DesktopWindowsFrame.install("MaviMusic"), "Windows JNI bridge must load")
             val hwnd = HWND(Native.getComponentPointer(frame))
             val user32 = User32.INSTANCE
+            // Exercise the real service, not only its shortcut parser. This JVM uses memory preferences.
+            DesktopWindowsHotkey.configure("Ctrl+Alt+Shift+Q")
+            val shortcut = withTimeout(6000) {
+                DesktopWindowsHotkey.state.first { it.shortcut == "Ctrl+Alt+Shift+Q" && it.message.isNotBlank() }
+            }
+            assertTrue(shortcut.registered, shortcut.message)
+            DesktopWindowsHotkey.stop()
+            val parsed = DesktopWindowsHotkey.parse("Ctrl+Alt+Shift+Q")!!
+            val probeId = 0x4D57
+            try {
+                withTimeout(6000) {
+                    while (!user32.RegisterHotKey(null, probeId, parsed.modifiers, parsed.key)) delay(50)
+                }
+            } finally { user32.UnregisterHotKey(null, probeId) }
             val originalStyle = user32.GetWindowLong(hwnd, WinUser.GWL_STYLE)
             assertTrue(originalStyle and WinUser.WS_CAPTION != 0, "Installing the bridge removed the native caption")
             fun nativeBounds(): Rectangle = RECT().also {

@@ -263,3 +263,9 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - Se conserva la palabra MaviMusic como glifos vectoriales escalables con degradado cálido y resplandor fijo; no hay GIF, secuencia, descarga ni recurso asíncrono que parpadee. Brushes recordados en memoria y caché de fuentes existente.
 - Solo se anima el brillo al hover durante 180 ms. Se consulta reducir movimiento de NSWorkspace o SPI_GETCLIENTAREAANIMATION al componer; en ese caso la transición es instantánea. No hay temporizador en reposo.
 - Pendiente: refrescar automáticamente esa preferencia si cambia en el sistema mientras la vista permanece compuesta; al volver a componer se toma de nuevo.
+
+### 8. Spotlight global
+- Por defecto Windows Ctrl+Alt+K, para evitar apropiarse del Ctrl+K común. En Ajustes puede cambiarse a Ctrl+K, Ctrl+Shift+K u otra combinación con Ctrl/Alt/Win y una letra; se muestra conflicto sin ventana modal.
+- RegisterHotKey con MOD_NOREPEAT y un hilo daemon bloqueado en GetMessage. Sin polling ni hook global de todas las teclas. El callback se entrega a AWT y abre solo Spotlight existente, no la ventana principal.
+- Se libera con UnregisterHotKey al cambiar combinación y al terminar; la app debe seguir viva en bandeja. Mac conserva Carbon ⌘K/⌘⇧K y la ventana Spotlight externa existente.
+- Pendiente: configuración y aviso de conflicto del registro Carbon en macOS (actualmente combinaciones nativas existentes). No se altera el subsistema multimedia para implementarlo.

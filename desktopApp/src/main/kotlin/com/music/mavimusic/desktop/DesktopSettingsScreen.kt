@@ -1866,6 +1866,9 @@ internal fun DesktopSettingsScreen(
             }
             }
             item {
+                SettingsGroup("Atajos de teclado") {
+                    if (settingsRowVisible("Spotlight global", "atajo Ctrl Alt Win teclado")) DesktopShortcutSettings()
+                }
                 SettingsGroup("Diagnóstico") {
                     if (settingsRowVisible("Exportar diagnóstico", "informe pantallas escalado renderizador incidencias técnicas")) DesktopDiagnosticsSettings()
                 }
