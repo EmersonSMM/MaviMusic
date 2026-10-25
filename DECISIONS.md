@@ -144,4 +144,26 @@ Se adopta el motor nativo **WSOLA 32-bit Float (`DesktopAudioSpeed` / `DesktopTe
 3. **Rango Seguro Acotado (±8% por defecto, configurable hasta ±15%):** Los estudios psicoacústicos demuestran que transiciones de tempo de hasta un 8% no introducen artefactos perceptibles de modulación de fase. Más allá de ese rango, la interfaz notifica al usuario de posible degradación.
 4. **Integración con Automix y AutoDJ:** Solo se activa cuando ambos temas tienen BPM con calificación fiable (`confidence >= 0.35`) y la diferencia porcentual cae dentro del rango seguro. Si alguna condición no se cumple o el interruptor está apagado, la ruta de audio salta completamente esta etapa devolviendo el comportamiento previo exacto.
 
+---
+
+## 7. Fase 3: Visualizadores Acelerados por GPU (Tecnología y Shaders SkSL)
+
+### 7.1 Evaluación Tecnológica: Metal Directo vs GLSL vs Skia Shading Language (SkSL)
+
+| Criterio | Metal Directo (`CAMetalLayer` / JNI) | GLSL Directo (OpenGL / GLFW) | Skia SL (`SkSL` vía Skiko / Compose) |
+|---|---|---|---|
+| **Rendimiento GPU** | Nativo (Metal en Apple Silicon / Intel) | Emulado / Deprecado por Apple | **Nativo**: Skia compila SkSL directamente a pipelines Metal MSL en macOS. 60–120 FPS fluidos. |
+| **Portabilidad macOS** | Requiere código nativo Objective-C/Swift y enlace con AWT Canvas o NSView. Inestable con ventanas flotantes y escalado Retina dinámico. | OpenGL está formalmente deprecado en macOS. No soporta HDR ni ProMotion nativo adecuadamente. | **100% integrado**: Funciona directamente sobre el árbol de renderizado de Skiko y Compose Multiplatform. Sin JNI ni código C++ adicional. |
+| **Complejidad y Mantenimiento** | Muy alta. Fugas de contexto Metal, sincronización con swapchain de Skia difícil. | Alta. Requiere puente de contexto gráfico independiente. | **Baja y Elegante**: Código fuente SkSL autocontenido en Kotlin, compilación y caching en tiempo de ejecución con `RuntimeEffect`. |
+| **Tolerancia a Fallos** | Si el pipeline Metal falla o el shader no compila, puede congelar el NSWindow o causar un Kernel Panic/crash. | Crashes comunes en drivers Intel antiguos. | **Aislada y Segura**: Si un shader falla al compilar o el driver emite error, se captura limpiamente con `try-catch` y se conmuta discretamente al visualizador 2D clásico sin alterar la interfaz. |
+| **Consumo en Reposo** | Complejo de pausar de forma sincronizada con el ciclo de vida de Compose. | Requiere bucle de renderizado manual con hilos dedicados. | **0% en Reposo**: Al cerrar o pausar el modo inmersivo o apagar el interruptor, `DisposableEffect` y `release()` liberan 100% de los efectos y pausan el bucle `withFrameNanos`. |
+
+### 7.2 Decisión y Justificación
+Se adopta **Skia SL (`SkSL` vía Skiko / Compose Desktop)**:
+1. **Pipeline Metal Nativo:** Skia en macOS utiliza Metal como backend primario, de modo que cada shader SkSL se traduce y compila a Metal Shading Language (MSL) en la GPU de Apple Silicon o Intel.
+2. **Reutilización de Análisis FFT:** No duplica DSP ni cálculos de espectro; consume directamente los acumuladores de energía `barValues` de `DesktopImmersiveLyricsScreen` descompuestos en bandas de graves (`u_bass`), medios (`u_mids`) y agudos (`u_treble`).
+3. **Control de Cuadros y Recursos:** Implementa límite configurable de 30 FPS (bajo consumo), 60 FPS (estándar fluido) y 120 FPS (pantallas ProMotion de MacBooks de 14"/16").
+4. **Fallback Transparente:** La degradación ante errores de compilación conmuta al visualizador 2D clásico (`drawWinampTunnel`, `drawWinampWaves`, `drawWinampWarp`) sin pop-ups ni avisos invasivos.
+
+
 

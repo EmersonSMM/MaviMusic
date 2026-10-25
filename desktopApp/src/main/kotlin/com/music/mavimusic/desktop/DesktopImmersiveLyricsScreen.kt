@@ -69,6 +69,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import com.music.mavimusic.ui.icons.MaviMusicIcons
@@ -94,6 +95,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.skiaCanvas
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -123,7 +126,13 @@ internal enum class ImmersiveVisualMode(val label: String) {
     WINAMP_SPHERE("Esfera Retro 3D"),
     WINAMP_FIRE_SPARKS("Lluvia de Fuego"),
     WINAMP_STARBURST("Vórtice Contorno"),
-    APPLE_LYRICS("Letras Mesh"),
+    GPU_NEON_TUNNEL("Túnel Neón GPU"),
+    GPU_WATER_SURFACE("Superficie Líquida GPU"),
+    GPU_COSMIC_PARTICLES("Partículas Cósmicas GPU"),
+    APPLE_LYRICS("Letras Mesh");
+
+    val isGpuShader: Boolean
+        get() = this == GPU_NEON_TUNNEL || this == GPU_WATER_SURFACE || this == GPU_COSMIC_PARTICLES
 }
 
 internal enum class ImmersiveColorPalette(
@@ -253,7 +262,12 @@ internal fun DesktopImmersiveLyricsScreen(
     var visualMode by remember {
         val saved = DesktopPersistence.immersiveVisualMode(ImmersiveVisualMode.WINAMP_WAVES.name)
         val initial = ImmersiveVisualMode.entries.firstOrNull { it.name == saved } ?: ImmersiveVisualMode.WINAMP_WAVES
-        mutableStateOf(initial)
+        val effective = if (initial.isGpuShader && !DesktopGpuSettings.isEnabled()) {
+            ImmersiveVisualMode.WINAMP_WAVES
+        } else {
+            initial
+        }
+        mutableStateOf(effective)
     }
     var colorPalette by remember {
         val saved = DesktopPersistence.immersiveColorPalette(ImmersiveColorPalette.DYNAMIC_ARTWORK.name)
@@ -810,7 +824,12 @@ internal fun DesktopImmersiveLyricsScreen(
                                 Column(modifier = Modifier.padding(vertical = 6.dp)) {
                                     when (activeSubmenu) {
                                         VisualizerSubmenu.MODES -> {
-                                            ImmersiveVisualMode.entries.forEach { mode ->
+                                            val modesToShow = if (DesktopGpuSettings.isEnabled()) {
+                                                ImmersiveVisualMode.entries
+                                            } else {
+                                                ImmersiveVisualMode.entries.filter { !it.isGpuShader }
+                                            }
+                                            modesToShow.forEach { mode ->
                                                 val selected = visualMode == mode
                                                 Row(
                                                     modifier = Modifier
@@ -1319,15 +1338,28 @@ private fun WinampVisualizerBackdrop(
     modifier: Modifier = Modifier,
 ) {
     var timeSec by remember { mutableFloatStateOf(0f) }
+    val targetFps by DesktopGpuSettings.targetFps.collectAsState()
+    val isGpuEnabled by DesktopGpuSettings.enabled.collectAsState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            DesktopGpuVisualizerEngine.release()
+        }
+    }
+
     val numBands = 56
     val barValues = remember { FloatArray(numBands) { 0.15f } }
     val peakValues = remember { FloatArray(numBands) { 0.20f } }
     val peakVelocities = remember { FloatArray(numBands) { 0f } }
 
-    LaunchedEffect(isPlaying, mode, songSeed) {
+    LaunchedEffect(isPlaying, mode, songSeed, targetFps) {
         var lastNanos = 0L
+        val minIntervalNanos = 1_000_000_000L / targetFps.coerceIn(30, 120)
         while (true) {
             withFrameNanos { nanos ->
+                if (lastNanos != 0L && (nanos - lastNanos) < minIntervalNanos) {
+                    return@withFrameNanos
+                }
                 val dt = if (lastNanos == 0L) 0.016f else ((nanos - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
                 lastNanos = nanos
                 timeSec += if (isPlaying) dt else dt * 0.18f
@@ -1616,6 +1648,107 @@ private fun WinampVisualizerBackdrop(
                     palette = palette,
                     classicMode = classicMode,
                 )
+            }
+
+            ImmersiveVisualMode.GPU_NEON_TUNNEL -> {
+                var drawn = false
+                val bass = (0..4).map { barValues[it] }.average().toFloat()
+                val mids = (5..24).map { barValues[it] }.average().toFloat()
+                val treble = (25 until numBands).map { barValues[it] }.average().toFloat()
+                if (isGpuEnabled) {
+                    drawIntoCanvas { composeCanvas ->
+                        drawn = DesktopGpuVisualizerEngine.drawGpuVisualizer(
+                            skiaCanvas = composeCanvas.skiaCanvas,
+                            style = GpuVisualizerStyle.NEON_TUNNEL,
+                            width = w,
+                            height = h,
+                            timeSec = t,
+                            bass = bass,
+                            mids = mids,
+                            treble = treble,
+                            primary = palette.primary,
+                            secondary = palette.secondary,
+                            accent = palette.accent,
+                        )
+                    }
+                }
+                if (!drawn) {
+                    drawWinampTunnel(
+                        barValues = barValues,
+                        peakValues = peakValues,
+                        timeSec = t,
+                        numBands = numBands,
+                        isPlaying = isPlaying,
+                        palette = palette,
+                        classicMode = classicMode,
+                    )
+                }
+            }
+
+            ImmersiveVisualMode.GPU_WATER_SURFACE -> {
+                var drawn = false
+                val bass = (0..4).map { barValues[it] }.average().toFloat()
+                val mids = (5..24).map { barValues[it] }.average().toFloat()
+                val treble = (25 until numBands).map { barValues[it] }.average().toFloat()
+                if (isGpuEnabled) {
+                    drawIntoCanvas { composeCanvas ->
+                        drawn = DesktopGpuVisualizerEngine.drawGpuVisualizer(
+                            skiaCanvas = composeCanvas.skiaCanvas,
+                            style = GpuVisualizerStyle.WATER_SURFACE,
+                            width = w,
+                            height = h,
+                            timeSec = t,
+                            bass = bass,
+                            mids = mids,
+                            treble = treble,
+                            primary = palette.primary,
+                            secondary = palette.secondary,
+                            accent = palette.accent,
+                        )
+                    }
+                }
+                if (!drawn) {
+                    drawWinampLaser(
+                        barValues = barValues,
+                        timeSec = t,
+                        isPlaying = isPlaying,
+                        palette = palette,
+                        classicMode = classicMode,
+                    )
+                }
+            }
+
+            ImmersiveVisualMode.GPU_COSMIC_PARTICLES -> {
+                var drawn = false
+                val bass = (0..4).map { barValues[it] }.average().toFloat()
+                val mids = (5..24).map { barValues[it] }.average().toFloat()
+                val treble = (25 until numBands).map { barValues[it] }.average().toFloat()
+                if (isGpuEnabled) {
+                    drawIntoCanvas { composeCanvas ->
+                        drawn = DesktopGpuVisualizerEngine.drawGpuVisualizer(
+                            skiaCanvas = composeCanvas.skiaCanvas,
+                            style = GpuVisualizerStyle.COSMIC_PARTICLES,
+                            width = w,
+                            height = h,
+                            timeSec = t,
+                            bass = bass,
+                            mids = mids,
+                            treble = treble,
+                            primary = palette.primary,
+                            secondary = palette.secondary,
+                            accent = palette.accent,
+                        )
+                    }
+                }
+                if (!drawn) {
+                    drawWinampWarp(
+                        barValues = barValues,
+                        timeSec = t,
+                        isPlaying = isPlaying,
+                        palette = palette,
+                        classicMode = classicMode,
+                    )
+                }
             }
 
             ImmersiveVisualMode.APPLE_LYRICS -> Unit

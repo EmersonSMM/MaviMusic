@@ -1142,6 +1142,68 @@ internal fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
+
+                    val gpuVisualizers by DesktopGpuSettings.enabled.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["gpu_visualizers_title", "Visualizadores acelerados por GPU"],
+                        DesktopStrings[
+                            "gpu_visualizers_subtitle",
+                            "Activa nuevos estilos visuales avanzados en tiempo real (Túnel Neón, Superficie Líquida, Partículas Cósmicas) impulsados por shaders GPU (SkSL/Metal). Se pausa al minimizar la app",
+                        ],
+                        gpuVisualizers,
+                        DesktopGpuSettings::setEnabled,
+                    )
+                    if (gpuVisualizers) {
+                        val targetFps by DesktopGpuSettings.targetFps.collectAsState()
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .padding(12.dp),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Tasa de cuadros objetivo",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                )
+                                Text(
+                                    "$targetFps FPS",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DesktopAccent,
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                listOf(30, 60, 120).forEach { fps ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = targetFps == fps,
+                                        onClick = { DesktopGpuSettings.setTargetFps(fps) },
+                                        label = {
+                                            Text(
+                                                when (fps) {
+                                                    30 -> "30 FPS"
+                                                    60 -> "60 FPS (Recomendado)"
+                                                    else -> "120 FPS (ProMotion)"
+                                                },
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Window furniture belongs beside the visual settings it changes, rather than
                     // interrupting playback controls. These rows remain Windows-only.
                     if (DesktopPlatform.drawsOwnWindowFrame) {
