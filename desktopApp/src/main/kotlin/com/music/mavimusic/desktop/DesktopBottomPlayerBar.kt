@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Pause
@@ -49,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -114,6 +116,8 @@ internal fun DesktopBottomPlayerBar(
     onToggleVideoMode: () -> Unit = {},
     onToggleMiniPlayer: () -> Unit = {},
     onOpenSongMenu: ((Song) -> Unit)? = null,
+    playbackSpeed: Float = 1.0f,
+    onPlaybackSpeedChange: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var showOutputPopover by remember { mutableStateOf(false) }
@@ -537,6 +541,43 @@ internal fun DesktopBottomPlayerBar(
                             tint = if (isSleepTimerActive) Color.White else DesktopSecondary,
                             modifier = Modifier.size(18.dp),
                         )
+                    }
+
+                    if (onPlaybackSpeedChange != null) {
+                        val keyLockOn by DesktopKeyLock.enabled.collectAsState()
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = if (playbackSpeed != 1f) 0.16f else 0.08f))
+                                .clickable {
+                                    val next = when {
+                                        playbackSpeed < 0.94f -> 1.0f
+                                        playbackSpeed < 1.04f -> 1.08f
+                                        playbackSpeed < 1.15f -> 1.25f
+                                        playbackSpeed < 1.35f -> 0.92f
+                                        else -> 1.0f
+                                    }
+                                    onPlaybackSpeedChange(next)
+                                }
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "${"%.2f".format(playbackSpeed).trimEnd('0').trimEnd('.')}×",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (playbackSpeed != 1f) DesktopAccent else DesktopSecondary,
+                                )
+                                if (keyLockOn) {
+                                    Icon(
+                                        Icons.Rounded.Lock,
+                                        contentDescription = "Bloqueo de tono activo",
+                                        tint = DesktopAccent,
+                                        modifier = Modifier.size(10.dp),
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     DesktopToolbarButton(onClick = onOpenImmersive, size = 32.dp) {

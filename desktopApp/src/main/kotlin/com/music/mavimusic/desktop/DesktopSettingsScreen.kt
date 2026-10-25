@@ -804,6 +804,69 @@ internal fun DesktopSettingsScreen(
                         }
                         onPlaybackSpeedChange(next)
                     }
+                    var keyLockEnabled by remember { mutableStateOf(DesktopKeyLock.isEnabled()) }
+                    SettingsToggle(
+                        DesktopStrings["key_lock_title", "Bloqueo de tono (Key Lock / Master Tempo)"],
+                        DesktopStrings[
+                            "key_lock_subtitle",
+                            "Preserva el tono original al cambiar la velocidad o al alinear tempos en Automix (evita voces agudas o graves)",
+                        ],
+                        keyLockEnabled,
+                        {
+                            keyLockEnabled = it
+                            DesktopKeyLock.setEnabled(it)
+                        },
+                    )
+                    if (keyLockEnabled) {
+                        var safeRange by remember { mutableStateOf(DesktopKeyLock.safeRangePct.value) }
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .padding(12.dp),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Rango seguro de tempo",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                )
+                                Text(
+                                    "±$safeRange%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DesktopAccent,
+                                )
+                            }
+                            DesktopBareSlider(
+                                value = safeRange.toFloat(),
+                                onValueChange = { safeRange = it.toInt() },
+                                onValueChangeFinished = { DesktopKeyLock.setSafeRangePct(safeRange) },
+                                valueRange = 4f..15f,
+                                steps = 10,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (DesktopKeyLock.isBeyondSafeRange(playbackSpeed)) {
+                                Text(
+                                    "Aviso: la velocidad actual (${"%.2f".format(playbackSpeed)}×) supera el rango seguro (±$safeRange%). Puede percibirse degradación acústica.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(255, 170, 70),
+                                )
+                            } else {
+                                Text(
+                                    "El motor WSOLA ajusta automáticamente el tempo hasta ±$safeRange% durante transiciones de Automix sin alterar la afinación.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.5f),
+                                )
+                            }
+                        }
+                    }
                     SettingsRow(
                         Icons.Rounded.Bedtime,
                         "Sleep timer",

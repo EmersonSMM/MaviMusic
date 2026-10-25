@@ -1003,7 +1003,7 @@ class DesktopPlaybackEngine(
 
     /** The beatmatch stretch [track] is actually rendered at — [DesktopTempoBuffer]'s clamp included. */
     private fun deckRate(track: Track): Double =
-        if (track.tempo != null && !track.tempoDrained) track.tempoRate.coerceIn(1.0, 1.1) else 1.0
+        if (track.tempo != null && !track.tempoDrained) DesktopKeyLock.clampDeckRate(track.tempoRate) else 1.0
 
     /** Source time each output frame of [track] covers: the listener's speed times the deck's. */
     private fun usPerFrame(track: Track): Double =
@@ -1999,12 +1999,31 @@ class DesktopPlaybackEngine(
         fadeRemaining = transitionTotal
         incomingSourceFrames = 0.0
         activePlan = plan
-        incoming.tempo = if (plan.incomingPlaybackRate > 1.0001) {
+        val allowStretch = if (DesktopKeyLock.isEnabled()) {
+            val outBpm = plan.outgoingBpm
+            val inBpm = plan.incomingBpm
+            val outReliable = current?.song?.videoId?.let { DesktopBpmStore.get(it)?.isReliable } ?: (outBpm > 0.0)
+            val inReliable = DesktopBpmStore.get(incoming.song.videoId)?.isReliable ?: (inBpm > 0.0)
+            DesktopKeyLock.shouldBeatmatchStretch(outBpm, inBpm, outReliable, inReliable)
+        } else {
+            plan.incomingPlaybackRate > 1.0001
+        }
+
+        val clampedRate = DesktopKeyLock.clampDeckRate(plan.incomingPlaybackRate)
+        incoming.tempo = if (allowStretch && kotlin.math.abs(clampedRate - 1.0) > 0.0001) {
+            DesktopTempoBuffer(sink.format.channels, sink.format.sampleRate).also {
+                it.speed = clampedRate.toFloat()
+            }
+        } else if (!DesktopKeyLock.isEnabled() && plan.incomingPlaybackRate > 1.0001) {
             DesktopTempoBuffer(sink.format.channels, sink.format.sampleRate).also {
                 it.speed = plan.incomingPlaybackRate.toFloat()
             }
         } else null
-        incoming.tempoRate = plan.incomingPlaybackRate.coerceAtLeast(1.0)
+        incoming.tempoRate = if (allowStretch) {
+            clampedRate
+        } else if (!DesktopKeyLock.isEnabled() && plan.incomingPlaybackRate > 1.0001) {
+            plan.incomingPlaybackRate.coerceAtLeast(1.0)
+        } else 1.0
         transitionEcho = if (plan.echoSeconds > 0.0) {
             DesktopTransitionEcho(sink.format.sampleRate, sink.format.channels).also { it.configure(plan.echoSeconds) }
         } else null

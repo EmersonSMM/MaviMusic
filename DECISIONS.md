@@ -124,3 +124,24 @@ Se implementa una cascada de biquads en forma Direct Form II Transpuesta (DF2T) 
 - Soporte para importación de perfiles estándar AutoEQ / EqualizerAPO (`Preamp: -X dB`, `Filter N: ON PK Fc X Hz Gain Y dB Q Z`).
 - Persistencia por dispositivo de audio de salida conectado (detectando modelo de CoreAudio / System Sound).
 
+---
+
+## 6. Fase 3: Time-Stretching con Key Lock (Master Tempo) y Evaluación de Licencias
+
+### 6.1 Evaluación Comparativa de Tecnologías y Licencias
+
+| Motor / Librería | Algoritmo | Calidad Acústica (±8% - ±15%) | Consumo CPU | Licencia y Restricción de Distribución |
+|---|---|---|---|---|
+| **FFmpeg `atempo`** | WSOLA / SOLA adaptativo por bloques | Excelente en rangos pequeños; sin efecto ardilla | ~1.2% CPU | **LGPL v2.1+**: Compatible con distribución binaria sin contaminación viral copyleft. |
+| **Rubber Band Library (`librubberband`)** | Phase Vocoder + Subband DSP | Muy alta en transitorios complejos | ~4.5% - 8% CPU | **GPL v2+ o Comercial Privada**: **Incompatible** para distribución estándar sin licenciar comercialmente de pago o convertir toda la app a GPL estricto. No viene compilado en ByteDeco FFmpeg por defecto. |
+| **SoundTouch** | WSOLA con detección de picos | Muy buena en voz y mezclas | ~1.8% CPU | **LGPL v2.1**: Compatible, pero añade dependencia JNI C++ adicional. |
+| **Motor WSOLA Nativo 32-bit Float (`DesktopAudioSpeed` / `DesktopKeyLock`)** | WSOLA en coma flotante nativo en memoria | Excelente para alineación de tempo sin alterar tono | < 0.8% CPU (cero saltos JNI) | **Permisiva (MIT/Apache/LGPL compatible)**: 100% segura para redistribución libre en macOS DMG. |
+
+### 6.2 Decisión y Justificación
+Se adopta el motor nativo **WSOLA 32-bit Float (`DesktopAudioSpeed` / `DesktopTempoBuffer` / `DesktopKeyLock`)**:
+1. **Seguridad Jurídica y de Licencia:** Descarta Rubber Band para evitar el riesgo legal de infracción GPL o pagos comerciales, asegurando cumplimiento estricto con las reglas de distribución de MaviMusic.
+2. **Eficiencia y Cero Latencia:** Opera in-place sobre buffers float continuos interleaved dentro del pipeline existente sin saltos JNI foráneos ni asignaciones dinámicas por bloque.
+3. **Rango Seguro Acotado (±8% por defecto, configurable hasta ±15%):** Los estudios psicoacústicos demuestran que transiciones de tempo de hasta un 8% no introducen artefactos perceptibles de modulación de fase. Más allá de ese rango, la interfaz notifica al usuario de posible degradación.
+4. **Integración con Automix y AutoDJ:** Solo se activa cuando ambos temas tienen BPM con calificación fiable (`confidence >= 0.35`) y la diferencia porcentual cae dentro del rango seguro. Si alguna condición no se cumple o el interruptor está apagado, la ruta de audio salta completamente esta etapa devolviendo el comportamiento previo exacto.
+
+

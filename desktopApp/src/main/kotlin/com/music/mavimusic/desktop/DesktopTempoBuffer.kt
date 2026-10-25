@@ -17,7 +17,7 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
     var speed: Float
         get() = processor.speed
         set(value) {
-            processor.speed = value.coerceIn(1f, 1.1f)
+            processor.speed = DesktopKeyLock.clampDeckRate(value.toDouble()).toFloat()
         }
 
     val available: Int get() = queuedCount

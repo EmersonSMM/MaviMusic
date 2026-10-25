@@ -3820,6 +3820,11 @@ fun MaviMusicDesktopApp() {
                                 onToggleVideoMode = { selectedSong?.let(::toggleAudioVideoMode) },
                                 onToggleMiniPlayer = { overlays.miniPlayer = !overlays.miniPlayer },
                                 onOpenSongMenu = ::openMenu,
+                                playbackSpeed = playbackSpeed,
+                                onPlaybackSpeedChange = {
+                                    playbackSpeed = it
+                                    persistence.saveString("playback_speed", it.toString())
+                                },
                             )
                         }
                     }
