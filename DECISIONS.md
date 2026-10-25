@@ -258,3 +258,8 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - Radio de contenedor 20 dp y filas 12 dp, borde de 0,5 dp y sombra suave. Contexto de canciones y desplegables usan el mismo modificador/componentes, sin cambiar acciones.
 - Se reutiliza Haze/desktopChromeGlass y su fallback cuando se reduce el desenfoque. No se aplica blur al texto. Pendiente validar captura de fondo entre ventanas Popup en cada backend Windows/Mac; si Haze no puede capturarlo queda el tinte legible, no texto difuminado.
 - Colores semánticos de Material para el menú compartido. El tema global existente sigue siendo oscuro; no se afirma haber implementado un tema claro global nuevo.
+
+### 7. Logo sin bucle
+- Se conserva la palabra MaviMusic como glifos vectoriales escalables con degradado cálido y resplandor fijo; no hay GIF, secuencia, descarga ni recurso asíncrono que parpadee. Brushes recordados en memoria y caché de fuentes existente.
+- Solo se anima el brillo al hover durante 180 ms. Se consulta reducir movimiento de NSWorkspace o SPI_GETCLIENTAREAANIMATION al componer; en ese caso la transición es instantánea. No hay temporizador en reposo.
+- Pendiente: refrescar automáticamente esa preferencia si cambia en el sistema mientras la vista permanece compuesta; al volver a componer se toma de nuevo.
