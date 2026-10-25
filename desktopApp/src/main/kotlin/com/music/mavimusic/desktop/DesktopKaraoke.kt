@@ -17,8 +17,8 @@ object DesktopKaraokeSettings {
 
     private val persistence = DesktopPersistence()
 
-    // General feature flag in Settings (enabled by default as available, but dormant until user activates it)
-    private val _featureEnabled = MutableStateFlow(persistence.boolean(PREF_FEATURE_ENABLED, true))
+    // General feature flag in Settings (disabled by default, active only when user enables in Settings)
+    private val _featureEnabled = MutableStateFlow(persistence.boolean(PREF_FEATURE_ENABLED, false))
     val featureEnabled: StateFlow<Boolean> = _featureEnabled.asStateFlow()
 
     // Active toggle in player / immersive mode
@@ -181,8 +181,10 @@ class DesktopKaraokeProcessor {
 
             // Subtract center vocal formant scaled by attenuation factor
             val vocalSub = attenuation * vocalBand
-            samples[i] = (left - vocalSub) * gainBoost
-            samples[i + 1] = (right - vocalSub) * gainBoost
+            val leftOut = ((left - vocalSub) * gainBoost).coerceIn(-1.0f, 1.0f)
+            val rightOut = ((right - vocalSub) * gainBoost).coerceIn(-1.0f, 1.0f)
+            samples[i] = if (leftOut.isNaN()) left else leftOut
+            samples[i + 1] = if (rightOut.isNaN()) right else rightOut
 
             i += 2
         }

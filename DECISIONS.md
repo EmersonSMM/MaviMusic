@@ -206,9 +206,21 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 1. **Detección Dinámica:** Detecta receptores AirPlay presentes en CoreAudio y red local, integrándolos con distintivos claros en el selector de salida de audio (`DesktopAudioOutputPopover`).
 2. **Traspaso Sin Cortes:** El cambio entre altavoces locales y receptores AirPlay 2 reconfigura el sink de audio en caliente sin reiniciar la pista ni perder la posición de reproducción (`playhead`).
 3. **Compensación de Latencia:** Aplica un offset temporal en `heardSinkFrames()` para que la visualización, las letras sincronizadas y el playhead no se adelanten al audio reproducido por el búfer de red del HomePod o Apple TV.
-4. **Seguridad y Aislamiento:** Detrás del interruptor "Soporte AirPlay 2" en Ajustes; al estar apagado, no ejecuta tareas en segundo plano ni altera las lecturas de tiempo del sink.
+4. **Seguridad y Aislamiento:** Detrás del interruptor "Soporte AirPlay 2" en Ajustes; al estar apagado, no ejecuta tareas en segundo plano ni altera las lecturas de tiempo del sink.---
 
+## 10. Corrección de Rendimiento y Desbloqueo del Hilo de Audio en Tiempo Real (v1.8.46)
 
+### 10.1 Análisis de Causa Raíz
+1. **Llamadas bloqueantes a CoreAudio en el bucle de audio:**
+   - La comprobación `DesktopAirPlaySettings.isAirPlayActive()` se ejecutaba decenas de veces por segundo en cada bloque de audio a través de `publishPosition` y `heardSinkFrames()`.
+   - `isAirPlayActive()` invocaba internamente `DesktopAudioDevices.label()`, el cual recorría todos los mezcladores del sistema invocando `AudioSystem.getMixerInfo()` y verificando compatibilidad de líneas mediante llamadas nativas al subsistema CoreAudio HAL de macOS.
+   - CoreAudio HAL bloquea internamente sus mutexes durante la enumeración de dispositivos. Al ejecutarse concurrentemente con la escritura de audio en `SourceDataLine.write()`, provocaba inanición del hilo de renderizado de audio (`pump()`), contención de bloqueos e interrupción completa del flujo de reproducción.
+2. **Robustez y Límites del Procesador de Karaoke:**
+   - En `DesktopKaraokeProcessor`, el filtro Butterworth de paso bajo requería desacoplamiento estricto de variables de retardo (`lpX2`) y acotamiento `coerceIn(-1.0f, 1.0f)` para evitar valores fuera de rango o NaN en caso de picos de audio.
+   - El flag por defecto de Karaoke se ajustó a `false` (desactivado) para respetar la regla de invariancia del pipeline de audio.
 
-
+### 10.2 Solución y Verificación
+1. **Optimización O(1) no bloqueante de `isAirPlayActive`:** Se evalúa únicamente la cadena en memoria de `DesktopAudioDevices.selected.value` sin tocar `AudioSystem` ni los mezcladores del sistema en el hilo de audio.
+2. **Protección NaN e invariancia bit a bit:** Cuando Karaoke o AirPlay están inactivos, la señal no sufre ninguna transformación ni retardo extra.
+3. **Validación:** 100 transiciones de automix consecutivas sin fallos (`DesktopSeekAndAutomixSimulationTest`), paso completo de suite de pruebas unitarias y generación de DMG v1.8.46.
 

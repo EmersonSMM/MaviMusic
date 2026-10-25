@@ -53,15 +53,12 @@ object DesktopAirPlaySettings {
 
     /**
      * Returns true if AirPlay feature is active and current audio output is routed to an AirPlay receiver.
+     * Note: Evaluated on the audio thread; must NEVER invoke blocking CoreAudio or AudioSystem enumerations.
      */
     fun isAirPlayActive(): Boolean {
         if (!_featureEnabled.value) return false
-        val currentLabel = DesktopAudioDevices.label().lowercase()
         val currentSelected = DesktopAudioDevices.selected.value.lowercase()
-        return currentLabel.contains("airplay") ||
-            currentLabel.contains("homepod") ||
-            currentLabel.contains("apple tv") ||
-            currentSelected.contains("airplay") ||
+        return currentSelected.contains("airplay") ||
             currentSelected.contains("homepod") ||
             currentSelected.contains("apple tv")
     }
