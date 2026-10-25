@@ -731,10 +731,10 @@ compose.desktop {
 
             windows {
                 iconFile.set(project.file("packaging/icons/AppIcon.ico"))
-                upgradeUuid = "8f3c1d24-6a2b-4f5e-9c17-2b8d54e0a913"
+                upgradeUuid = "e428f6a4-9679-5c99-b1d0-8a044d18c068"
                 menuGroup = "MaviMusic"
                 shortcut = true
-                dirChooser = false
+                dirChooser = true
                 perUserInstall = true
             }
         }
