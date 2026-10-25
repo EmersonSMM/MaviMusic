@@ -15,6 +15,7 @@ internal data class DesktopLocalTags(
     val trackNumber: Int? = null,
     val durationSeconds: Long? = null,
     val artworkUri: String? = null,
+    val bpm: Float? = null,
 )
 
 /** Read container headers with the decoder already bundled with the player. */
@@ -69,6 +70,8 @@ internal object DesktopLocalMetadata {
                 trackNumber = (tag("track") ?: tag("tracknumber"))?.substringBefore('/')?.toIntOrNull()?.takeIf { it > 0 },
                 durationSeconds = context.duration().takeIf { it > 0 && it != AV_NOPTS_VALUE }?.div(AV_TIME_BASE),
                 artworkUri = artwork,
+                bpm = (tag("BPM") ?: tag("bpm") ?: tag("TBPM") ?: tag("tempo") ?: tag("tmpo"))
+                    ?.toFloatOrNull()?.takeIf { it in 30f..300f },
             ).also { cache[key] = it }
         } finally {
             avformat_close_input(context)

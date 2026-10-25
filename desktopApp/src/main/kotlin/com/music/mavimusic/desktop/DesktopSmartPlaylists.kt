@@ -454,7 +454,7 @@ object DesktopSmartPlaylistEngine {
             playCountsTotal = playCountsTotal,
             playCountsRecent = playCountsRecent,
             lastPlayedTimestamps = lastPlayed,
-            bpmCache = emptyMap(),
+            bpmCache = DesktopBpmStore.getAllReliable(),
             librarySongIds = libraryIds,
             currentTimestamp = now
         )

@@ -174,6 +174,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -954,6 +955,66 @@ internal fun DesktopSettingsScreen(
                         filterNonMusicAudio,
                         onFilterNonMusicAudioChange,
                     )
+                    var bpmEnabled by remember { mutableStateOf(DesktopBpmAnalyzer.isEnabled()) }
+                    SettingsToggle(
+                        DesktopStrings["bpm_analyzer_title", "Análisis de tempo (BPM) de la biblioteca"],
+                        DesktopStrings[
+                            "bpm_analyzer_subtitle",
+                            "Detecta y guarda el BPM en segundo plano para listas inteligentes y ajuste de tono Key Lock",
+                        ],
+                        bpmEnabled,
+                        {
+                            bpmEnabled = it
+                            DesktopBpmAnalyzer.setEnabled(it)
+                        },
+                    )
+                    if (bpmEnabled) {
+                        val bpmProgress by DesktopBpmAnalyzer.progress.collectAsState()
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .padding(14.dp),
+                        ) {
+                            Text(
+                                "ESTADO DEL ANÁLISIS DE BPM",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f),
+                                letterSpacing = 1.sp,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            val analyzed = DesktopBpmStore.count()
+                            val reliable = DesktopBpmStore.reliableCount()
+                            Text(
+                                if (bpmProgress.isRunning) "Analizando: ${bpmProgress.currentTitle.ifBlank { "procesando pistas..." }}"
+                                else "$analyzed pistas analizadas ($reliable con BPM fiable)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (!bpmProgress.isRunning) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val localSongs = DesktopLocalMusic.scan()
+                                            DesktopBpmAnalyzer.startAnalysis(localSongs, force = false)
+                                        },
+                                    ) {
+                                        Text("Analizar biblioteca ahora", color = Color.White)
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { DesktopBpmAnalyzer.cancel() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(220, 50, 50)),
+                                    ) {
+                                        Text("Detener análisis", color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if (section == DesktopSettingsSection.APPEARANCE) item {
