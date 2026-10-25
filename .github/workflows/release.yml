@@ -356,14 +356,14 @@ jobs:
           (cd dist && shasum -a 256 * > SHA256SUMS)
 
       # Publishing the reviewed draft makes /releases/latest/download/appcast-*.xml live atomically.
-      - name: Draft the release
+      - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.value }}
           target_commitish: ${{ github.sha }}
           name: MaviMusic ${{ steps.version.outputs.value }}
           body_path: release-notes.md
-          draft: true
+          draft: false
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
