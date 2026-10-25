@@ -27,6 +27,10 @@ running `gradlew.bat :desktopApp:run`.
 
 ## Installing a release
 
+Automatic releases are paused. Check runs tests on Windows/macOS; installer builds are manual.
+Internal builds generate MSI (Windows) and DMG (macOS); public releases also include the EXE installer for legacy Windows update clients. Linux distribution/desktop CI is paused;
+its source and the old published releases remain available. See [release policy](docs/DESKTOP_RELEASES.md).
+
 Every download on the [releases page](https://github.com/EmersonSMM/MaviMusic/releases) carries its own Java
 runtime, the FFmpeg and ONNX natives, the Automix analyser and its models.
 Nothing else has to be installed first — no JDK, no codec pack.
@@ -35,13 +39,7 @@ Nothing else has to be installed first — no JDK, no codec pack.
 |---|---|---|
 | macOS | `MaviMusic-<version>-macos-arm64.dmg` | For Apple Silicon Macs (M1/M2/M3/M4/later). Drag to Applications. |
 | macOS | `MaviMusic-<version>-macos-x64.dmg` | For Intel Macs. Drag to Applications. |
-| macOS | `MaviMusic-<version>-macos-*.pkg` | Standard macOS installer package for automated or managed installations. |
-| Linux | `MaviMusic-<version>-linux-x86_64.AppImage` | `chmod +x` it and run. No install, works on any distribution. |
-| Linux | `MaviMusic-<version>-linux-amd64.deb` | `sudo apt install ./MaviMusic-*.deb` on Debian, Ubuntu and derivatives. |
-| Linux | `MaviMusic-<version>-linux-x86_64.rpm` | `sudo dnf install ./MaviMusic-*.rpm` on Fedora, RHEL and openSUSE. |
-| Windows | `MaviMusic-<version>-windows-x64-setup.exe` | The ordinary installer. Installs for the current user, so it never asks for an administrator. |
 | Windows | `MaviMusic-<version>-windows-x64.msi` | The same thing for anyone who deploys by MSI. |
-| Windows | `MaviMusic-<version>-windows-x64-portable.zip` | Unzip anywhere and run `MaviMusic.exe`. Writes nothing outside the folder. |
 
 **macOS Gatekeeper.** Unsigned binaries built locally or downloaded outside the Mac App Store
 may trigger a macOS security prompt ("MaviMusic is damaged and can't be opened" or "unidentified developer").
@@ -80,15 +78,12 @@ On macOS:
 # Builds the disk image (.dmg) installer
 ./gradlew :desktopApp:packageDmg
 
-# Builds the .pkg installer
-./gradlew :desktopApp:packagePkg
-
 # Standalone MaviMusic.app bundle
 ./gradlew :desktopApp:createDistributable
 # Output is at: desktopApp/build/compose/binaries/main/app/MaviMusic.app
 ```
 
-On Linux — `rpm`, `fakeroot` and `binutils` must be installed for the packages,
+Historical Linux build instructions (not part of current CI/distribution) — `rpm`, `fakeroot` and `binutils` must be installed for the packages,
 and `file` for the AppImage:
 
 ```bash
@@ -103,15 +98,11 @@ desktopApp/packaging/appimage.sh \
 ```
 
 On Windows — [WiX Toolset 3](https://github.com/wixtoolset/wix3/releases) must
-be on `PATH`, which is what jpackage builds both the `.exe` and the `.msi` with:
+be on `PATH` for jpackage to build the MSI:
 
 ```bat
-gradlew.bat :desktopApp:packageExe
 gradlew.bat :desktopApp:packageMsi
-
-REM The portable build is the app image, zipped.
-gradlew.bat :desktopApp:createDistributable
 ```
 
 Pass `-Pmavimusic.version=1.2.3` to stamp a version other than the one in
-`desktopApp/build.gradle.kts`; a release build takes it from the tag.
+`desktopApp/build.gradle.kts`; the manual workflow takes it from its version input.

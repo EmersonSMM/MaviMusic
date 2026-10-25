@@ -1,5 +1,4 @@
 import java.util.concurrent.TimeUnit
-import java.util.zip.ZipFile
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -502,119 +501,12 @@ tasks.named<ProcessResources>("processResources") {
 }
 
 // Kotlin 2.4 no longer contributes this JVM target's compiler output to Gradle's plain `jar`
-// task in this project. Compose's dev runner and the portable launcher both use that jar, so add
+// task in this project. Compose's dev runner and packaged application both use that jar, so add
 // the output explicitly instead of producing a resources-only application archive.
 tasks.named<Jar>("jar") {
     val kotlinClasses = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileKotlin")
     dependsOn(kotlinClasses)
     from(kotlinClasses.flatMap { it.destinationDirectory })
-}
-
-/** A Windows build that can be assembled here, since an installer cannot be. */
-val windowsPortableDir = layout.buildDirectory.dir("windows-portable")
-
-val windowsPortableAssemble by tasks.registering {
-    group = "distribution"
-    description = "Lays out a Windows-runnable folder: application jars, Windows natives, launcher."
-    dependsOn(tasks.named("jar"))
-    val stage = windowsPortableDir.map { it.dir("MaviMusic") }
-    val appJar = tasks.named<Jar>("jar").flatMap { it.archiveFile }
-    val runtime = configurations.named("runtimeClasspath")
-    val version = appVersion
-    val moduleIndex = desktopModuleIndexUrl
-    val lastfmKey = lastfmApiKey
-    val lastfmSharedSecret = lastfmSecret
-    val mainClass = composeMainClass
-    // Declared, not implied.
-    inputs.file(appJar)
-    inputs.files(runtime)
-    inputs.property("version", version)
-    inputs.property("moduleIndex", moduleIndex)
-    inputs.property("lastfm", lastfmKey.isNotBlank())
-    inputs.property("mainClass", mainClass)
-    outputs.dir(stage)
-    doLast {
-        val target = stage.get().asFile
-        val lib = File(target, "lib")
-        lib.deleteRecursively()
-        lib.mkdirs()
-
-        // Named by coordinate rather than by file name.
-        runtime.get().incoming.artifacts.artifacts.forEach { artifact ->
-            val id = artifact.id.componentIdentifier
-            val group = (id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier)?.group
-            val name = if (group.isNullOrBlank()) artifact.file.name else "$group.${artifact.file.name}"
-            artifact.file.copyTo(File(lib, name), overwrite = true)
-        }
-        appJar.get().asFile.copyTo(File(lib, "mavimusic-app.jar"), overwrite = true)
-
-        // `lib\*` rather than a spelled-out classpath: the wildcard is what keeps this working when
-        // a dependency is added, and the JVM is what expands it.
-        File(target, "MaviMusic.bat").writeText(
-            buildString {
-                appendLine("@echo off")
-                appendLine("setlocal")
-                appendLine("rem MaviMusic, portable. Needs a Java 21+ runtime on PATH or in JAVA_HOME.")
-                appendLine("set \"HERE=%~dp0\"")
-                appendLine("set \"RUNNER=java\"")
-                appendLine("if defined JAVA_HOME set \"RUNNER=%JAVA_HOME%\\bin\\java\"")
-                append("\"%RUNNER%\" -Dmavimusic.version=$version")
-                if (moduleIndex.isNotBlank()) append(" -Dmavimusic.module.index=$moduleIndex")
-                if (lastfmKey.isNotBlank() && lastfmSharedSecret.isNotBlank()) {
-                    append(" -Dmavimusic.lastfm.key=$lastfmKey -Dmavimusic.lastfm.secret=$lastfmSharedSecret")
-                }
-                appendLine(" -cp \"%HERE%lib\\*\" $mainClass %*")
-                appendLine("endlocal")
-            },
-        )
-
-        // What "it builds" is not the same as "it runs", and the difference is exactly what shipped
-        // a broken archive.
-        val jars = lib.listFiles { file: File -> file.name.endsWith(".jar") }.orEmpty()
-        fun holds(entry: String) = jars.any { jar ->
-            ZipFile(jar).use { zip -> zip.getEntry(entry) != null }
-        }
-        val problems = buildList {
-            if (!holds("com/music/mavimusic/desktop/MainKt.class")) {
-                add("the MaviMusic desktop entry point is missing")
-            }
-            if (!holds("androidx/compose/runtime/Composer.class")) {
-                add("the Compose runtime is missing")
-            }
-            if (jars.none { it.name.contains("skiko-awt-runtime-windows") }) {
-                add("the Windows Skiko renderer is missing")
-            }
-            if (jars.any { it.name.contains("skiko-awt-runtime-linux") }) {
-                add("a Linux Skiko renderer is in a Windows archive")
-            }
-            if (!holds("org/bytedeco/ffmpeg/windows-x86_64/avformat.dll") &&
-                jars.none { it.name.contains("ffmpeg") && it.name.contains("windows-x86_64") }
-            ) {
-                add("the Windows FFmpeg natives are missing")
-            }
-        }
-        check(problems.isEmpty()) { "windowsPortable: " + problems.joinToString("; ") }
-
-        val analyser = File(analysisNativeDir.get().asFile, "mavimusic_analysis.dll").isFile
-        logger.lifecycle(
-            if (analyser) {
-                "windowsPortable: verified — Compose runtime, Windows renderer, Windows FFmpeg, Automix analyser."
-            } else {
-                "windowsPortable: verified, but no mavimusic_analysis.dll — Automix will not run in this archive. " +
-                    "Rebuild with: nix-shell -p cmake pkgsCross.mingwW64.buildPackages.gcc"
-            },
-        )
-    }
-}
-
-val windowsPortable by tasks.registering(Zip::class) {
-    group = "distribution"
-    description = "Zips the portable Windows folder for copying to a Windows machine."
-    dependsOn(windowsPortableAssemble)
-    from(windowsPortableDir)
-    archiveFileName.set("MaviMusic-$appVersion-windows-portable.zip")
-    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
-    doLast { logger.lifecycle("windowsPortable: ${archiveFile.get().asFile.absolutePath}") }
 }
 
 val composeMainClass = "com.music.mavimusic.desktop.MainKt"
@@ -648,9 +540,8 @@ compose.desktop {
         nativeDistributions {
             targetFormats(
                 TargetFormat.Dmg,
-                TargetFormat.Pkg,
-                TargetFormat.Exe,
                 TargetFormat.Msi,
+                TargetFormat.Exe, // Legacy update clients still need an EXE; built only for explicit publication.
                 TargetFormat.Deb,
                 TargetFormat.Rpm,
             )

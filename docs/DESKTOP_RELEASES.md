@@ -1,114 +1,74 @@
-# Desktop releases and the update check
+# Instaladores y pruebas internas
 
-How a desktop build gets its version, how its files are named on the releases page, and how the
-app finds out a newer one exists. Windows already follows all of this; every Linux variant
-(AppImage, deb, rpm, and anything added later) has to follow the same protocol. If a Linux file
-breaks one of the rules below, the update check silently stops working for Linux users.
+La publicación automática está pausada. Un push, commit, merge o tag no lanza Release.
+`Check` conserva las pruebas JVM de shared, desktopUi y desktopApp en Windows/macOS,
+la prueba nativa de ventana/atajo/DWM en Windows, el puente Sparkle y las herramientas de
+firma en macOS, y las pruebas del backend Go. No empaqueta instaladores en cada commit.
+Linux de escritorio queda temporalmente fuera de CI y distribución; su código se conserva.
 
-## 1. One version, stamped from one place
+## Construcción manual para probar
 
-- The version is a plain string such as `1.8` or `1.8-beta1`. No leading `v`.
-- `desktopApp/build.gradle.kts` reads it from `-Pmavimusic.version=...` and falls back to a default
-  (`appVersion`). CI passes the tag with the `v` removed (`v1.8` becomes `1.8`).
-- The app reads the same value at runtime from the `mavimusic.version` system property. It is baked
-  into every package by `jvmArgs("-Dmavimusic.version=$appVersion")` in the `compose.desktop`
-  block of `desktopApp/build.gradle.kts`, which covers exe, msi, deb, rpm and the AppImage (it
-  wraps the same app image, so `appimage.sh` needs nothing). Do not remove that line, and do not
-  add a separate launcher that skips it: the app would then report the hardcoded fallback and the
-  update check would compare against the wrong version.
-- A pre-release version carries a suffix after a dash: `1.8-beta1`. The update check treats
-  `1.8-beta1` as older than `1.8`, and `1.8` as older than `1.9`.
+Release queda además deshabilitado temporalmente en GitHub para impedir ejecuciones de
+workflows antiguos desde tags o ramas previas. Al pedir una compilación interna, habilitarlo
+manualmente con la definición actual de main y volver a pausarlo al terminar. Check sigue activo.
 
-## 2. The installer's own version is numeric
+En GitHub: **Actions → Release → Run workflow**. Indicar una versión con sección en
+CHANGELOG.md y dejar `publish` desmarcado. Por defecto construye Windows x64 y macOS
+Apple Silicon. Marcar `intel` para incluir macOS Intel. Los instaladores se descargan
+como artefactos de esa ejecución: no se crea tag, borrador ni release pública y no se activa
+el canal de actualización.
 
-Installer formats reject `-beta1`, so `nativePackageVersion` in `desktopApp/build.gradle.kts`
-builds a separate numeric one: `major.minor.desktopVersionCode`, for example `1.8.26`.
+También se puede lanzar manualmente:
 
-- Bump `desktopVersionCode` for **every** build you publish, betas included. Windows only
-  upgrades in place when the numeric version goes up; the same number is treated as "already
-  installed".
-- deb and rpm take the same `nativePackageVersion`, so `apt`/`dnf` upgrade ordering works the same
-  way. Do not hand-edit package versions anywhere else.
-- Never change the Windows `upgradeUuid`. For Linux, never rename the package (`packageName =
-  "MaviMusic"`) or the upgrade path breaks.
-
-## 3. File names on the releases page
-
-The release workflow (`.github/workflows/release.yml`) renames build output to these exact
-patterns, where `<v>` is the version from section 1:
-
-| Platform | File |
-|---|---|
-| Windows | `MaviMusic-<v>-windows-x64-setup.exe` (what the update check downloads) |
-| Windows | `MaviMusic-<v>-windows-x64.msi` |
-| Windows | `MaviMusic-<v>-windows-x64-portable.zip` |
-| Linux | `MaviMusic-<v>-linux-x86_64.AppImage` (preferred by the update check) |
-| Linux | `MaviMusic-<v>-linux-amd64.deb` (used if there is no AppImage) |
-| Linux | `MaviMusic-<v>-linux-x86_64.rpm` |
-| macOS | `MaviMusic-<v>-macos-arm64.dmg` (Apple Silicon; also `.pkg` and `.zip`) |
-| macOS | `MaviMusic-<v>-macos-x64.dmg` (Intel; also `.pkg` and `.zip`) |
-
-Rules:
-
-- Keep the platform tail exactly as above. The update check matches on the ending
-  (`.AppImage`, then `-linux-amd64.deb` on Linux; `-windows-x64-setup.exe` on Windows), not on the
-  version, so a rename here silently breaks it.
-- A new Linux variant (arm64, Flatpak, tar.gz) gets its own tail and is **added to
-  `installerUrl()` in `DesktopUpdateChecker.kt`**. Pick by architecture; today the check assumes
-  x86_64.
-- Upload files to the release, do not rely on the generated source archives.
-
-macOS builds are unsigned. Clear the quarantine flag with `xattr -cr /Applications/MaviMusic.app`.
-If the app will not start, a missing library may need installing first with Homebrew
-(`brew install <library>`; the exact library still has to be confirmed). The update check does not
-look for macOS files yet, so Mac users get the release page.
-
-## 4. How the app finds an update
-
-`desktopApp/src/main/kotlin/com/music/mavimusic/desktop/DesktopUpdateChecker.kt`, shown as a dialog
-from `MaviMusicDesktopApp` in `DesktopApp.kt`:
-
-1. At launch it calls `GET https://api.github.com/repos/EmersonSMM/MaviMusic/releases/latest`.
-2. It strips the `v` from `tag_name` and compares it with `mavimusic.version` (numeric, dot by dot;
-   a `-beta` current version is older than the same release).
-3. If newer, it picks the asset for the running OS and shows "Update available" with Download and
-   Later. Download opens the asset URL in the browser. If no asset matches it opens the release
-   page instead. Nothing is installed automatically.
-4. Network and parse errors are swallowed. No internet means no dialog.
-
-What this means for releasing:
-
-- GitHub's "latest" ignores **drafts and pre-releases**. A release only prompts users once it is
-  published as a normal release. Mark betas as pre-release so they never prompt anyone.
-- The git tag must be `v<version>` (`v1.8`). The workflow also accepts only `v*.*.*`; for a
-  two-part version like `v1.8` use the manual `workflow_dispatch` with `version` filled in, or
-  tag `v1.8.0` and make sure the tag and the stamped version agree.
-- Linux and Windows files must be on the **same release**, because there is only one "latest".
-  Do not publish a Windows-only release and a separate Linux-only one: whichever is newer becomes
-  "latest" and the other platform will see no asset for itself (it falls back to the release page).
-
-## 5. Checklist for a Linux build
-
-Before publishing, confirm each of these on the built files, not just in the source:
-
-- [ ] Version stamped (`-Pmavimusic.version=<v>`). Launch each built file and check Settings shows the
-      same version.
-- [ ] `desktopVersionCode` is higher than the last published build.
-- [ ] The three files are named exactly as in section 3.
-- [ ] They are attached to the same release as the Windows files.
-- [ ] The release is not a draft or pre-release (for a real release).
-- [ ] Install the previous release, then the new one over it: deb with `sudo apt install
-      ./MaviMusic-*.deb`, rpm with `sudo dnf upgrade ./MaviMusic-*.rpm`. It must upgrade, not
-      reinstall or conflict.
-- [ ] With the previous release installed, the "Update available" dialog appears and Download
-      opens the correct file for that platform.
-
-## 6. Quick manual test of the check
-
-Run an old build with the version forced low, against the real latest release:
-
-```bash
-./gradlew :desktopApp:run -Pmavimusic.version=0.1
+```sh
+gh workflow enable release.yml
+gh workflow run release.yml --ref main -f version=1.8.52 -f publish=false -f intel=false
 ```
 
-The dialog should appear. Run it with the current published version and it should not.
+Formatos actuales:
+
+| Plataforma | Instalador |
+| --- | --- |
+| Windows x64 | `MaviMusic-<versión>-windows-x64.msi` |
+| macOS Apple Silicon | `MaviMusic-<versión>-macos-arm64.dmg` |
+| macOS Intel (opcional en pruebas internas) | `MaviMusic-<versión>-macos-x64.dmg` |
+
+Las pruebas internas no generan EXE, PKG, portables ZIP, AppImage, DEB ni RPM.
+Al publicar se incluye además `MaviMusic-<versión>-windows-x64-setup.exe`: es un instalador,
+no un portable, y lo necesitan los clientes Windows 1.8.51 que solo saben descargar EXE.
+El MSI conserva el asistente inicial y sirve para las actualizaciones silenciosas posteriores.
+El DMG contiene la app y sirve tanto para instalar como para la actualización nativa de Sparkle.
+Se mantiene el formato histórico ZIP únicamente para verificar archivos ya publicados.
+
+## Publicación pública explícita
+
+Solo cuando el usuario pida publicar: elegir una versión nueva MAJOR.MINOR.PATCH y añadir
+sus novedades, ajustar la versión predeterminada y lanzar Release marcando `publish`.
+Esa opción incluye Intel automáticamente, aunque `intel` esté desmarcado. El publicador
+exige cuatro instaladores (MSI, EXE y dos DMG), dos feeds de Sparkle y SHA256SUMS: siete archivos en total.
+Comprueba firmas, identidad/versión/arquitectura del bundle, hashes, commit y que no se
+reemplace una versión más reciente. Sube primero a borrador y lo publica tras verificarlos.
+
+El asistente local `Activar actualizaciones.command` requiere ahora `--publish` explícito;
+sin esa opción no autentica, sube fuentes, configura secretos ni publica. `--plan` y
+`--diagnose-run` siguen disponibles sin publicar.
+
+Las versiones ya distribuidas (incluida 1.8.52) y sus archivos se conservan intactos.
+No se cambian la clave pública de Sparkle, la identidad de la app, el upgradeUuid de MSI
+ni los datos de los usuarios. Una futura reactivación de Linux deberá restaurar también
+su CI, archivos exigidos, documentación y validaciones antes de publicarlo.
+
+## Comprobación local
+
+```sh
+./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test
+./gradlew :desktopApp:packageDmg       # macOS
+# gradlew.bat :desktopApp:packageMsi   # Windows, JDK 21 y WiX 3
+SPARKLE_SIGNER="$PWD/desktopApp/build/sparkle/bin/sign_update" \
+  python3 -m unittest discover -s scripts/updates -p 'test_*.py'
+```
+
+El test DMG monta una imagen sintética de solo lectura, verifica y firma el feed con una
+clave temporal y la desmonta; no abre MaviMusic ni usa una cuenta o biblioteca real.
+Compilar y pasar CI no acredita el escalado, fluidez o ciclo completo de actualización
+entre instalaciones en un PC físico.

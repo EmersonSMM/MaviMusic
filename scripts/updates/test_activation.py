@@ -81,7 +81,7 @@ class ActivationTest(unittest.TestCase):
 
     def test_failed_or_incomplete_release_stays_unpublished(self):
         class Hub:
-            def repo_api(self, _):
+            def release(self, _):
                 return {"draft": True, "target_commitish": "commit", "assets": []}
         with self.assertRaisesRegex(ValueError, "Faltan archivos"):
             activation.verify_release(Hub(), Path("unused"), "1.8.36", "commit", Path("unused"))
@@ -125,6 +125,15 @@ class ActivationTest(unittest.TestCase):
             activation.finish_release(hub, 1, Path("unused"), "1.8.36", "commit", Path("unused"), 1)
             verify.assert_called_once()
             self.assertEqual(1, sum(cmd[:2] == ("release", "edit") for cmd in hub.commands))
+
+    def test_publication_is_paused_without_explicit_opt_in(self):
+        import argparse
+        args = argparse.Namespace(version="1.8.36", key_file=Path("unused"), plan=False)
+        with patch.object(activation, "preflight") as preflight, patch.object(activation, "command") as runner:
+            with self.assertRaisesRegex(ValueError, "pausada"):
+                activation.activate(args)
+            preflight.assert_not_called()
+            runner.assert_not_called()
 
     def test_plan_does_not_authenticate_install_or_publish(self):
         import argparse

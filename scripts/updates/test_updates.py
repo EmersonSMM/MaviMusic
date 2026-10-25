@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import plistlib
 import tempfile
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -85,6 +87,34 @@ class UpdatesTest(unittest.TestCase):
         with patch.dict(os.environ, {"CI": "true", "SPARKLE_PRIVATE_KEY": ""}):
             with self.assertRaisesRegex(ValueError, "SPARKLE_PRIVATE_KEY"):
                 feed.create_feed(archive, "1.8.36", "arm64", "Notes", self.root / "feed.xml", Path("unused"))
+
+    @unittest.skipUnless(sys.platform == "darwin" and os.environ.get("SPARKLE_SIGNER"),
+                         "DMG signing requires macOS and SPARKLE_SIGNER")
+    def test_real_dmg_is_inspected_and_signed_without_a_portable_zip(self):
+        seed = os.urandom(32)
+        public = keys.public_key(seed)
+        key = self.root / "dmg-signing-key"
+        key.write_text(base64.b64encode(seed).decode("ascii"))
+        key.chmod(0o600)
+        configuration = self.root / "dmg-channel.json"
+        configuration.write_text(json.dumps({"repository": "EmersonSMM/MaviMusic", "publicKey": public}))
+        zipped = self.archive(public=public)
+        staging = self.root / "image-contents"
+        with zipfile.ZipFile(zipped) as archive:
+            archive.extractall(staging)
+        zipped.unlink()
+        image = self.root / "MaviMusic-1.8.36-macos-arm64.dmg"
+        subprocess.run(["hdiutil", "create", "-srcfolder", str(staging), "-format", "UDZO", "-fs", "HFS+",
+                        "-volname", "MaviMusicTest", str(image)], check=True, capture_output=True)
+        output = self.root / "appcast-arm64.xml"
+        feed.create_feed(image, "1.8.36", "arm64", "Internal installer test", output,
+                         Path(os.environ["SPARKLE_SIGNER"]), key_file=key, configuration=configuration)
+        enclosure = ET.parse(output).getroot().find("channel/item/enclosure")
+        self.assertTrue(enclosure.get("url").endswith(image.name))
+        self.assertEqual(str(image.stat().st_size), enclosure.get("length"))
+        self.assertFalse(zipped.exists())
+        with self.assertRaisesRegex(ValueError, "version"):
+            feed.inspect_archive(image, "1.8.37", "arm64", public)
 
     @unittest.skipUnless(os.environ.get("SPARKLE_SIGNER"), "Set SPARKLE_SIGNER for real Sparkle cryptographic checks")
     def test_real_archive_and_feed_signatures_detect_tampering(self):

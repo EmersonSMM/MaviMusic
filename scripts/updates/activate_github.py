@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 
 from create_signing_key import DEFAULT_KEY, ROOT, public_key
 from publish_appcast import NS, release_notes
+from publish_release import find_release
 
 WORKFLOW = ".github/workflows/release.yml"
 EXCLUDED = ("*.dmg", "*.pkg", "*.zip", "*.p12", "*.p8", "*.pem", "*.key", "*.jks", "*.keystore", "local.properties", ".env", ".env.local", ".env.production")
@@ -126,6 +127,12 @@ class GitHub:
             raise RuntimeError(error.strip() or "GitHub rechazó la operación.")
         return json.loads(result.stdout)
 
+    def release(self, tag):
+        class Listing:
+            def api(_self, endpoint):
+                return self.repo_api(endpoint)
+        return find_release(Listing(), tag)
+
     def repo_api(self, suffix, **kwargs):
         return self.api(f"repos/{self.repo}/{suffix}", **kwargs)
 
@@ -176,14 +183,16 @@ def find_run(hub, branch, commit, previous_ids, attempts=60):
 
 
 def verify_release(hub, directory, version, commit, key_file, allow_published=False):
-    release = hub.repo_api(f"releases/tags/v{version}")
+    release = hub.release(f"v{version}")
+    if release is None:
+        raise ValueError("No existe una release para verificar.")
     if (not allow_published and not release["draft"]) or release.get("prerelease"):
         raise ValueError("El resultado debe ser un borrador estable antes de publicarlo.")
     if release.get("target_commitish") != commit:
         raise ValueError("La release no apunta a la instantánea que se compiló.")
     assets = {asset["name"]: asset for asset in release["assets"] if asset.get("state") == "uploaded" and asset.get("size", 0) > 0}
     for arch in ("arm64", "x64"):
-        required = (f"appcast-{arch}.xml", f"MaviMusic-{version}-macos-{arch}.zip", f"MaviMusic-{version}-macos-{arch}.dmg")
+        required = (f"appcast-{arch}.xml", f"MaviMusic-{version}-macos-{arch}.dmg")
         if not all(name in assets for name in required):
             raise ValueError(f"Faltan archivos de actualización para {arch}; se conserva el borrador.")
     hub.run("release", "download", f"v{version}", "--repo", hub.repo, "--pattern", "appcast-*.xml", "--dir", str(directory))
@@ -194,7 +203,7 @@ def verify_release(hub, directory, version, commit, key_file, allow_published=Fa
         feed = directory / f"appcast-{arch}.xml"
         command([signer, "--ed-key-file", key_file, "--verify", feed])
         item = ET.parse(feed).getroot().find("channel/item")
-        expected = f"MaviMusic-{version}-macos-{arch}.zip"
+        expected = f"MaviMusic-{version}-macos-{arch}.dmg"
         enclosure = item.find("enclosure")
         if item.findtext(f"{{{NS}}}version") != version or enclosure.get("url") != f"https://github.com/{hub.repo}/releases/download/v{version}/{expected}":
             raise ValueError("El feed firmado contiene una versión o URL inesperada.")
@@ -242,6 +251,8 @@ def finish_release(hub, run_id, directory, version, commit, key_file, timeout):
 
 
 def activate(args):
+    if not (args.plan or getattr(args, "diagnose_run", None) or getattr(args, "publish", False)):
+        raise ValueError("La publicación está pausada. Usa Actions → Release para pruebas internas; publicar requiere --publish explícito.")
     version = version_number(args.version or default_version())
     repo, key_file = preflight(version, args.key_file)
     print(f"MaviMusic {version} → https://github.com/{repo}", flush=True)
@@ -285,7 +296,7 @@ def activate(args):
             raise ValueError(f"La cuenta {account['login']} necesita administrar {repo} para configurar las actualizaciones.")
         default_branch = repository["default_branch"]
         existing_default = hub.repo_api(f"branches/{quote(default_branch, safe='')}", missing=True)
-        release = hub.repo_api(f"releases/tags/v{version}", missing=True)
+        release = hub.release(f"v{version}")
         if release and not release["draft"]:
             raise ValueError(f"La versión {version} ya está publicada. Añade novedades y usa una versión superior.")
         latest = hub.repo_api("releases/latest", missing=True)
@@ -309,7 +320,7 @@ def activate(args):
             hub.run("workflow", "enable", "release.yml", "--repo", repo)
         endpoint = f"actions/workflows/release.yml/runs?event=workflow_dispatch&branch={quote(branch, safe='')}&per_page=30"
         previous = {run["id"] for run in hub.repo_api(endpoint)["workflow_runs"]}
-        hub.run("workflow", "run", "release.yml", "--repo", repo, "--ref", branch, "-f", f"version={version}")
+        hub.run("workflow", "run", "release.yml", "--repo", repo, "--ref", branch, "-f", f"version={version}", "-f", "publish=true")
         run = find_run(hub, branch, commit, previous)
         print(f"Compilación: {run['html_url']}\nPuede tardar varios minutos; esta ventana mostrará el progreso.", flush=True)
         published = finish_release(hub, run["id"], directory, version, commit, key_file, args.timeout)
@@ -319,6 +330,7 @@ def activate(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--publish", action="store_true", help="Autorizar explícitamente una publicación pública manual")
     parser.add_argument("--version", help="Versión estable; por defecto usa la del proyecto")
     parser.add_argument("--key-file", type=Path, default=DEFAULT_KEY)
     parser.add_argument("--plan", action="store_true", help="Validar la configuración sin abrir el navegador ni modificar GitHub")

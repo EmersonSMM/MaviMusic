@@ -3,11 +3,11 @@
 
 # MaviMusic
 
-**Reproductor de música de alta fidelidad con integración nativa en macOS, Windows y Linux.**
+**Reproductor de música de alta fidelidad para macOS y Windows. Distribución Linux temporalmente pausada.**
 
 [![Última versión](https://img.shields.io/github/v/release/EmersonSMM/MaviMusic?style=for-the-badge&labelColor=0d1117&color=6366f1)](https://github.com/EmersonSMM/MaviMusic/releases)
 [![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=for-the-badge&labelColor=0d1117)](LICENSE)
-[![Plataformas](https://img.shields.io/badge/plataformas-macOS%20%7C%20Windows%20%7C%20Linux-emerald?style=for-the-badge&labelColor=0d1117)](https://github.com/EmersonSMM/MaviMusic/releases)
+[![Plataformas](https://img.shields.io/badge/plataformas-macOS%20%7C%20Windows-emerald?style=for-the-badge&labelColor=0d1117)](https://github.com/EmersonSMM/MaviMusic/releases)
 
 [Descargas](https://github.com/EmersonSMM/MaviMusic/releases) · [Novedades (Changelog)](CHANGELOG.md) · [Guía de Escritorio](DESKTOP.md) · [Contribución](CONTRIBUTING.md)
 </div>
@@ -62,9 +62,9 @@
   - Integración con Spotlight y menú contextual en el Dock.
 - **Windows**:
   - Integración nativa con SMTC (System Media Transport Controls) y teclas multimedia globales.
-  - Instalador MSI, instalador Setup EXE y versión portable ZIP.
+  - Instalador MSI por usuario; EXE de compatibilidad solo al publicar.
 - **Linux**:
-  - Integración con MPRIS vía D-Bus. Paquetes universales AppImage, DEB y RPM.
+  - Código conservado para reactivar Linux más adelante; distribución y CI de escritorio pausados.
 
 ### ⬇️ Descargas y Metadatos de Alta Calidad
 - Descarga a MP3 de 320 kbps con carátula de alta resolución incrustada y etiquetas ID3 enriquecidas.
@@ -74,19 +74,15 @@
 
 ## Instalación y Descargas
 
-Descarga la última versión para tu sistema operativo desde la sección de [Releases](https://github.com/EmersonSMM/MaviMusic/releases):
+Las releases existentes siguen disponibles en [Releases](https://github.com/EmersonSMM/MaviMusic/releases).
+Durante el testeo interno no se publica al hacer commits ni crear tags. Las compilaciones manuales producen solo estos instaladores; [política y comandos](docs/DESKTOP_RELEASES.md).
 
 | Plataforma | Paquete | Descripción |
 |---|---|---|
 | **macOS (Apple Silicon)** | `MaviMusic-<versión>-macos-arm64.dmg` | Para Mac con chips M1, M2, M3, M4 o superior. |
 | **macOS (Intel)** | `MaviMusic-<versión>-macos-x64.dmg` | Para ordenadores Mac con procesadores Intel. |
-| **macOS (Instalador)** | `MaviMusic-<versión>-macos-*.pkg` | Paquete instalador estándar para macOS. |
-| **Windows** | `MaviMusic-<versión>-windows-x64-setup.exe` | Instalador estándar por usuario para Windows 10 / 11. |
-| **Windows (MSI)** | `MaviMusic-<versión>-windows-x64.msi` | Paquete MSI para despliegues corporativos o locales. |
-| **Windows (Portable)** | `MaviMusic-<versión>-windows-x64-portable.zip` | Versión portable sin necesidad de instalación. |
-| **Linux (AppImage)** | `MaviMusic-<versión>-linux-x86_64.AppImage` | Ejecutable universal para cualquier distribución Linux. |
-| **Linux (Debian/Ubuntu)** | `MaviMusic-<versión>-linux-amd64.deb` | Paquete para Ubuntu, Debian, Linux Mint, etc. |
-| **Linux (Fedora/RHEL)** | `MaviMusic-<versión>-linux-x86_64.rpm` | Paquete para Fedora, RHEL, openSUSE. |
+| **Windows** | `MaviMusic-<versión>-windows-x64.msi` | Instalador por usuario para Windows 10 / 11; también usado por el actualizador. |
+| **Windows (compatibilidad)** | `MaviMusic-<versión>-windows-x64-setup.exe` | Solo en publicaciones públicas, para clientes antiguos que descargan EXE. |
 
 > [!NOTE]
 > **macOS Gatekeeper:** Si al abrir por primera vez una versión compilada o no notarizada macOS muestra un aviso de desarrollador no identificado, retira el atributo de cuarentena ejecutando en la Terminal:
@@ -114,8 +110,7 @@ Descarga la última versión para tu sistema operativo desde la sección de [Rel
 
 # Empaquetar el instalador para la plataforma actual
 ./gradlew :desktopApp:packageDmg      # En macOS
-./gradlew :desktopApp:packageExe      # En Windows
-./gradlew :desktopApp:packageDeb      # En Linux
+./gradlew :desktopApp:packageMsi      # En Windows
 ```
 
 Para más detalles sobre la arquitectura de compilación, consulta [DESKTOP.md](DESKTOP.md).

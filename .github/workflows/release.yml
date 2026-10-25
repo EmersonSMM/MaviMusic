@@ -1,12 +1,20 @@
 name: Release
 on:
-  push:
-    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       version:
         description: "Version to stamp into the packages, without the leading v"
         required: true
+      intel:
+        description: "Include macOS Intel in internal builds (always included when publishing)"
+        type: boolean
+        required: false
+        default: false
+      publish:
+        description: "Publish publicly and activate updates (leave off for internal testing)"
+        type: boolean
+        required: false
+        default: false
 
 env:
   REQUESTED_VERSION: ${{ inputs.version }}
@@ -19,94 +27,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  linux:
-    name: Linux · AppImage, deb, rpm
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: Work out the version
-        id: version
-        run: |
-          version="${REQUESTED_VERSION}"
-          [ -n "$version" ] || version="${GITHUB_REF_NAME#v}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Use a stable MAJOR.MINOR.PATCH version"; exit 1; }
-          echo "value=$version" >> "$GITHUB_OUTPUT"
-          echo "Building $version"
-
-      - name: Write local.properties
-        run: |
-          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
-          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
-
-      - name: Packaging tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rpm fakeroot binutils file cmake ninja-build build-essential libasound2 libasound2-plugins libva2 libva-drm2 libvdpau1 libgl1 xvfb
-          curl -sSL -o appimagetool.AppImage \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool.AppImage
-
-      - run: chmod +x gradlew
-
-      - name: Tests
-        run: xvfb-run --auto-servernum ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pmavimusic.version=${{ steps.version.outputs.value }}
-
-      - name: Preserve failing test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-tests-linux
-          path: |
-            desktopApp/build/reports/tests/
-            desktopApp/build/test-results/
-            desktopUi/build/reports/tests/
-            shared/build/reports/tests/
-
-      - name: Build deb, rpm and the app image
-        run: |
-          ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
-            -Pmavimusic.version=${{ steps.version.outputs.value }}
-
-      - name: The analyser and models are in the jar
-        run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/MaviMusic/lib/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/libmavimusic_analysis.so'
-          jar tf "$jar" | grep -q 'models/.*\.onnx'
-
-      - name: Build the AppImage
-        run: |
-          desktopApp/packaging/appimage.sh \
-            desktopApp/build/compose/binaries/main/app/MaviMusic \
-            dist/MaviMusic-${{ steps.version.outputs.value }}-linux-x86_64.AppImage \
-            "$PWD/appimagetool.AppImage"
-
-      - name: Collect
-        run: |
-          v=${{ steps.version.outputs.value }}
-          mkdir -p dist
-          cp desktopApp/build/compose/binaries/main/deb/*.deb "dist/MaviMusic-$v-linux-amd64.deb"
-          cp desktopApp/build/compose/binaries/main/rpm/*.rpm "dist/MaviMusic-$v-linux-x86_64.rpm"
-          ls -lh dist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-artifacts
-          path: dist/*
-
   windows:
-    name: Windows · installer, msi, portable
+    name: Windows · MSI (EXE only for publishing)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -174,9 +96,13 @@ jobs:
             desktopUi/build/reports/tests/
             shared/build/reports/tests/
 
-      - name: Build msi, exe and the app image
+      - name: Build MSI installer
         run: |
-          .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pmavimusic.version=${{ steps.version.outputs.value }}"
+          .\gradlew.bat :desktopApp:packageMsi "-Pmavimusic.version=${{ steps.version.outputs.value }}"
+
+      - name: Build installer for legacy Windows update clients
+        if: ${{ inputs.publish == true }}
+        run: .\gradlew.bat :desktopApp:packageExe "-Pmavimusic.version=${{ steps.version.outputs.value }}"
 
       - name: The analyser and models are in the jar
         shell: bash
@@ -193,9 +119,9 @@ jobs:
           $v = "${{ steps.version.outputs.value }}"
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/MaviMusic-$v-windows-x64.msi"
-          Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/MaviMusic-$v-windows-x64-setup.exe"
-          7z a -tzip -mx=5 "dist/MaviMusic-$v-windows-x64-portable.zip" `
-            "desktopApp/build/compose/binaries/main/app/MaviMusic/*" | Out-Null
+          if ("${{ inputs.publish }}" -eq "true") {
+            Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/MaviMusic-$v-windows-x64-setup.exe"
+          }
           Get-ChildItem dist | Format-Table Name, Length
 
       - uses: actions/upload-artifact@v4
@@ -204,15 +130,11 @@ jobs:
           path: dist/*
 
   macos:
-    name: macOS · dmg, pkg, zip (${{ matrix.arch }})
+    name: macOS · DMG (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-          - os: macos-15-intel
-            arch: x64
+        include: ${{ fromJSON((inputs.publish || inputs.intel) && '[{"os":"macos-14","arch":"arm64"},{"os":"macos-15-intel","arch":"x64"}]' || '[{"os":"macos-14","arch":"arm64"}]') }}
     runs-on: ${{ matrix.os }}
     env:
       MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
@@ -285,13 +207,13 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: python3 scripts/updates/ci_certificate.py import
 
-      - name: Build DMG, PKG and the app bundle
+      - name: Build DMG installer
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
-          ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
+          ./gradlew :desktopApp:packageDmg \
             -Pmavimusic.version=${{ steps.version.outputs.value }}
 
       - name: The analyser and models are in the jar
@@ -311,12 +233,8 @@ jobs:
           for f in desktopApp/build/compose/binaries/main/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "dist/MaviMusic-$v-macos-$arch.dmg"
           done
-          for f in desktopApp/build/compose/binaries/main/pkg/*.pkg; do
-            [ -f "$f" ] && cp "$f" "dist/MaviMusic-$v-macos-$arch.pkg"
-          done
-          ditto -c -k --sequesterRsrc --keepParent desktopApp/build/compose/binaries/main/app/MaviMusic.app "dist/MaviMusic-$v-macos-$arch.zip"
           python3 scripts/updates/publish_appcast.py \
-            --archive "dist/MaviMusic-$v-macos-$arch.zip" --version "$v" --arch "$arch" \
+            --archive "dist/MaviMusic-$v-macos-$arch.dmg" --version "$v" --arch "$arch" \
             --output "dist/appcast-$arch.xml" --signer desktopApp/build/sparkle/bin/sign_update
           ls -lh dist
 
@@ -330,10 +248,11 @@ jobs:
         run: python3 scripts/updates/ci_certificate.py cleanup
 
   release:
+    if: ${{ inputs.publish == true }}
     permissions:
       contents: write
     name: Publish
-    needs: [linux, windows, macos]
+    needs: [windows, macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
