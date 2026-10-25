@@ -27,9 +27,19 @@ static BOOL g_isPlaying = NO;
 #define BUTTON_SPOTLIGHT 5
 #define BUTTON_SPOTLIGHT_EXTERNAL 6
 #define BUTTON_SPOTLIGHT_DISMISS 7
+#define BUTTON_LIKE 8
+#define BUTTON_VOLUME_UP 9
+#define BUTTON_VOLUME_DOWN 10
+#define BUTTON_PLAY_PAUSE_TOGGLE 11
 
 static EventHotKeyRef g_spotlightHotKey1 = NULL;
 static EventHotKeyRef g_spotlightHotKey2 = NULL;
+static EventHotKeyRef g_hotKeyPlayPause = NULL;
+static EventHotKeyRef g_hotKeyNext = NULL;
+static EventHotKeyRef g_hotKeyPrev = NULL;
+static EventHotKeyRef g_hotKeyLike = NULL;
+static EventHotKeyRef g_hotKeyVolUp = NULL;
+static EventHotKeyRef g_hotKeyVolDown = NULL;
 static EventHandlerRef g_hotKeyHandlerRef = NULL;
 static id g_globalClickMonitor = nil;
 static id g_resignKeyObserver = nil;
@@ -55,6 +65,18 @@ static OSStatus spotlightHotKeyHandler(EventHandlerCallRef nextHandler, EventRef
         } else {
             dispatchButton(BUTTON_SPOTLIGHT);
         }
+    } else if (hotKeyID.signature == 'MVPP') {
+        dispatchButton(BUTTON_PLAY_PAUSE_TOGGLE);
+    } else if (hotKeyID.signature == 'MVNX') {
+        dispatchButton(BUTTON_NEXT);
+    } else if (hotKeyID.signature == 'MVPR') {
+        dispatchButton(BUTTON_PREVIOUS);
+    } else if (hotKeyID.signature == 'MVLK') {
+        dispatchButton(BUTTON_LIKE);
+    } else if (hotKeyID.signature == 'MVVU') {
+        dispatchButton(BUTTON_VOLUME_UP);
+    } else if (hotKeyID.signature == 'MVVD') {
+        dispatchButton(BUTTON_VOLUME_DOWN);
     }
     return noErr;
 }
@@ -190,7 +212,52 @@ JNIEXPORT jboolean JNICALL Java_com_music_mavimusic_desktop_DesktopMacMedia_nati
     return JNI_TRUE;
 }
 
+static void unregisterGlobalHotkeys(void) {
+    if (g_hotKeyPlayPause) { UnregisterEventHotKey(g_hotKeyPlayPause); g_hotKeyPlayPause = NULL; }
+    if (g_hotKeyNext) { UnregisterEventHotKey(g_hotKeyNext); g_hotKeyNext = NULL; }
+    if (g_hotKeyPrev) { UnregisterEventHotKey(g_hotKeyPrev); g_hotKeyPrev = NULL; }
+    if (g_hotKeyLike) { UnregisterEventHotKey(g_hotKeyLike); g_hotKeyLike = NULL; }
+    if (g_hotKeyVolUp) { UnregisterEventHotKey(g_hotKeyVolUp); g_hotKeyVolUp = NULL; }
+    if (g_hotKeyVolDown) { UnregisterEventHotKey(g_hotKeyVolDown); g_hotKeyVolDown = NULL; }
+}
+
+JNIEXPORT void JNICALL Java_com_music_mavimusic_desktop_DesktopMacMedia_nativeSetGlobalHotkeysEnabled(
+    JNIEnv *env, jclass clazz, jboolean enabled, jint modifierMode
+) {
+    unregisterGlobalHotkeys();
+    if (!enabled) return;
+
+    if (!g_hotKeyHandlerRef) {
+        EventTypeSpec eventType;
+        eventType.eventClass = kEventClassKeyboard;
+        eventType.eventKind = kEventHotKeyPressed;
+        InstallApplicationEventHandler(&spotlightHotKeyHandler, 1, &eventType, NULL, &g_hotKeyHandlerRef);
+    }
+
+    UInt32 mods = cmdKey | shiftKey;
+    if (modifierMode == 1) {
+        mods = controlKey | optionKey;
+    } else if (modifierMode == 2) {
+        mods = optionKey | shiftKey;
+    }
+
+    EventHotKeyID idPP = { .signature = 'MVPP', .id = 10 };
+    EventHotKeyID idNX = { .signature = 'MVNX', .id = 11 };
+    EventHotKeyID idPR = { .signature = 'MVPR', .id = 12 };
+    EventHotKeyID idLK = { .signature = 'MVLK', .id = 13 };
+    EventHotKeyID idVU = { .signature = 'MVVU', .id = 14 };
+    EventHotKeyID idVD = { .signature = 'MVVD', .id = 15 };
+
+    RegisterEventHotKey(49, mods, idPP, GetApplicationEventTarget(), 0, &g_hotKeyPlayPause); // Space
+    RegisterEventHotKey(124, mods, idNX, GetApplicationEventTarget(), 0, &g_hotKeyNext);      // Right Arrow
+    RegisterEventHotKey(123, mods, idPR, GetApplicationEventTarget(), 0, &g_hotKeyPrev);      // Left Arrow
+    RegisterEventHotKey(37, mods, idLK, GetApplicationEventTarget(), 0, &g_hotKeyLike);       // L
+    RegisterEventHotKey(126, mods, idVU, GetApplicationEventTarget(), 0, &g_hotKeyVolUp);     // Up Arrow
+    RegisterEventHotKey(125, mods, idVD, GetApplicationEventTarget(), 0, &g_hotKeyVolDown);   // Down Arrow
+}
+
 JNIEXPORT void JNICALL Java_com_music_mavimusic_desktop_DesktopMacMedia_nativeStop(JNIEnv *env, jclass clazz) {
+    unregisterGlobalHotkeys();
     if (g_spotlightHotKey1) {
         UnregisterEventHotKey(g_spotlightHotKey1);
         g_spotlightHotKey1 = NULL;

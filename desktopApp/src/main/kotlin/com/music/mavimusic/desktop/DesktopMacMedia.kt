@@ -25,6 +25,10 @@ internal object DesktopMacMedia {
     private const val BUTTON_SPOTLIGHT = 5
     private const val BUTTON_SPOTLIGHT_EXTERNAL = 6
     private const val BUTTON_SPOTLIGHT_DISMISS = 7
+    private const val BUTTON_LIKE = 8
+    private const val BUTTON_VOLUME_UP = 9
+    private const val BUTTON_VOLUME_DOWN = 10
+    private const val BUTTON_PLAY_PAUSE_TOGGLE = 11
 
     private val started = AtomicBoolean(false)
     private val shutdownHookAdded = AtomicBoolean(false)
@@ -46,6 +50,10 @@ internal object DesktopMacMedia {
         val onSpotlight: () -> Unit = {},
         val onSpotlightExternal: () -> Unit = onSpotlight,
         val onSpotlightDismiss: () -> Unit = {},
+        val onPlayPauseToggle: () -> Unit = onPlay,
+        val onLikeToggle: () -> Unit = {},
+        val onVolumeUp: () -> Unit = {},
+        val onVolumeDown: () -> Unit = {},
     )
 
     private val available: Boolean by lazy {
@@ -140,6 +148,10 @@ internal object DesktopMacMedia {
             BUTTON_SPOTLIGHT -> target.onSpotlight()
             BUTTON_SPOTLIGHT_EXTERNAL -> target.onSpotlightExternal()
             BUTTON_SPOTLIGHT_DISMISS -> target.onSpotlightDismiss()
+            BUTTON_LIKE -> target.onLikeToggle()
+            BUTTON_VOLUME_UP -> target.onVolumeUp()
+            BUTTON_VOLUME_DOWN -> target.onVolumeDown()
+            BUTTON_PLAY_PAUSE_TOGGLE -> target.onPlayPauseToggle()
         }
     }
 
@@ -147,6 +159,11 @@ internal object DesktopMacMedia {
     @JvmStatic
     fun onSeek(positionMs: Long) {
         controller?.onSeek(positionMs)
+    }
+
+    fun setGlobalHotkeysEnabled(enabled: Boolean, modifierMode: Int = 0) {
+        if (!available) return
+        runCatching { nativeSetGlobalHotkeysEnabled(enabled, modifierMode) }
     }
 
     fun configureSpotlight(keepMainHidden: Boolean) {
@@ -210,4 +227,7 @@ internal object DesktopMacMedia {
 
     @JvmStatic
     private external fun nativeEnforceMainMinSize(minW: Int, minH: Int)
+
+    @JvmStatic
+    private external fun nativeSetGlobalHotkeysEnabled(enabled: Boolean, modifierMode: Int)
 }

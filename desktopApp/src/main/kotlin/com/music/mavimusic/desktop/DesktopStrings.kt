@@ -150,6 +150,15 @@ object DesktopStrings {
         "predictive_buffer_subtitle" to "Descarga en segundo plano las siguientes 2–3 canciones para reproducción instantánea sin cortes",
         "smart_trim" to "Smart Trim y reproducción continua (Gapless)",
         "smart_trim_subtitle" to "Elimina los silencios digitales de inicio y final de pista para una transición perfecta de 0 ms entre temas de álbum",
+        "global_hotkeys" to "Atajos de teclado globales",
+        "global_hotkeys_subtitle" to "Controla MaviMusic desde cualquier aplicación con combinaciones de teclas en macOS",
+        "hotkeys_modifier_preset" to "Combinación de modificadores",
+        "hotkey_play_pause" to "Reproducir / Pausar",
+        "hotkey_next" to "Siguiente pista",
+        "hotkey_previous" to "Pista anterior",
+        "hotkey_like" to "Marcar / Quitar Me Gusta",
+        "hotkey_volume_up" to "Subir volumen (+5%)",
+        "hotkey_volume_down" to "Bajar volumen (-5%)",
     )
 
     init {

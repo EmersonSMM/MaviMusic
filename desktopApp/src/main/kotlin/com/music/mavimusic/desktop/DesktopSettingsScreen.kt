@@ -397,6 +397,10 @@ internal fun DesktopSettingsScreen(
     onPredictiveBufferChange: (Boolean) -> Unit = {},
     smartTrim: Boolean = DesktopPersistence.smartTrimEnabled(),
     onSmartTrimChange: (Boolean) -> Unit = {},
+    globalHotkeys: Boolean = DesktopPersistence.globalHotkeysEnabled(),
+    onGlobalHotkeysChange: (Boolean) -> Unit = {},
+    globalHotkeysModifier: String = DesktopPersistence.globalHotkeysModifier(),
+    onGlobalHotkeysModifierChange: (String) -> Unit = {},
     preferAudioTracks: Boolean = true,
     onPreferAudioTracksChange: (Boolean) -> Unit = {},
     filterNonMusicAudio: Boolean,
@@ -518,6 +522,78 @@ internal fun DesktopSettingsScreen(
                             DesktopPersistence.saveSmartTrimEnabled(it)
                         },
                     )
+                    SettingsToggle(
+                        DesktopStrings["global_hotkeys", "Atajos de teclado globales"],
+                        DesktopStrings[
+                            "global_hotkeys_subtitle",
+                            "Controla MaviMusic desde cualquier aplicación con combinaciones de teclas en macOS",
+                        ],
+                        globalHotkeys,
+                        {
+                            onGlobalHotkeysChange(it)
+                            DesktopPersistence.saveGlobalHotkeysEnabled(it)
+                        },
+                    )
+                    if (globalHotkeys) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp)) {
+                            Text(DesktopStrings["hotkeys_modifier_preset", "Combinación de modificadores"], fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(
+                                    "CMD_SHIFT" to "⌘ ⇧ Cmd + Shift",
+                                    "CTRL_OPT" to "⌃ ⌥ Ctrl + Option",
+                                    "OPT_SHIFT" to "⌥ ⇧ Option + Shift",
+                                ).forEach { (id, label) ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = globalHotkeysModifier == id,
+                                        onClick = {
+                                            onGlobalHotkeysModifierChange(id)
+                                            DesktopPersistence.saveGlobalHotkeysModifier(id)
+                                        },
+                                        label = { Text(label, style = MaterialTheme.typography.bodySmall) },
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            val modSym = when (globalHotkeysModifier) {
+                                "CTRL_OPT" -> "⌃ ⌥"
+                                "OPT_SHIFT" -> "⌥ ⇧"
+                                else -> "⌘ ⇧"
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                listOf(
+                                    DesktopStrings["hotkey_play_pause", "Reproducir / Pausar"] to "$modSym Espacio",
+                                    DesktopStrings["hotkey_next", "Siguiente pista"] to "$modSym →",
+                                    DesktopStrings["hotkey_previous", "Pista anterior"] to "$modSym ←",
+                                    DesktopStrings["hotkey_like", "Marcar / Quitar Me Gusta"] to "$modSym L",
+                                    DesktopStrings["hotkey_volume_up", "Subir volumen (+5%)"] to "$modSym ↑",
+                                    DesktopStrings["hotkey_volume_down", "Bajar volumen (-5%)"] to "$modSym ↓",
+                                ).forEach { (desc, shortcut) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(desc, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                        Text(
+                                            shortcut,
+                                            fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     SettingsToggle(
                         DesktopStrings["prefer_audio_tracks", "Modo Solo Canción (Evitar videos musicales)"],
                         DesktopStrings[

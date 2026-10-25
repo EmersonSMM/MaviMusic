@@ -17,6 +17,10 @@ class DesktopMacMediaTest {
                 onPrevious = { pressed += "previous" },
                 onStop = { pressed += "stop" },
                 onSeek = { pressed += "seek $it" },
+                onLikeToggle = { pressed += "like" },
+                onVolumeUp = { pressed += "vol_up" },
+                onVolumeDown = { pressed += "vol_down" },
+                onPlayPauseToggle = { pressed += "play_pause_toggle" },
             ),
         )
     }
@@ -29,6 +33,16 @@ class DesktopMacMediaTest {
         install()
         (0..4).forEach(DesktopMacMedia::onButton)
         assertEquals(listOf("play", "pause", "next", "previous", "stop"), pressed)
+    }
+
+    @Test
+    fun globalHotkeysButtonsReachTheirOwnControl() {
+        install()
+        DesktopMacMedia.onButton(8)  // BUTTON_LIKE
+        DesktopMacMedia.onButton(9)  // BUTTON_VOLUME_UP
+        DesktopMacMedia.onButton(10) // BUTTON_VOLUME_DOWN
+        DesktopMacMedia.onButton(11) // BUTTON_PLAY_PAUSE_TOGGLE
+        assertEquals(listOf("like", "vol_up", "vol_down", "play_pause_toggle"), pressed)
     }
 
     @Test

@@ -547,6 +547,12 @@ fun MaviMusicDesktopApp() {
     var smartTrim by remember {
         mutableStateOf(persistence.smartTrimEnabled())
     }
+    var globalHotkeysEnabled by remember {
+        mutableStateOf(persistence.globalHotkeysEnabled())
+    }
+    var globalHotkeysModifier by remember {
+        mutableStateOf(persistence.globalHotkeysModifier())
+    }
     var preferAudioTracks by remember {
         mutableStateOf(persistence.preferAudioTracks())
     }
@@ -1791,6 +1797,22 @@ fun MaviMusicDesktopApp() {
                         }
                     }
                 },
+                onPlayPauseToggle = {
+                    if (playbackEngine.state.value.isPlaying) pauseFromUser() else playFromUser()
+                },
+                onLikeToggle = {
+                    selectedSong?.let { toggleLike(it) }
+                },
+                onVolumeUp = {
+                    val newVol = (volume + 0.05f).coerceIn(0f, 1f)
+                    volume = newVol
+                    persistence.saveString("volume", newVol.toString())
+                },
+                onVolumeDown = {
+                    val newVol = (volume - 0.05f).coerceIn(0f, 1f)
+                    volume = newVol
+                    persistence.saveString("volume", newVol.toString())
+                },
             ),
         )
         DesktopMacDockMenu.start(
@@ -1808,6 +1830,15 @@ fun MaviMusicDesktopApp() {
             DesktopMacMedia.stop()
             DesktopMacDockMenu.stop()
         }
+    }
+
+    LaunchedEffect(globalHotkeysEnabled, globalHotkeysModifier) {
+        val mode = when (globalHotkeysModifier) {
+            "CTRL_OPT" -> 1
+            "OPT_SHIFT" -> 2
+            else -> 0
+        }
+        DesktopMacMedia.setGlobalHotkeysEnabled(globalHotkeysEnabled, mode)
     }
 
     LaunchedEffect(playbackSpeed) { playbackEngine.setPlaybackSpeed(playbackSpeed) }
@@ -4362,6 +4393,16 @@ fun MaviMusicDesktopApp() {
                                     onSmartTrimChange = {
                                         smartTrim = it
                                         persistence.saveSmartTrimEnabled(it)
+                                    },
+                                    globalHotkeys = globalHotkeysEnabled,
+                                    onGlobalHotkeysChange = {
+                                        globalHotkeysEnabled = it
+                                        persistence.saveGlobalHotkeysEnabled(it)
+                                    },
+                                    globalHotkeysModifier = globalHotkeysModifier,
+                                    onGlobalHotkeysModifierChange = {
+                                        globalHotkeysModifier = it
+                                        persistence.saveGlobalHotkeysModifier(it)
                                     },
                                     preferAudioTracks = preferAudioTracks,
                                     onPreferAudioTracksChange = {
