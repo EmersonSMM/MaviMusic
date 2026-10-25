@@ -235,3 +235,6 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - El motor de audio, Automix y seek no se modifican. Se reutiliza el callback de cierre ya existente solo después de que el auxiliar esté listo.
 - Pendiente de aceptación física: actualización real entre MSI, bloqueo por antivirus, fallo de MSI/registro y restauración en diferentes ubicaciones. Si Windows Installer excede 10 min, no se intenta copiar archivos encima de una transacción viva: se conserva el registro y se requiere recuperación manual.
 - macOS conserva Sparkle y su cierre/checkpoint actual. Pendiente probar una actualización real entre dos instalaciones firmadas; no se reemplaza por el auxiliar Windows.
+
+### 2. Texto del botón de actualización
+- Causa confirmada: DesktopAccent es blanco y el botón antiguo forzaba texto blanco. No era una fuente ausente. Se usa un componente compartido con contraste calculado, fuente SansSerif del sistema y colores de deshabilitado explícitos. La etiqueta permanece visible en descarga y preparación; errores y reintento no eliminan el botón.

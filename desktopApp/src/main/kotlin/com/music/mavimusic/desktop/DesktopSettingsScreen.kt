@@ -1922,26 +1922,22 @@ private fun DesktopUpdateSettings() {
                             style = MaterialTheme.typography.bodySmall,
                             color = DesktopSecondary,
                         )
+                        DesktopUpdateAction("Descargando…", enabled = false) {}
+                    } else if (winUpdate.installing) {
+                        DesktopUpdateAction("Preparando instalación…", enabled = false) {}
                     } else if (winUpdate.installerPath != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { DesktopWindowsUpdater.installNow() },
-                            colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
-                        ) {
-                            Text("Instalar y reiniciar", color = Color.White)
-                        }
+                        DesktopUpdateAction("Instalar y reiniciar") { DesktopWindowsUpdater.installNow() }
                     } else {
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { DesktopWindowsUpdater.downloadAndInstall() },
-                            colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
-                        ) {
-                            Text("Descargar e instalar ahora", color = Color.White)
-                        }
+                        DesktopUpdateAction("Descargar e instalar") { DesktopWindowsUpdater.downloadAndInstall() }
+                    }
+                    if (winUpdate.releaseNotes.isNotBlank()) {
+                        Text(winUpdate.releaseNotes, style = MaterialTheme.typography.bodySmall,
+                            color = DesktopSecondary, modifier = Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()))
                     }
                 }
                 Spacer(Modifier.height(8.dp))
             }
+            winUpdate.lastError?.let { Text(it, color = Color(0xFFFFA997), style = MaterialTheme.typography.bodySmall) }
             SettingsToggle(
                 "Buscar actualizaciones automáticamente",
                 "Comprobar periódicamente si hay una versión nueva de MaviMusic.",
