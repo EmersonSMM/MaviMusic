@@ -24,7 +24,7 @@ El commit previo `88bf2183` incorpora diagnóstico privado y publicación verifi
 7. Cambiar «reducir movimiento» con la vista ya compuesta no actualiza inmediatamente el hover del logo; se lee al crear la composición.
 8. Medición comparativa de arranque y CPU/RAM en reposo, y aceptación física de pantalla completa/escalado de 100–200 % en Windows.
 
-No se publica una release estable desde esta rama mientras la validación de instalación permanezca pendiente. La PR permite revisar y probar sin reemplazar la versión distribuida.
+El usuario autorizó publicar 1.8.52 durante la fase de pruebas, manteniendo explícitos los pendientes anteriores. CI pasó en Windows, macOS, Linux y Go (run 40232078352); esto incluye MSI transaccional, atajo, DWM y fullscreen, y no acredita una actualización instalada de extremo a extremo.
 
 ## Resumen por punto
 

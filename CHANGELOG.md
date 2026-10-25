@@ -1,6 +1,6 @@
 # Novedades de MaviMusic
 
-## 1.8.52 (en preparación)
+## 1.8.52
 
 - Actualización Windows por MSI verificado, auxiliar independiente e instalación silenciosa por usuario; recuperación transaccional y registro local.
 - Aviso discreto de actualización, comprobaciones cada ocho horas y texto del botón con contraste correcto.
