@@ -87,6 +87,7 @@ internal fun DesktopPlaylistDialog(
     onPickAccount: (UserPlaylist) -> Unit,
     onPickLocal: (DesktopPlaylist) -> Unit,
     onCreate: (String, PlaylistPrivacy) -> Unit,
+    onNewSmartPlaylist: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     var creating by remember { mutableStateOf(song == null) }
@@ -101,6 +102,7 @@ internal fun DesktopPlaylistDialog(
                 busy = busy,
                 error = error,
                 onCreate = onCreate,
+                onNewSmartPlaylist = onNewSmartPlaylist,
             )
             return@DesktopDialogFrame
         }
@@ -108,6 +110,12 @@ internal fun DesktopPlaylistDialog(
         DialogHeading("Add to playlist", song?.let { "${it.title} — ${it.artist}" }.orEmpty())
         error?.let { DialogError(it) }
         DialogAction(MaviMusicIcons.Plus, "New playlist", enabled = !busy) { creating = true }
+        if (DesktopSmartPlaylistSettings.enabled.value && onNewSmartPlaylist != null) {
+            DialogAction(MaviMusicIcons.Sparkles, "Nueva lista inteligente", enabled = !busy) {
+                onDismiss()
+                onNewSmartPlaylist()
+            }
+        }
 
         if (signedIn && !canUseAccount) {
             Text(
@@ -176,6 +184,7 @@ private fun NewPlaylistForm(
     busy: Boolean,
     error: String?,
     onCreate: (String, PlaylistPrivacy) -> Unit,
+    onNewSmartPlaylist: (() -> Unit)? = null,
 ) {
     var name by remember { mutableStateOf("") }
     var privacy by remember { mutableStateOf(PlaylistPrivacy.PRIVATE) }
@@ -254,6 +263,12 @@ private fun NewPlaylistForm(
             PlaylistPrivacy.entries.forEach { option ->
                 PrivacyPill(option.icon, option.label, option == privacy) { privacy = option }
             }
+        }
+    }
+
+    if (DesktopSmartPlaylistSettings.enabled.value && onNewSmartPlaylist != null) {
+        DialogAction(MaviMusicIcons.Sparkles, "O crear una lista inteligente...", enabled = !busy) {
+            onNewSmartPlaylist()
         }
     }
 

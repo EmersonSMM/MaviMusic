@@ -371,6 +371,7 @@ internal fun DesktopCollectionPage(
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
     onOpenArtist: ((String) -> Unit)? = null,
+    onEditRules: (() -> Unit)? = null,
 ) {
     val songs = remember(collection) { DesktopDownloadMetadata.collectionSongs(collection) }
     // The phone's "search this list": a filter over the rows already loaded.
@@ -543,9 +544,27 @@ internal fun DesktopCollectionPage(
                                     if (!searching) listQuery = ""
                                 },
                             )
+                            onEditRules?.let { editRules ->
+                                DesktopCircleButton(
+                                    MaviMusicIcons.Sparkles,
+                                    "Editar reglas",
+                                    onClick = editRules,
+                                    tint = DesktopAccent,
+                                )
+                            }
                             Box {
                                 DesktopCircleButton(Icons.Rounded.MoreHoriz, DesktopStrings["more", "More"], onClick = { moreOpen = true })
                                 DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                                    onEditRules?.let { editRules ->
+                                        DropdownMenuItem(
+                                            text = { Text("Editar reglas inteligentes") },
+                                            leadingIcon = { Icon(MaviMusicIcons.Sparkles, null, tint = DesktopAccent) },
+                                            onClick = {
+                                                moreOpen = false
+                                                editRules()
+                                            },
+                                        )
+                                    }
                                     DropdownMenuItem(
                                         text = { Text(DesktopStrings["download_all", "Download all"]) },
                                         leadingIcon = { Icon(MaviMusicIcons.Download, null) },

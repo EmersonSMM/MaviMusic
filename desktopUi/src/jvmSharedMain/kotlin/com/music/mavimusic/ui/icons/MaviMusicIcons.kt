@@ -646,6 +646,25 @@ object MaviMusicIcons {
         }.build()
     }
 
+    val Sparkles: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_sparkles", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(fill = stroke) {
+                moveTo(12f, 2f)
+                lineTo(14.5f, 9.5f)
+                lineTo(22f, 12f)
+                lineTo(14.5f, 14.5f)
+                lineTo(12f, 22f)
+                lineTo(9.5f, 14.5f)
+                lineTo(2f, 12f)
+                lineTo(9.5f, 9.5f)
+                close()
+            }
+        }.build()
+    }
+
     val Library: ImageVector by lazy {
         ImageVector.Builder(
             name = "bc_library",

@@ -629,7 +629,7 @@ internal fun DesktopSidebar(
                 }
                 items(visibleLocal, key = { "local:${it.id}" }) { playlist ->
                     DesktopSidebarItem(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay,
+                        if (playlist.isSmart) MaviMusicIcons.Sparkles else Icons.AutoMirrored.Rounded.PlaylistPlay,
                         playlist.title,
                         openedCollectionId == playlist.id,
                         onClick = { onOpenLocalPlaylist(playlist) },

@@ -284,7 +284,9 @@ class DesktopPersistence {
         val id = decode(fields[0]).ifBlank { return null }
         val title = decode(fields[1]).ifBlank { return null }
         val songs = fields[2].split(SONG_DELIMITER).filter(String::isNotBlank).mapNotNull(::decodeSong)
-        return DesktopPlaylist(id, title, songs)
+        val isSmart = fields.getOrNull(3)?.toBooleanStrictOrNull() ?: false
+        val smartRuleDef = fields.getOrNull(4)?.let(::decode)?.ifBlank { null }
+        return DesktopPlaylist(id, title, songs, isSmart, smartRuleDef)
     }
 
     private fun encode(value: String): String =
@@ -502,6 +504,8 @@ data class DesktopPlaylist(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val songs: List<Song> = emptyList(),
+    val isSmart: Boolean = false,
+    val smartRuleDefinition: String? = null,
 )
 
 private fun DesktopPlaylist.toPreferenceLine(): String = listOf(
@@ -531,4 +535,6 @@ private fun DesktopPlaylist.toPreferenceLine(): String = listOf(
             Base64.getUrlEncoder().withoutPadding().encodeToString(field.toByteArray(StandardCharsets.UTF_8))
         })
     },
+    isSmart.toString(),
+    Base64.getUrlEncoder().withoutPadding().encodeToString((smartRuleDefinition.orEmpty()).toByteArray(StandardCharsets.UTF_8)),
 ).joinToString("#")

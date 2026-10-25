@@ -765,6 +765,13 @@ internal fun DesktopSettingsScreen(
             }
             if (section == DesktopSettingsSection.DESKTOP_PLAYBACK) item {
                 SettingsGroup(DesktopStrings["d_desktop_playback", "Desktop playback"]) {
+                    val smartPlaylistsEnabled by DesktopSmartPlaylistSettings.enabled.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["smart_playlists_title", "Playlists inteligentes (Smart Rules)"],
+                        DesktopStrings["smart_playlists_desc", "Habilita reglas dinámicas automáticas basadas en reproducciones, me gusta y fecha"],
+                        smartPlaylistsEnabled,
+                        DesktopSmartPlaylistSettings::setEnabled,
+                    )
                     SettingsToggle(
                         DesktopStrings["autoplay", "Autoplay"],
                         DesktopStrings["d_keep_the_music_going_with_similar_songs", "Keep the music going with similar songs"],

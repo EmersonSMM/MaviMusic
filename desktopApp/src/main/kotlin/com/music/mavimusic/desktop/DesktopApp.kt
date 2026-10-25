@@ -502,6 +502,8 @@ fun MaviMusicDesktopApp() {
     var replaySummary by remember { mutableStateOf(DesktopListeningStats.summary()) }
     var statsCountedSongs by remember { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    var smartPlaylistDialogOpen by remember { mutableStateOf(false) }
+    var smartPlaylistEditTarget by remember { mutableStateOf<DesktopPlaylist?>(null) }
     // One busy flag and one message for every playlist edit: only one of them can be in flight,
     // because each is driven by a dialog that is modal.
     var playlistBusy by remember { mutableStateOf(false) }
@@ -1480,16 +1482,70 @@ fun MaviMusicDesktopApp() {
     }
 
     fun openPlaylist(playlist: DesktopPlaylist) {
+        val effectiveSongs = if (playlist.isSmart && playlist.smartRuleDefinition != null) {
+            val ruleSet = SmartRuleSerializer.decode(playlist.smartRuleDefinition)
+            if (ruleSet != null) {
+                val universe = (persistence.downloads() + persistence.history() + playlists.flatMap { it.songs }).distinctBy { it.videoId }
+                val context = DesktopSmartPlaylistEngine.buildContext(persistence)
+                DesktopSmartPlaylistEngine.evaluate(ruleSet, universe, context)
+            } else {
+                playlist.songs
+            }
+        } else {
+            playlist.songs
+        }
         showCollection(
             DesktopCollection(
                 browseId = playlist.id,
                 title = playlist.title,
-                subtitle = "Playlist • ${playlist.songs.size} songs",
-                thumbnailUrl = playlist.songs.firstOrNull()?.thumbnailUrl,
+                subtitle = if (playlist.isSmart) "Lista inteligente • ${effectiveSongs.size} canciones" else "Playlist • ${effectiveSongs.size} songs",
+                thumbnailUrl = effectiveSongs.firstOrNull()?.thumbnailUrl,
                 type = BrowseType.PLAYLIST,
-                songs = playlist.songs,
+                songs = effectiveSongs,
+                owned = true,
             ),
         )
+    }
+
+    fun openSmartPlaylistEditor(target: DesktopPlaylist? = null) {
+        smartPlaylistEditTarget = target
+        smartPlaylistDialogOpen = true
+    }
+
+    fun saveSmartPlaylist(title: String, ruleSet: SmartPlaylistRuleSet) {
+        val target = smartPlaylistEditTarget
+        val serialized = SmartRuleSerializer.encode(ruleSet)
+        val universe = (persistence.downloads() + persistence.history() + playlists.flatMap { it.songs }).distinctBy { it.videoId }
+        val context = DesktopSmartPlaylistEngine.buildContext(persistence)
+        val songs = DesktopSmartPlaylistEngine.evaluate(ruleSet, universe, context)
+
+        if (target != null) {
+            val updated = target.copy(
+                title = title,
+                songs = songs,
+                isSmart = true,
+                smartRuleDefinition = serialized,
+            )
+            val nextList = playlists.map { if (it.id == target.id) updated else it }
+            playlists = nextList
+            persistence.savePlaylists(nextList)
+            if (openedCollection?.browseId == target.id) {
+                openPlaylist(updated)
+            }
+        } else {
+            val newPlaylist = DesktopPlaylist(
+                title = title,
+                songs = songs,
+                isSmart = true,
+                smartRuleDefinition = serialized,
+            )
+            val nextList = playlists + newPlaylist
+            playlists = nextList
+            persistence.savePlaylists(nextList)
+            openPlaylist(newPlaylist)
+        }
+        smartPlaylistDialogOpen = false
+        smartPlaylistEditTarget = null
     }
 
     /**
@@ -4175,7 +4231,21 @@ fun MaviMusicDesktopApp() {
                             onPickAccount = ::addToAccountPlaylist,
                             onPickLocal = ::addToPlaylist,
                             onCreate = ::createPlaylist,
+                            onNewSmartPlaylist = {
+                                closePlaylistDialogs()
+                                openSmartPlaylistEditor(null)
+                            },
                             onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
+                    if (smartPlaylistDialogOpen || smartPlaylistEditTarget != null) {
+                        DesktopSmartPlaylistDialog(
+                            initialPlaylist = smartPlaylistEditTarget,
+                            onSave = ::saveSmartPlaylist,
+                            onDismiss = {
+                                smartPlaylistDialogOpen = false
+                                smartPlaylistEditTarget = null
+                            },
                         )
                     }
                     if (overlays.rename) {
@@ -4686,50 +4756,57 @@ fun MaviMusicDesktopApp() {
                                 }
                             }
                         }
-                        openedCollection != null -> DesktopCollectionPage(
-                            collection = openedCollection!!,
-                            loadingMore = collectionLoadingMore,
-                            onLoadMore = ::loadMoreCollectionSongs,
-                            onRename = { overlays.rename = true }.takeIf { openedCollection?.owned == true },
-                            onShare = openedCollection
-                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
-                                ?.let { collection -> { shareCollection(collection) } },
-                            onDelete = { overlays.delete = true }.takeIf { openedCollection?.owned == true },
-                            onReorder = { overlays.reorder = true }.takeIf {
-                                openedCollection?.owned == true && openedCollection?.type == BrowseType.PLAYLIST
-                            },
-                            onRemoveFromPlaylist = ::removeFromOpenPlaylist
-                                .takeIf { openedCollection?.owned == true },
-                            likedIds = likedIds,
-                            onPlaySongs = { songs, index ->
-                                playSongs(songs, index, openedCollection?.let { collectionSource(it) })
-                            },
-                            onShuffle = { songs ->
-                                playSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
-                            },
-                            onDownloadAll = { downloadAll(it, DesktopDownloadContext.from(openedCollection)) },
-                            animatedCanvas = animatedCanvas,
-                            onToggleLike = { song ->
-                                toggleLike(song)
-                            },
-                            onAddToPlaylist = { playlistTarget = it },
-                            onDownload = { song ->
-                                if (song.videoId in downloadInProgress) DesktopDownloadQueue.cancel(song.videoId)
-                                else if (song.localPath == null) DesktopDownloadQueue.enqueue(song, DesktopDownloadContext.from(openedCollection))
-                            },
-                            downloadedIds = downloads.filter { saved ->
-                                saved.localPath?.let { path -> DesktopDownloadPaths.belongsTo(path, DesktopDownloadContext.from(openedCollection)) } == true
-                            }.map(Song::videoId).toSet(),
-                            downloadInProgress = downloadInProgress,
-                            contentPadding = contentPadding,
-                            onOpenArtist = { target ->
-                                if (target.startsWith("UC") || target.startsWith("FEmusic_library_privately_owned_artist") || (target.length >= 24 && !target.contains(' '))) {
-                                    openArtist(target)
-                                } else {
-                                    openArtistByName(target)
-                                }
-                            },
-                        )
+                        openedCollection != null -> {
+                            val currentLocalPlaylist = openedCollection?.let { col -> playlists.firstOrNull { it.id == col.browseId } }
+                            val isSmartCurrent = currentLocalPlaylist?.isSmart == true
+                            DesktopCollectionPage(
+                                collection = openedCollection!!,
+                                loadingMore = collectionLoadingMore,
+                                onLoadMore = ::loadMoreCollectionSongs,
+                                onRename = { overlays.rename = true }.takeIf { openedCollection?.owned == true },
+                                onShare = openedCollection
+                                    ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
+                                    ?.let { collection -> { shareCollection(collection) } },
+                                onDelete = { overlays.delete = true }.takeIf { openedCollection?.owned == true },
+                                onReorder = { overlays.reorder = true }.takeIf {
+                                    openedCollection?.owned == true && openedCollection?.type == BrowseType.PLAYLIST && !isSmartCurrent
+                                },
+                                onRemoveFromPlaylist = ::removeFromOpenPlaylist
+                                    .takeIf { openedCollection?.owned == true && !isSmartCurrent },
+                                onEditRules = if (isSmartCurrent && currentLocalPlaylist != null) {
+                                    { openSmartPlaylistEditor(currentLocalPlaylist) }
+                                } else null,
+                                likedIds = likedIds,
+                                onPlaySongs = { songs, index ->
+                                    playSongs(songs, index, openedCollection?.let { collectionSource(it) })
+                                },
+                                onShuffle = { songs ->
+                                    playSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
+                                },
+                                onDownloadAll = { downloadAll(it, DesktopDownloadContext.from(openedCollection)) },
+                                animatedCanvas = animatedCanvas,
+                                onToggleLike = { song ->
+                                    toggleLike(song)
+                                },
+                                onAddToPlaylist = { playlistTarget = it },
+                                onDownload = { song ->
+                                    if (song.videoId in downloadInProgress) DesktopDownloadQueue.cancel(song.videoId)
+                                    else if (song.localPath == null) DesktopDownloadQueue.enqueue(song, DesktopDownloadContext.from(openedCollection))
+                                },
+                                downloadedIds = downloads.filter { saved ->
+                                    saved.localPath?.let { path -> DesktopDownloadPaths.belongsTo(path, DesktopDownloadContext.from(openedCollection)) } == true
+                                }.map(Song::videoId).toSet(),
+                                downloadInProgress = downloadInProgress,
+                                contentPadding = contentPadding,
+                                onOpenArtist = { target ->
+                                    if (target.startsWith("UC") || target.startsWith("FEmusic_library_privately_owned_artist") || (target.length >= 24 && !target.contains(' '))) {
+                                        openArtist(target)
+                                    } else {
+                                        openArtistByName(target)
+                                    }
+                                },
+                            )
+                        }
                         destination == DesktopDestination.LISTEN_NOW -> HomeScreen(
                             state = homeState,
                             listState = homeListState,
