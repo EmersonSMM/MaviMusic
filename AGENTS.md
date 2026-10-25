@@ -14,3 +14,8 @@
 - `Release` solo se lanza manualmente; `publish=false` por defecto. Para pruebas internas mantenerlo así; Intel es opcional. La publicación explícita exige ambas arquitecturas Mac.
 - Pruebas internas rápidas: MSI Windows y DMG macOS. En publicación pública conservar también el EXE instalador para los clientes Windows antiguos (1.8.51); nunca portables. Linux de escritorio y portables quedan temporalmente fuera de CI/distribución, conservando el código Linux.
 - Ver `docs/DESKTOP_RELEASES.md` antes de modificar empaquetado o actualizaciones. No recuperar el flujo antiguo de tags ni el asistente sin `--publish`.
+
+## Documentación de mantenimiento
+
+- Mantener manualmente la información de mantenimiento en MAINTAINERS.md. No regenerar listas de colaboradores ni paneles de avatares desde el historial de GitHub.
+- Conservar los avisos de copyright, licencias y atribuciones obligatorias de los componentes heredados y de terceros.
