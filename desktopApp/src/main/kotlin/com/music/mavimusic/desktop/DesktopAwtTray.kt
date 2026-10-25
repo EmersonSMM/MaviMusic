@@ -62,7 +62,16 @@ internal object DesktopAwtTray {
                 } else {
                     TrayIcon(art, tooltip, DesktopTrayMenu.awtPopup()).apply {
                         isImageAutoSize = true
-                        addActionListener { EventQueue.invokeLater(onActivate) }
+                        addActionListener {
+                            EventQueue.invokeLater {
+                                if (DesktopPersistence.menubarMiniPlayerEnabled()) {
+                                    val pt = runCatching { java.awt.MouseInfo.getPointerInfo()?.location }.getOrNull()
+                                    DesktopMiniPlayerState.toggle(pt)
+                                } else {
+                                    onActivate()
+                                }
+                            }
+                        }
                     }
                 }
                 runCatching { tray.add(created) }

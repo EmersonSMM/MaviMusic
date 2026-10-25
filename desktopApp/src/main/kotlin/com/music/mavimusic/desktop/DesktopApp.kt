@@ -2821,10 +2821,10 @@ fun MaviMusicDesktopApp() {
     // the XEmbed tray a Wayland session does not have.
     val tray = remember {
         DesktopStatusNotifierController(
-            // On macOS clicking the menu bar icon toggles the Dark Teal Glass Mini Player;
-            // on other platforms it brings the main window back.
+            // Clicking the tray icon toggles the Glass Mini Player widget if enabled;
+            // otherwise it brings the main window back.
             onActivate = {
-                if (DesktopPlatform.isMac && menubarMiniPlayerEnabled) {
+                if (menubarMiniPlayerEnabled) {
                     DesktopMiniPlayerState.toggle()
                 } else {
                     DesktopWindowVisibility.show()

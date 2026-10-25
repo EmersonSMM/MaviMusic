@@ -41,6 +41,11 @@ fun main(args: Array<String>) {
         System.setProperty("skiko.metal.gpu.priority", "auto")
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
         System.setProperty("apple.laf.useScreenMenuBar", "true")
+    } else if (System.getProperty("os.name").contains("Windows", ignoreCase = true)) {
+        // Enable Direct3D GPU hardware acceleration on Windows for 60-120 FPS fluid rendering
+        System.setProperty("skiko.renderApi", "DIRECT3D")
+        System.setProperty("sun.java2d.d3d", "true")
+        System.setProperty("sun.java2d.noddraw", "false")
     }
 
     DesktopOpenAudio.install(args)

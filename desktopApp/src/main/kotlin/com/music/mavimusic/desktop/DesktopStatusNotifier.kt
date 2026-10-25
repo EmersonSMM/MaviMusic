@@ -72,8 +72,11 @@ internal class DesktopStatusNotifierController(
     fun setIcon(svg: ByteArray) {
         if (!isLinuxSession()) {
             // AWT wants one image at the size the tray asks for, not a ladder of pixmaps for a
-            // shell to choose from.
-            DesktopAwtTray.setIcon(renderSvg(svg, AWT_ICON_SIZE)?.toImage())
+            // shell to choose from. Try reading as raster image (PNG) first, then fallback to SVG.
+            val image = runCatching {
+                javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(svg))
+            }.getOrNull() ?: renderSvg(svg, AWT_ICON_SIZE)?.toImage()
+            DesktopAwtTray.setIcon(image)
             return
         }
         val rendered = ICON_SIZES.mapNotNull { size -> renderSvg(svg, size) }

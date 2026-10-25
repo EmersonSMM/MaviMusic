@@ -1982,32 +1982,25 @@ class DesktopPlaybackEngine(
         )
         fadeTotal = (seconds * sink.format.sampleRate * sink.format.channels).toInt()
         val echoTail = (echoTailSeconds(plan.echoSeconds) * sink.format.sampleRate * sink.format.channels).toInt()
-        // The beat-roll and reverb-tail are the subtler alternative to a planned echo, so they only
-        // arm on a smart DJ transition the planner gave no echo to, and never stack with one.
+        // The beat-roll and artificial texture effects (flanger, bitcrusher) introduce harsh
+        // comb-filtering ("sonido metálico") and digital quantization distortion ("chicharreo")
+        // that degrades fidelity on high-grade headphones like AirPods Pro.
+        // We disable artificial distortion and keep clean, studio-grade crossfades, EQ handoffs,
+        // and optional smooth Schroeder reverb tails.
         val djStyle = plan.transitionStyle == TransitionStyle.DJ_BLEND ||
             plan.transitionStyle == TransitionStyle.DJ_FILTER
         val noEcho = plan.echoSeconds <= 0.0
-        beatRepeatActive = noEcho && djStyle && plan.beatSeconds > 0.0 && plan.transitionBeats >= 4
+        beatRepeatActive = false
         reverbActive = noEcho && djStyle
         val textureKind = if (noEcho && djStyle) chooseTexture(plan) else TransitionTexture.NONE
         textureActive = textureKind != TransitionTexture.NONE
         beatRepeatLatched = false
-        transitionBeatRepeat = if (beatRepeatActive) {
-            val division = if (plan.beatSeconds < EIGHTH_NOTE_MAX_BEAT_SECONDS) 2.0 else 1.0
-            DesktopTransitionBeatRepeat(sink.format.sampleRate, sink.format.channels)
-                .also { it.configure(plan.beatSeconds / division) }
-        } else null
+        transitionBeatRepeat = null
         transitionReverb = if (reverbActive) {
             DesktopTransitionReverb(sink.format.sampleRate, sink.format.channels).also { it.reset() }
         } else null
-        transitionTexture = if (textureActive) {
-            newTexture(textureKind, sink.format.sampleRate, sink.format.channels).also { it.reset() }
-        } else null
-        val fxTail = (
-            (if (beatRepeatActive) ROLL_TAIL_SECONDS else 0.0) +
-                (if (reverbActive) REVERB_TAIL_SECONDS else 0.0) +
-                (if (textureActive) TEXTURE_TAIL_SECONDS else 0.0)
-            ).let { (it * sink.format.sampleRate * sink.format.channels).toInt() }
+        transitionTexture = null
+        val fxTail = ((if (reverbActive) REVERB_TAIL_SECONDS else 0.0) * sink.format.sampleRate * sink.format.channels).toInt()
         transitionTotal = fadeTotal + echoTail + fxTail
         fadeRemaining = transitionTotal
         incomingSourceFrames = 0.0
@@ -2019,7 +2012,7 @@ class DesktopPlaybackEngine(
             val inReliable = DesktopBpmStore.get(incoming.song.videoId)?.isReliable ?: (inBpm > 0.0)
             DesktopKeyLock.shouldBeatmatchStretch(outBpm, inBpm, outReliable, inReliable)
         } else {
-            plan.incomingPlaybackRate > 1.0001
+            false
         }
 
         val clampedRate = DesktopKeyLock.clampDeckRate(plan.incomingPlaybackRate)
@@ -2027,15 +2020,9 @@ class DesktopPlaybackEngine(
             DesktopTempoBuffer(sink.format.channels, sink.format.sampleRate).also {
                 it.speed = clampedRate.toFloat()
             }
-        } else if (!DesktopKeyLock.isEnabled() && plan.incomingPlaybackRate > 1.0001) {
-            DesktopTempoBuffer(sink.format.channels, sink.format.sampleRate).also {
-                it.speed = plan.incomingPlaybackRate.toFloat()
-            }
         } else null
         incoming.tempoRate = if (allowStretch) {
             clampedRate
-        } else if (!DesktopKeyLock.isEnabled() && plan.incomingPlaybackRate > 1.0001) {
-            plan.incomingPlaybackRate.coerceAtLeast(1.0)
         } else 1.0
         transitionEcho = if (plan.echoSeconds > 0.0) {
             DesktopTransitionEcho(sink.format.sampleRate, sink.format.channels).also { it.configure(plan.echoSeconds) }
@@ -2054,24 +2041,12 @@ class DesktopPlaybackEngine(
     }
 
     /**
-     * Which texture the outgoing tail gets for this plan, read from what the planner already knows
-     * about the pair rather than from a user choice — one effect is applied per transition, never a
-     * stack. Fast, sparse material takes the bit-crush; a tempo gap between the two grids takes the
-     * phaser's whoosh to bridge it; slow, sustained material takes the vibrato's pitch sway; two
-     * vocals singing over each other take the stereo spread to pull them apart. The flanger is the
-     * default when nothing more specific applies.
+     * Which texture the outgoing tail gets for this plan.
+     * Returned as NONE to avoid artificial comb-filtering ("sonido metálico") and digital distortion
+     * ("chicharreo") in transitions.
      */
     private fun chooseTexture(plan: TransitionPlan): TransitionTexture {
-        val bpm = plan.outgoingBpm
-        if (bpm <= 0.0) return TransitionTexture.FLANGER
-        val gap = kotlin.math.abs(plan.incomingBpm - plan.outgoingBpm)
-        return when {
-            plan.vocalOverlap >= 0.5 -> TransitionTexture.STEREO
-            bpm >= 128.0 && plan.vocalOverlap <= 0.15 -> TransitionTexture.CRUSH
-            gap > 4.0 -> TransitionTexture.PHASER
-            bpm < 95.0 -> TransitionTexture.VIBRATO
-            else -> TransitionTexture.FLANGER
-        }
+        return TransitionTexture.NONE
     }
 
     private fun newTexture(

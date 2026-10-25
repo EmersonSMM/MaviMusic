@@ -1,5 +1,17 @@
 # Novedades de MaviMusic
 
+## 1.8.48
+
+- **Experiencia Nativa y Rendimiento en Windows**:
+  - Ventana 100% nativa con aceleración gráfica por hardware Direct3D (`skiko.renderApi=DIRECT3D`), eliminando retrasos y alcanzando 60-120 FPS fluidos.
+  - Eliminación de botones simulados de macOS en Windows: integración con los botones estándar y marco nativo del sistema operativo (minimizar, maximizar y cerrar a la derecha).
+  - Corrección de escalado High-DPI y pantalla completa: la barra superior (búsqueda, botón Azar y perfil) se adapta sin solapamientos ni desbordes.
+  - Icono y widget en barra de tareas / bandeja del sistema: carga del logo oficial PNG de MaviMusic en la bandeja de Windows y apertura del Mini Reproductor Glass flotante posicionado sobre la barra de tareas.
+- **Calidad de Estudio en Modo DJ (Automix)**:
+  - Eliminación del filtrado comb / flanger artificial ("sonido metálico") y bitcrusher de 3 bits ("chicharreo") en transiciones.
+  - Supresión del bucle repetidor de micro-segmentos (beat-roll) y paso directo transparente cuando Key Lock no está activo.
+  - Transiciones impecables de alta fidelidad acústica mediante crossfades de volumen limpios, isolators de ecualización DJ de 3 bandas y reverberación Schroeder suave, óptimos para audífonos de alta definición como AirPods Pro 2.
+
 ## 1.8.47
 
 - Corrección del instalador de Windows: asignación de un `UpgradeCode` único (`e428f6a4-9679-5c99-b1d0-8a044d18c068`) y selector de carpeta de destino para evitar cierres en "Getting Information" y colisiones con instalaciones previas.

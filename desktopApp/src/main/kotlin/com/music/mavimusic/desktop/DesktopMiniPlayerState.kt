@@ -67,16 +67,28 @@ internal object DesktopMiniPlayerState {
         }
 
         val bounds = currentDevice.defaultConfiguration.bounds
+        val insets = runCatching {
+            java.awt.Toolkit.getDefaultToolkit().getScreenInsets(currentDevice.defaultConfiguration)
+        }.getOrNull() ?: java.awt.Insets(0, 0, 0, 0)
         val widgetWidthPx = 384
+        val widgetHeightPx = 172
 
-        val minX = bounds.x + 12
-        val maxX = bounds.x + bounds.width - widgetWidthPx - 12
+        val minX = bounds.x + insets.left + 12
+        val maxX = bounds.x + bounds.width - insets.right - widgetWidthPx - 12
         val x = if (p != null) {
             (p.x - widgetWidthPx / 2).coerceIn(minX, maxX)
         } else {
             maxX
         }
-        val y = bounds.y + 28
+        val y = if (DesktopPlatform.isWindows) {
+            if (insets.bottom > 0 || (p != null && p.y > bounds.y + bounds.height / 2)) {
+                bounds.y + bounds.height - insets.bottom - widgetHeightPx - 12
+            } else {
+                bounds.y + insets.top + 12
+            }
+        } else {
+            bounds.y + 28
+        }
 
         screenX = x
         screenY = y

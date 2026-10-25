@@ -12,7 +12,7 @@ import kotlinx.coroutines.delay
 internal object DesktopWindowsFrame {
 
     private val available: Boolean by lazy {
-        DesktopPlatform.isWindows &&
+        DesktopPlatform.isWindows && DesktopPlatform.drawsOwnWindowFrame &&
             runCatching { DesktopAnalysisRuntime.loadNative(LIBRARY) }
                 .onFailure { DesktopTrackLog.log("native Windows frame unavailable: ${it.message}") }
                 .isSuccess
