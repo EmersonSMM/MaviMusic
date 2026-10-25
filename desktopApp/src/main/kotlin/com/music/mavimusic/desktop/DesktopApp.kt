@@ -4724,6 +4724,7 @@ fun MaviMusicDesktopApp() {
                             onPlaySong = { playSong(it) },
                             onOpenArtist = ::openArtistByName,
                             contentPadding = contentPadding,
+                            onRefresh = { statsRevision++ },
                         )
                         openedArtist != null -> DesktopArtistPage(
                             state = artistState,
@@ -5054,6 +5055,16 @@ fun MaviMusicDesktopApp() {
                             onImportFolder = DesktopOpenAudio::chooseFolder,
                             contentPadding = contentPadding,
                             menu = { song -> songMenu(song) },
+                        )
+                        destination == DesktopDestination.STATS -> DesktopReplayPage(
+                            summary = replaySummary,
+                            period = replayPeriod,
+                            holder = replayHolder,
+                            onPeriodChange = { replayPeriod = it },
+                            onPlaySong = { playSong(it) },
+                            onOpenArtist = ::openArtistByName,
+                            contentPadding = contentPadding,
+                            onRefresh = { statsRevision++ },
                         )
                     }
                 }

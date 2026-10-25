@@ -1171,6 +1171,19 @@ internal fun DesktopSettingsScreen(
                         hideVolumeBar,
                         DesktopAppearanceSettings::setHideVolumeBar,
                     )
+                    var statsFeatureEnabled by remember { mutableStateOf(DesktopListeningStats.isFeatureEnabled()) }
+                    SettingsToggle(
+                        DesktopStrings["feature_stats_enabled", "Estadísticas y Wrapped local"],
+                        DesktopStrings[
+                            "feature_stats_enabled_subtitle",
+                            "Registra reproducciones de forma 100% local y privada para ver tu Replay y exportar tarjetas Wrapped",
+                        ],
+                        statsFeatureEnabled,
+                        {
+                            statsFeatureEnabled = it
+                            DesktopListeningStats.setFeatureEnabled(it)
+                        },
+                    )
                 }
             }
             if (section == DesktopSettingsSection.AUDIO_QUALITY) item {

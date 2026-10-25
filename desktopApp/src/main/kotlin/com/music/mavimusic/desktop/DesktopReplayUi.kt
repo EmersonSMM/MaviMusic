@@ -27,14 +27,27 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,28 +92,88 @@ internal fun DesktopReplayPage(
     onPlaySong: (Song) -> Unit,
     onOpenArtist: (String) -> Unit,
     contentPadding: PaddingValues,
+    onRefresh: () -> Unit = {},
 ) {
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var exportToast by remember { mutableStateOf<String?>(null) }
+
     // The mesh behind this page is painted by the frame, so the chrome is tinted by it too.
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
             item("heading") {
-                // No arrow of its own: the top bar's back is the way out, as the gesture is on
-                // Android.
+                // No arrow of its own: the top bar's back is the way out, as the gesture is on Android.
                 Spacer(Modifier.height(8.dp))
                 Column {
                     Column(Modifier.padding(horizontal = GUTTER)) {
                         Spacer(Modifier.height(20.dp))
-                        Text(
-                            DesktopStrings["replay", "Replay"],
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.W800,
-                            color = Color.White,
-                        )
-                        Text(
-                            summary.label.ifBlank { period.chip },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White.copy(alpha = 0.6f),
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text(
+                                    DesktopStrings["replay", "Estadísticas y Replay"],
+                                    style = MaterialTheme.typography.displayMedium,
+                                    fontWeight = FontWeight.W800,
+                                    color = Color.White,
+                                )
+                                Text(
+                                    summary.label.ifBlank { period.chip },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White.copy(alpha = 0.6f),
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (!summary.isEmpty) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color.White.copy(alpha = 0.12f))
+                                            .clickable {
+                                                val exported = DesktopWrappedExporter.promptAndExport(summary, period)
+                                                if (exported != null) {
+                                                    exportToast = "Tarjeta guardada en: ${exported.name}"
+                                                }
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            Icon(MaviMusicIcons.Sparkles, contentDescription = null, tint = DesktopAccent, modifier = Modifier.size(16.dp))
+                                            Text("Exportar Wrapped", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .clickable { showPrivacyDialog = true }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Icon(Icons.Rounded.Settings, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
+                                        Text("Privacidad", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+
+                        if (exportToast != null) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                exportToast!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = DesktopAccent,
+                            )
+                        }
+
                         Spacer(Modifier.height(14.dp))
                         PeriodPicker(period, onPeriodChange)
                         Spacer(Modifier.height(18.dp))
@@ -152,6 +225,13 @@ internal fun DesktopReplayPage(
 
             item("habits") { Habits(summary) }
             item("tail") { Spacer(Modifier.height(32.dp)) }
+        }
+
+        if (showPrivacyDialog) {
+            StatsPrivacyDialog(
+                onDismiss = { showPrivacyDialog = false },
+                onRefresh = onRefresh,
+            )
         }
     }
 }
@@ -303,17 +383,262 @@ private fun Habits(summary: DesktopReplaySummary) {
             modifier = Modifier.padding(top = 8.dp, bottom = 10.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("SONGS", summary.distinctSongs.toString(), Modifier.weight(1f))
-            StatTile("ARTISTS", summary.distinctArtists.toString(), Modifier.weight(1f))
-            StatTile("ALBUMS", summary.distinctAlbums.toString(), Modifier.weight(1f))
+            StatTile("CANCIONES", summary.distinctSongs.toString(), Modifier.weight(1f))
+            StatTile("ARTISTAS", summary.distinctArtists.toString(), Modifier.weight(1f))
+            StatTile("ÁLBUMES", summary.distinctAlbums.toString(), Modifier.weight(1f))
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 10.dp)) {
+            StatTile("RACHA ACTIVA", "${summary.streakDays} ${if (summary.streakDays == 1) "día" else "días"}", Modifier.weight(1f))
+            val comp = summary.comparisonPercent
+            val compText = if (comp != null) (if (comp >= 0) "+$comp%" else "$comp%") else "—"
+            StatTile("VS PERÍODO ANTERIOR", compText, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(16.dp))
+        WeeklyHeatmap(summary.dayOfWeekDistribution)
+
         summary.peakHour?.let {
             Spacer(Modifier.height(10.dp))
-            Note("You listen most around ${formatHour(it)}.")
+            Note("Escuchas más música alrededor de las ${formatHour(it)}.")
         }
         summary.busiestDay?.let {
             Spacer(Modifier.height(6.dp))
-            Note("Your biggest day was ${formatDay(it)} — ${formatListening(summary.busiestDayMs)}.")
+            Note("Tu día récord fue ${formatDay(it)} — ${formatListening(summary.busiestDayMs)}.")
+        }
+    }
+}
+
+@Composable
+private fun WeeklyHeatmap(distribution: List<Long>) {
+    val dayNames = listOf("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
+    val maxMs = (distribution.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .padding(16.dp),
+    ) {
+        Text(
+            "DISTRIBUCIÓN SEMANAL",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.55f),
+            letterSpacing = 1.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(
+            Modifier.fillMaxWidth().height(90.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            distribution.forEachIndexed { index, ms ->
+                val fraction = (ms.toFloat() / maxMs.toFloat()).coerceIn(0.06f, 1f)
+                val day = dayNames.getOrElse(index) { "" }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Box(
+                        Modifier
+                            .width(22.dp)
+                            .height((64.dp * fraction).coerceAtLeast(6.dp))
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (ms > 0L) DesktopAccent.copy(alpha = (0.4f + 0.6f * fraction).coerceAtMost(1f))
+                                else Color.White.copy(alpha = 0.08f)
+                            ),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        day,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (ms > 0L) Color.White else Color.White.copy(alpha = 0.4f),
+                        fontWeight = if (ms > 0L) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsPrivacyDialog(
+    onDismiss: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    var tracking by remember { mutableStateOf(DesktopListeningStats.isTrackingEnabled()) }
+    var confirmingClear by remember { mutableStateOf(false) }
+    var toast by remember { mutableStateOf<String?>(null) }
+
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 480) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Lock, contentDescription = null, tint = DesktopAccent, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Privacidad de Estadísticas",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Rounded.Close, contentDescription = null, tint = Color.White.copy(alpha = 0.6f))
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Tus estadísticas se calculan y almacenan exclusivamente en tu Mac de forma 100% privada y local. MaviMusic no envía telemetría a servidores remotos.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.7f),
+            )
+
+            Spacer(Modifier.height(18.dp))
+
+            // Tracking Switch Row
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.07f))
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        "Registrar estadísticas locales",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                    Text(
+                        "Al apagarlo, la app no registrará nuevas canciones reproducidas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.5f),
+                    )
+                }
+                Switch(
+                    checked = tracking,
+                    onCheckedChange = {
+                        tracking = it
+                        DesktopListeningStats.setTrackingEnabled(it)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = DesktopAccent,
+                    ),
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Export Actions
+            Text(
+                "EXPORTAR TUS DATOS",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.5f),
+                letterSpacing = 1.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        val exported = DesktopWrappedExporter.promptAndExportData(
+                            DesktopListeningStats.exportJson(),
+                            "MaviMusic-Stats.json",
+                            "Guardar estadísticas (JSON)"
+                        )
+                        if (exported != null) toast = "Exportado: ${exported.name}"
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Exportar JSON", color = Color.White)
+                }
+                OutlinedButton(
+                    onClick = {
+                        val exported = DesktopWrappedExporter.promptAndExportData(
+                            DesktopListeningStats.exportCsv(),
+                            "MaviMusic-Stats.csv",
+                            "Guardar estadísticas (CSV)"
+                        )
+                        if (exported != null) toast = "Exportado: ${exported.name}"
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Exportar CSV", color = Color.White)
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Clear stats
+            if (!confirmingClear) {
+                OutlinedButton(
+                    onClick = { confirmingClear = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(255, 90, 90),
+                    ),
+                ) {
+                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Borrar todo el historial de estadísticas")
+                }
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(255, 50, 50).copy(alpha = 0.15f))
+                        .padding(14.dp),
+                ) {
+                    Text(
+                        "¿Estás seguro de que deseas borrar tus estadísticas?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                    Text(
+                        "Esta acción es irreversible y reseteará tu Replay.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                DesktopListeningStats.clear()
+                                onRefresh()
+                                toast = "Historial eliminado correctamente"
+                                confirmingClear = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(220, 50, 50)),
+                        ) {
+                            Text("Sí, borrar todo", color = Color.White)
+                        }
+                        TextButton(onClick = { confirmingClear = false }) {
+                            Text("Cancelar", color = Color.White)
+                        }
+                    }
+                }
+            }
+
+            if (toast != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(toast!!, color = DesktopAccent, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }

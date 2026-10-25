@@ -48,6 +48,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
+import com.music.mavimusic.ui.icons.MaviMusicIcons
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
@@ -270,6 +271,12 @@ internal fun DesktopCommandPalette(
                 subtitle = "Canciones reproducidas recientemente",
                 icon = Icons.Rounded.History,
                 action = { onNavigate(DesktopDestination.HISTORY); onDismiss() },
+            ),
+            PaletteItem.Command(
+                title = "Ir a Estadísticas (Replay)",
+                subtitle = "Resumen de escucha, artistas destacados y tarjeta Wrapped",
+                icon = MaviMusicIcons.Performance,
+                action = { onNavigate(DesktopDestination.STATS); onDismiss() },
             ),
             PaletteItem.Command(
                 title = "Ir a Ajustes",

@@ -607,6 +607,15 @@ internal fun DesktopSidebar(
                     onHide = { DesktopSidebarVisibility.hide(LOCAL_MUSIC_KEY, DesktopStrings["local_music", "Música local"]) },
                 )
             }
+            if (DesktopListeningStats.isFeatureEnabled() && STATS_KEY !in hiddenSidebar) {
+                DesktopSidebarItem(
+                    MaviMusicIcons.Performance,
+                    DesktopStrings["stats", "Estadísticas"],
+                    destination == DesktopDestination.STATS,
+                    onClick = { onDestinationSelected(DesktopDestination.STATS) },
+                    onHide = { DesktopSidebarVisibility.hide(STATS_KEY, DesktopStrings["stats", "Estadísticas"]) },
+                )
+            }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
@@ -731,6 +740,7 @@ internal fun DesktopSidebarItem(
 private const val HISTORY_KEY = "dest:HISTORY"
 private const val DOWNLOADS_KEY = "dest:DOWNLOADS"
 private const val LOCAL_MUSIC_KEY = "dest:LOCAL_MUSIC"
+private const val STATS_KEY = "dest:STATS"
 
 /**
  * The "N hidden" row that brings tucked-away rows back: a menu of everything

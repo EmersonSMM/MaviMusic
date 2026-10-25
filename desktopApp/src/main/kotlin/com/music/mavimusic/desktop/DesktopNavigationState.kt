@@ -12,6 +12,7 @@ internal enum class DesktopDestination(val id: String, val label: String) {
     HISTORY("history", "Historial"),
     DOWNLOADS("downloads", "Descargas"),
     LOCAL_MUSIC("local-music", "Música local"),
+    STATS("stats", "Estadísticas"),
     SETTINGS("settings", "Ajustes"),
 }
 

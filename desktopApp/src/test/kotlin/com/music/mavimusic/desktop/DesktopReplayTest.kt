@@ -232,4 +232,57 @@ class DesktopReplayTest {
         assertEquals("Arijit Singh", DesktopListeningStats.primaryArtist("Arijit Singh, Shreya Ghoshal"))
         assertEquals("Badshah", DesktopListeningStats.primaryArtist("Badshah feat. Aastha Gill"))
     }
+
+    @Test
+    fun `streak calculates consecutive days ending today or yesterday`() {
+        val streakHistory = listOf(
+            bucket(
+                "2026-09",
+                Triple(song("a", "Track", "Artist"), 100_000L, 1),
+                days = mapOf(
+                    "2026-09-11" to 50_000L,
+                    "2026-09-10" to 50_000L,
+                    "2026-09-09" to 50_000L,
+                    "2026-09-07" to 50_000L,
+                ),
+            ),
+        )
+        val summary = DesktopListeningStats.summarise(streakHistory, DesktopReplayPeriod.THIS_MONTH, today)
+        assertEquals(3, summary.streakDays)
+    }
+
+    @Test
+    fun `day of week distribution counts listening across monday to sunday`() {
+        val dayHistory = listOf(
+            bucket(
+                "2026-09",
+                Triple(song("a", "Track", "Artist"), 100_000L, 1),
+                days = mapOf("2026-09-11" to 60_000L),
+            ),
+        )
+        val summary = DesktopListeningStats.summarise(dayHistory, DesktopReplayPeriod.THIS_MONTH, today)
+        assertEquals(7, summary.dayOfWeekDistribution.size)
+        assertEquals(60_000L, summary.dayOfWeekDistribution[4])
+        assertEquals(0L, summary.dayOfWeekDistribution[0])
+    }
+
+    @Test
+    fun `comparison percentage computes growth over previous month`() {
+        val compHistory = listOf(
+            bucket("2026-09", Triple(song("a", "Current", "Artist"), 200_000L, 2), days = mapOf("2026-09-11" to 200_000L)),
+            bucket("2026-08", Triple(song("b", "Previous", "Artist"), 100_000L, 1), days = mapOf("2026-08-15" to 100_000L)),
+        )
+        val summary = DesktopListeningStats.summarise(compHistory, DesktopReplayPeriod.THIS_MONTH, today)
+        assertEquals(100, summary.comparisonPercent)
+    }
+
+    @Test
+    fun `wrapped exporter renders valid offline PNG card`() {
+        val summary = DesktopListeningStats.summarise(history, DesktopReplayPeriod.ALL_TIME, today)
+        val tempPng = java.io.File.createTempFile("wrapped_test", ".png").apply { deleteOnExit() }
+        val success = DesktopWrappedExporter.exportPng(summary, DesktopReplayPeriod.ALL_TIME, tempPng)
+        assertTrue(success)
+        assertTrue(tempPng.exists())
+        assertTrue(tempPng.length() > 1000L)
+    }
 }
