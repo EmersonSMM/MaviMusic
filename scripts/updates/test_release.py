@@ -17,7 +17,7 @@ class ReleaseTest(unittest.TestCase):
             (self.root / name).write_bytes(b'build bytes')
         for arch in ('arm64', 'x64'):
             signature = base64.b64encode(bytes(64)).decode()
-            archive = f'MaviMusic-{self.version}-macos-{arch}.zip'
+            archive = f'MaviMusic-{self.version}-macos-{arch}.dmg'
             (self.root / f'appcast-{arch}.xml').write_text(f'<rss xmlns:s="{release.NS}"><channel><item><s:version>{self.version}</s:version><enclosure url="https://github.com/owner/repo/releases/download/v{self.version}/{archive}" length="11" s:edSignature="{signature}" /></item></channel></rss>')
         self.manifest()
 
@@ -28,10 +28,27 @@ class ReleaseTest(unittest.TestCase):
         (self.root / 'SHA256SUMS').write_text(''.join(f'{release.sha256(p)}  {p.name}\n' for p in sorted(self.root.iterdir()) if p.name != 'SHA256SUMS'))
 
     def test_all_platforms_and_manifest_are_required(self):
-        self.assertEqual(15, len(release.inspect_assets(self.root, self.version, 'owner/repo')))
-        (self.root / f'MaviMusic-{self.version}-windows-x64.msi').unlink()
-        with self.assertRaisesRegex(ValueError, 'asset set'):
-            release.inspect_assets(self.root, self.version, 'owner/repo')
+        self.assertEqual(7, len(release.inspect_assets(self.root, self.version, 'owner/repo')))
+        for name in (f'MaviMusic-{self.version}-windows-x64.msi',
+                     f'MaviMusic-{self.version}-windows-x64-setup.exe',
+                     f'MaviMusic-{self.version}-macos-x64.dmg'):
+            path = self.root / name
+            original = path.read_bytes()
+            path.unlink()
+            with self.assertRaisesRegex(ValueError, 'asset set'):
+                release.inspect_assets(self.root, self.version, 'owner/repo')
+            path.write_bytes(original)
+
+    def test_installer_profile_excludes_portable_and_linux_files(self):
+        for name in (f'MaviMusic-{self.version}-windows-x64-portable.zip',
+                     f'MaviMusic-{self.version}-linux-amd64.deb'):
+            path = self.root / name
+            path.write_bytes(b'excluded distribution')
+            self.manifest()
+            with self.assertRaisesRegex(ValueError, 'asset set'):
+                release.inspect_assets(self.root, self.version, 'owner/repo')
+            path.unlink()
+        self.manifest()
 
     def test_corrupt_or_extra_files_cannot_be_published(self):
         (self.root / f'MaviMusic-{self.version}-windows-x64.msi').write_bytes(b'changed')

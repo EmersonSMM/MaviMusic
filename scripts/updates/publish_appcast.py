@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Produce signed, architecture-specific Sparkle feeds from a verified release ZIP."""
+"""Produce signed, architecture-specific Sparkle feeds from a verified release DMG (or historical ZIP)."""
 import argparse
 import base64
 from datetime import datetime, timezone
@@ -28,20 +28,43 @@ def release_notes(changelog, version):
 
 
 def inspect_archive(archive, version, arch, configured_key):
-    with zipfile.ZipFile(archive) as zipped:
-        info = plistlib.loads(zipped.read("MaviMusic.app/Contents/Info.plist"))
-        if info.get("CFBundleIdentifier") != "com.music.mavimusic":
-            raise ValueError("Update bundle identifier does not match MaviMusic")
-        if info.get("CFBundleVersion") != version or info.get("CFBundleShortVersionString") != version:
-            raise ValueError("Update bundle version does not match the release tag")
-        if info.get("SUPublicEDKey") != configured_key or info.get("SURequireSignedFeed") is not True:
-            raise ValueError("Update bundle does not carry the trusted signing configuration")
-        launcher = zipped.read("MaviMusic.app/Contents/MacOS/MaviMusic")[:8]
-        cpu = int.from_bytes(launcher[4:8], "little")
-        expected = {"arm64": 0x0100000C, "x64": 0x01000007}[arch]
-        if launcher[:4] != b"\xcf\xfa\xed\xfe" or cpu != expected:
-            raise ValueError("ZIP architecture does not match its update channel")
-        return info
+    if Path(archive).suffix.lower() == ".dmg":
+        # Inspect the actual signed delivery image, never a separate unverified staging bundle.
+        with tempfile.TemporaryDirectory(prefix="mavimusic-dmg-inspect-") as temporary:
+            mount = Path(temporary) / "volume"
+            mount.mkdir()
+            attached = False
+            try:
+                subprocess.run(["hdiutil", "attach", str(Path(archive).resolve()), "-readonly", "-nobrowse",
+                                "-noautoopen", "-mountpoint", str(mount)],
+                               stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=120)
+                attached = True
+                bundle = mount / "MaviMusic.app" / "Contents"
+                info = plistlib.loads((bundle / "Info.plist").read_bytes())
+                with (bundle / "MacOS/MaviMusic").open("rb") as binary:
+                    launcher = binary.read(8)
+            finally:
+                if attached or mount.is_mount():
+                    subprocess.run(["hdiutil", "detach", str(mount)], capture_output=True, check=True, timeout=30)
+    elif Path(archive).suffix.lower() == ".zip":
+        # Compatibility for validating previously published versions; new builds produce DMG only.
+        with zipfile.ZipFile(archive) as zipped:
+            info = plistlib.loads(zipped.read("MaviMusic.app/Contents/Info.plist"))
+            with zipped.open("MaviMusic.app/Contents/MacOS/MaviMusic") as binary:
+                launcher = binary.read(8)
+    else:
+        raise ValueError("Expected an installer DMG or historical update ZIP")
+    if info.get("CFBundleIdentifier") != "com.music.mavimusic":
+        raise ValueError("Update bundle identifier does not match MaviMusic")
+    if info.get("CFBundleVersion") != version or info.get("CFBundleShortVersionString") != version:
+        raise ValueError("Update bundle version does not match the release tag")
+    if info.get("SUPublicEDKey") != configured_key or info.get("SURequireSignedFeed") is not True:
+        raise ValueError("Update bundle does not carry the trusted signing configuration")
+    cpu = int.from_bytes(launcher[4:8], "little")
+    expected = {"arm64": 0x0100000C, "x64": 0x01000007}[arch]
+    if launcher[:4] != b"\xcf\xfa\xed\xfe" or cpu != expected:
+        raise ValueError("Installer architecture does not match its update channel")
+    return info
 
 
 def create_feed(archive, version, arch, notes, output, signer, key_file=None, configuration=None):

@@ -19,12 +19,10 @@ def version_tuple(version):
 
 
 def required_assets(version):
-    return {'SHA256SUMS', f'MaviMusic-{version}-windows-x64-setup.exe',
-            f'MaviMusic-{version}-windows-x64.msi', f'MaviMusic-{version}-windows-x64-portable.zip',
-            f'MaviMusic-{version}-linux-x86_64.AppImage', f'MaviMusic-{version}-linux-amd64.deb',
-            f'MaviMusic-{version}-linux-x86_64.rpm'} | {
+    return {'SHA256SUMS', f'MaviMusic-{version}-windows-x64.msi',
+            f'MaviMusic-{version}-windows-x64-setup.exe'} | {
         name for arch in ('arm64', 'x64') for name in
-        (f'appcast-{arch}.xml', *(f'MaviMusic-{version}-macos-{arch}.{ext}' for ext in ('zip', 'dmg', 'pkg')))}
+        (f'appcast-{arch}.xml', f'MaviMusic-{version}-macos-{arch}.dmg')}
 
 
 def sha256(path):
@@ -58,7 +56,7 @@ def inspect_assets(directory, version, repo):
         if item is None or item.findtext(f'{{{NS}}}version') != version:
             raise ValueError(f'Unexpected feed version: {arch}')
         enclosure = item.find('enclosure')
-        archive = f'MaviMusic-{version}-macos-{arch}.zip'
+        archive = f'MaviMusic-{version}-macos-{arch}.dmg'
         if enclosure is None or enclosure.get('url') != f'https://github.com/{repo}/releases/download/v{version}/{archive}':
             raise ValueError(f'Unexpected feed URL: {arch}')
         if int(enclosure.get('length', '0')) != paths[archive].stat().st_size:
@@ -66,7 +64,7 @@ def inspect_assets(directory, version, repo):
         signature = base64.b64decode(enclosure.get(f'{{{NS}}}edSignature', ''), validate=True)
         if len(signature) != 64:
             raise ValueError(f'Missing archive signature: {arch}')
-    # Both Mac jobs cryptographically verify feed/ZIP signatures with Sparkle before uploading.
+    # Both Mac jobs cryptographically verify feed/DMG signatures with Sparkle before uploading.
     # This job preserves those exact bytes and verifies GitHub's SHA-256 digest for every file.
     return {name: {'size': path.stat().st_size, 'digest': f'sha256:{hashes[name]}'} for name, path in paths.items()}
 

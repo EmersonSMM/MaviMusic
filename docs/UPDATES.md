@@ -1,14 +1,20 @@
 # Actualizaciones de MaviMusic para macOS
 
-La versión 1.8.36 incorpora Sparkle 2.10.0. La ventana nativa presenta las novedades, descarga la app, verifica firmas e instala al reiniciar o salir. En Ajustes → Actualizaciones se controla la búsqueda diaria y la descarga automática. Cerrar la ventana con la opción de bandeja activa no equivale a salir de la aplicación.
+La versión 1.8.36 incorpora Sparkle 2.10.0. La ventana nativa presenta las novedades, descarga la app, verifica firmas e instala al reiniciar o salir. En Ajustes → Actualizaciones se controla la búsqueda periódica y la descarga automática. Cerrar la ventana con la opción de bandeja activa no equivale a salir de la aplicación.
 
-## Activación automatizada desde el navegador
+## Fase actual: pruebas internas y publicación manual
 
-En macOS, abre con doble clic **`Activar actualizaciones.command`** en la carpeta del proyecto. También puedes ejecutarlo en Terminal:
+No se publica por push ni por tag. Para generar instaladores internos, usar **Actions → Release → Run workflow**, con `publish` desmarcado. Se generan MSI y DMG (EXE instalador adicional solo al publicar, para clientes Windows antiguos); Intel es opcional en pruebas, obligatorio al publicar. Linux y los portables están pausados. Ver [política y comandos](DESKTOP_RELEASES.md).
+
+## Asistente de publicación explícita desde el navegador
+
+En macOS, la publicación requiere ejecutar **`Activar actualizaciones.command`** desde Terminal con `--publish` explícito. El doble clic sin argumentos solo informa que está en pausa:
 
 ```sh
-./"Activar actualizaciones.command"
+./"Activar actualizaciones.command" --publish
 ```
+
+Sin `--publish`, el asistente informa que la publicación está pausada y termina antes de autenticar o subir fuentes.
 
 El asistente instala GitHub CLI mediante Homebrew si hace falta y abre la autorización oficial en tu navegador habitual. Aprovecha la sesión de GitHub que ya tengas iniciada: pega el código de un solo uso que GitHub CLI copia al portapapeles y aprueba la autorización. Se solicitan los permisos para administrar este repositorio y sus workflows. El script no lee perfiles ni cookies del navegador.
 
@@ -41,7 +47,7 @@ Esta recuperación solicita una nueva autorización en el navegador si la sesió
 Para la próxima versión, añade su sección al changelog y ejecuta:
 
 ```sh
-./"Activar actualizaciones.command" --version 1.8.37
+./"Activar actualizaciones.command" --version 1.8.37 --publish
 ```
 
 La compilación de las plataformas puede tardar varios minutos. Si detienes el asistente, una ejecución de GitHub Actions ya iniciada puede seguir generando su borrador; el asistente no publicará ese borrador mientras esté detenido.
@@ -75,16 +81,16 @@ CI importa el certificado solo en un llavero temporal del runner y lo elimina al
 ## Publicar una versión
 
 1. Añade una sección `## 1.8.37` (por ejemplo) a `CHANGELOG.md` con sus novedades.
-2. Actualiza la versión predeterminada del código y crea el tag `v1.8.37`, o ejecuta **Actions → Release → Run workflow** indicando `1.8.37`. El commit de publicación debe contener todos los cambios de la versión.
-3. El workflow compila y prueba las plataformas. En macOS incluye Sparkle, firma, notariza si hay credenciales y produce los ZIP/DMG y los feeds firmados.
-4. GitHub crea un **borrador** de release con las novedades y archivos. Revisa y publica el borrador. Esto activa conjuntamente los archivos y el feed de la nueva versión; no se actualiza un feed público antes de que exista su paquete.
+2. Actualiza la versión predeterminada del código y ejecuta **Actions → Release → Run workflow** indicando `1.8.37` y marcando `publish`. Crear un tag no compila ni publica. El commit de publicación debe contener todos los cambios de la versión.
+3. El workflow compila y prueba las plataformas. En macOS incluye Sparkle, firma, notariza si hay credenciales y produce los DMG y los feeds firmados.
+4. Solo con `publish` explícito, GitHub crea un **borrador** con las novedades y siete archivos, verifica todos sus hashes y lo hace público. Esto activa conjuntamente los archivos y el feed de la nueva versión; no se actualiza un feed público antes de que exista su paquete.
 
 Los tags y versiones del canal estable usan `MAJOR.MINOR.PATCH`; no se publican betas en este canal. `CFBundleVersion` coincide con la versión del tag: no depende de un contador manual que pudiera quedarse atrás.
 
 ## Archivos y garantías
 
 - `appcast-arm64.xml`: Apple Silicon; `appcast-x64.xml`: Intel. Cada app consulta solo su canal mediante `releases/latest/download/…`.
-- El feed contiene novedades Markdown, versión, requisitos de macOS, enlace al ZIP y firma del ZIP. El feed completo está firmado: las novedades y los enlaces quedan autenticados.
+- El feed contiene novedades Markdown, versión, requisitos de macOS, enlace al DMG y firma del DMG. El feed completo está firmado: las novedades y los enlaces quedan autenticados.
 - Se comprueban la identidad de la app, ambas versiones del bundle, la arquitectura real del ejecutable, la clave pública y las firmas antes de publicar. Una clave privada incorrecta hace fallar la compilación de la release.
 - Los paquetes se sirven desde URLs de versión inmutables. No se deben reemplazar los archivos de una versión publicada; publica una versión superior.
 - Sparkle verifica antes de extraer. El framework se descarga con SHA-256 fijado, se conserva con sus enlaces simbólicos y se firma el bundle después de incluirlo.
@@ -102,11 +108,11 @@ SPARKLE_SIGNER="$PWD/desktopApp/build/sparkle/bin/sign_update" \
 Para crear manualmente un feed firmado de una compilación local:
 
 ```sh
-ditto -c -k --sequesterRsrc --keepParent \
-  desktopApp/build/compose/binaries/main/app/MaviMusic.app \
-  /tmp/MaviMusic-1.8.36-macos-arm64.zip
+./gradlew :desktopApp:packageDmg
+# Copiar el DMG generado con su nombre de release antes de firmar:
+cp desktopApp/build/compose/binaries/main/dmg/*.dmg /tmp/MaviMusic-1.8.52-macos-arm64.dmg
 python3 scripts/updates/publish_appcast.py \
-  --archive /tmp/MaviMusic-1.8.36-macos-arm64.zip --version 1.8.36 --arch arm64 \
+  --archive /tmp/MaviMusic-1.8.52-macos-arm64.dmg --version 1.8.52 --arch arm64 \
   --output /tmp/appcast-arm64.xml --signer desktopApp/build/sparkle/bin/sign_update
 ```
 
