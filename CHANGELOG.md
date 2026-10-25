@@ -1,5 +1,11 @@
 # Novedades de MaviMusic
 
+## 1.8.47
+
+- Corrección del instalador de Windows: asignación de un `UpgradeCode` único (`e428f6a4-9679-5c99-b1d0-8a044d18c068`) y selector de carpeta de destino para evitar cierres en "Getting Information" y colisiones con instalaciones previas.
+- Publicación directa y canal de actualización automática Sparkle activo para macOS (Apple Silicon e Intel).
+- Paquetes de instalación actualizados para Windows (.exe, .msi, .zip portable), macOS (.dmg, .pkg, .zip) y Linux (.AppImage, .deb, .rpm).
+
 ## 1.8.46
 
 - Estabilidad y restauración del motor de audio en tiempo real: eliminación de consultas de dispositivos CoreAudio en el bucle de procesamiento de audio.
