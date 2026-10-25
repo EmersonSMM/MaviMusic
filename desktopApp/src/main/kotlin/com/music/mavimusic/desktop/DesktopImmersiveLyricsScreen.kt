@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Pause
@@ -502,6 +503,42 @@ internal fun DesktopImmersiveLyricsScreen(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                             )
+                        }
+                    }
+
+                    val isKaraokeFeatureOn by DesktopKaraokeSettings.featureEnabled.collectAsState()
+                    if (isKaraokeFeatureOn) {
+                        val isKaraokeActive by DesktopKaraokeSettings.isActive.collectAsState()
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            onClick = { DesktopKaraokeSettings.setActive(!isKaraokeActive) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isKaraokeActive) Color(0xFF00E5FF).copy(alpha = 0.22f) else Color(0x8812141E),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isKaraokeActive) Color(0xFF00E5FF).copy(alpha = 0.55f) else Color.White.copy(alpha = 0.16f),
+                            ),
+                            shadowElevation = 8.dp,
+                            modifier = Modifier.height(28.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Mic,
+                                    contentDescription = "Modo Karaoke",
+                                    tint = if (isKaraokeActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    text = if (isKaraokeActive) "Karaoke ON" else "Karaoke",
+                                    color = if (isKaraokeActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
                         }
                     }
                 }
@@ -983,6 +1020,80 @@ internal fun DesktopImmersiveLyricsScreen(
                                                     },
                                                     modifier = Modifier.scale(0.75f),
                                                 )
+                                            }
+
+                                            val isKaraokeFeatureOn by DesktopKaraokeSettings.featureEnabled.collectAsState()
+                                            if (isKaraokeFeatureOn) {
+                                                val isKaraokeActive by DesktopKaraokeSettings.isActive.collectAsState()
+                                                val vocalAtt by DesktopKaraokeSettings.attenuation.collectAsState()
+                                                val cpuAlert by DesktopKaraokeSettings.cpuAlert.collectAsState()
+
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            DesktopKaraokeSettings.setActive(!isKaraokeActive)
+                                                        }
+                                                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Rounded.Mic,
+                                                            contentDescription = null,
+                                                            tint = if (isKaraokeActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.7f),
+                                                            modifier = Modifier.size(15.dp),
+                                                        )
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "Modo Karaoke",
+                                                            color = if (isKaraokeActive) Color(0xFF00E5FF) else Color.White,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = if (isKaraokeActive) FontWeight.Bold else FontWeight.Normal,
+                                                        )
+                                                    }
+                                                    Switch(
+                                                        checked = isKaraokeActive,
+                                                        onCheckedChange = { DesktopKaraokeSettings.setActive(it) },
+                                                        modifier = Modifier.scale(0.75f),
+                                                    )
+                                                }
+
+                                                if (isKaraokeActive) {
+                                                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                        ) {
+                                                            Text(
+                                                                text = "Atenuación vocal",
+                                                                color = Color.White.copy(alpha = 0.7f),
+                                                                fontSize = 10.5.sp,
+                                                            )
+                                                            Text(
+                                                                text = "${(vocalAtt * 100).toInt()}%",
+                                                                color = Color(0xFF00E5FF),
+                                                                fontSize = 10.5.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                            )
+                                                        }
+                                                        DesktopBareSlider(
+                                                            value = vocalAtt,
+                                                            onValueChange = { DesktopKaraokeSettings.setAttenuation(it) },
+                                                            valueRange = 0f..1f,
+                                                            modifier = Modifier.fillMaxWidth().height(18.dp),
+                                                        )
+                                                        if (cpuAlert) {
+                                                            Text(
+                                                                text = "Aviso: CPU > 25%. Reduce atenuación o apaga karaoke.",
+                                                                color = Color(255, 170, 70),
+                                                                fontSize = 9.5.sp,
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
 
                                             HorizontalDivider(

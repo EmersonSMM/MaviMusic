@@ -867,6 +867,61 @@ internal fun DesktopSettingsScreen(
                             }
                         }
                     }
+
+                    var karaokeFeatureEnabled by remember { mutableStateOf(DesktopKaraokeSettings.isFeatureEnabled()) }
+                    SettingsToggle(
+                        DesktopStrings["karaoke_title", "Modo Karaoke (Supresión vocal)"],
+                        DesktopStrings[
+                            "karaoke_subtitle",
+                            "Habilita el botón de Karaoke en el reproductor inmersivo para atenuar la voz en tiempo real con latencia cero",
+                        ],
+                        karaokeFeatureEnabled,
+                        {
+                            karaokeFeatureEnabled = it
+                            DesktopKaraokeSettings.setFeatureEnabled(it)
+                        },
+                    )
+                    if (karaokeFeatureEnabled) {
+                        var vocalAtt by remember { mutableStateOf(DesktopKaraokeSettings.attenuation.value) }
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .padding(12.dp),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Atenuación vocal por defecto",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                )
+                                Text(
+                                    "${(vocalAtt * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DesktopAccent,
+                                )
+                            }
+                            DesktopBareSlider(
+                                value = vocalAtt,
+                                onValueChange = { vocalAtt = it },
+                                onValueChangeFinished = { DesktopKaraokeSettings.setAttenuation(vocalAtt) },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                "El procesador DSP extrae el canal central en la banda vocal (180 Hz - 7.5 kHz) protegiendo el bajo estéreo y los instrumentos.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f),
+                            )
+                        }
+                    }
                     SettingsRow(
                         Icons.Rounded.Bedtime,
                         "Sleep timer",

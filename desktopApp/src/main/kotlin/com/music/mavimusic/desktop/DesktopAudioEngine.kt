@@ -816,6 +816,7 @@ class DesktopPlaybackEngine(
     private var equalizerIncoming = DesktopEqualizer()
     private var autoEq = DesktopAutoEqProcessor()
     private var autoEqIncoming = DesktopAutoEqProcessor()
+    private val karaokeProcessor = DesktopKaraokeProcessor()
     private var silence: DesktopSilenceSkipper? = null
 
     /** The playing track's heard position, on the sink's played-frame count; see [play]. */
@@ -929,6 +930,7 @@ class DesktopPlaybackEngine(
         if (count == 0) return
 
         val (blended, blendedCount) = blend(track, block, count)
+        karaokeProcessor.process(blended, blendedCount, sink.format.sampleRate, sink.format.channels)
         val quiet = silence?.also {
             it.enabled = skipSilenceEnabled
             it.smartTrimEnabled = smartTrimEnabled
@@ -1267,6 +1269,7 @@ class DesktopPlaybackEngine(
         )
         track.finished = true
         sink.drain()
+        karaokeProcessor.reset()
         current = null
         track.decoder.close()
         _state.update {
