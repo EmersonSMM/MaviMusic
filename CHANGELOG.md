@@ -1,5 +1,19 @@
 # Novedades de MaviMusic
 
+## 1.8.50
+
+- **Actualizaciones Automáticas en Windows**:
+  - Nuevo módulo nativo de actualización para Windows (`DesktopWindowsUpdater`) con comprobación periódica de versiones en GitHub Releases.
+  - Soporte de comprobación automática, descarga en segundo plano con barra de progreso interactiva e instalación/reinicio automático en un clic.
+  - Integración completa en el panel de Ajustes tanto en Windows como en macOS.
+- **Corrección de Audio Post-Actualización en macOS**:
+  - Cierre ordenado y liberación completa de la línea de salida CoreAudio (`SourceDataLine`) y servicios multimedia antes del reinicio de instalación de Sparkle.
+  - Mecanismo de reintento progresivo y recuperación automática en caliente del canal de audio: si la línea de salida del sistema no está abierta al reanudar la reproducción o al pulsar reproducir, el motor reactiva automáticamente la salida sin requerir reiniciar la aplicación.
+- **Rediseño Estético Glass Translúcido & Localización en Español**:
+  - Panel de Ajustes rediseñado: secciones agrupadas en elegantes tarjetas de cristal oscuro translúcido (`liquid obsidian glass`) con sutiles bordes iluminados y tipografía ordenada.
+  - Menús contextuales (clic derecho) y desplegables modernizados con estética translúcida, bordes refinados y traducción al 100% en español.
+  - Menú de bandeja del sistema / barra de tareas y widget mini reproductor con diseño de cristal, logo oficial de MaviMusic y controles intuitivos en español.
+
 ## 1.8.49
 
 - Windows: tamaño inicial y mínimo ajustados al área útil, sin aplicar el escalado DPI dos veces. Reajuste al cambiar de monitor.

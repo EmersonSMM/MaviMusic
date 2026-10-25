@@ -35,4 +35,15 @@ class DesktopUpdateTest {
             assertEquals(library, DesktopMacUpdater.libraryPath(launcher))
         } finally { folder.toFile().deleteRecursively() }
     }
+
+    @Test fun `windows updater detects newer semver versions correctly`() {
+        assertTrue(DesktopWindowsUpdater.isNewerVersion("v1.8.50", "1.8.49"))
+        assertTrue(DesktopWindowsUpdater.isNewerVersion("1.8.50", "1.8.49"))
+        assertTrue(DesktopWindowsUpdater.isNewerVersion("v1.9.0", "1.8.50"))
+        assertTrue(DesktopWindowsUpdater.isNewerVersion("2.0.0", "1.8.50"))
+        assertFalse(DesktopWindowsUpdater.isNewerVersion("v1.8.49", "1.8.49"))
+        assertFalse(DesktopWindowsUpdater.isNewerVersion("1.8.48", "1.8.49"))
+        assertFalse(DesktopWindowsUpdater.isNewerVersion("v1.8.40", "1.8.49"))
+        assertFalse(DesktopWindowsUpdater.isNewerVersion("v1.8.50", "development"))
+    }
 }

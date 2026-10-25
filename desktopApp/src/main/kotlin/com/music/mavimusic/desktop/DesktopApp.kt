@@ -1662,12 +1662,19 @@ fun MaviMusicDesktopApp() {
             scope.launch {
                 try {
                     checkpointPlayback()
+                    withContext(Dispatchers.IO) { runCatching { playbackEngine.shutdown() } }
+                    DesktopMacMedia.stop()
+                    DesktopMacDockMenu.stop()
                 } catch (failure: Exception) {
                     DesktopTrackLog.log("Could not save update restart checkpoint: ${failure.message}")
                 } finally {
                     DesktopMacUpdater.readyToInstall()
                 }
             }
+        }
+        DesktopWindowsUpdater.prepareForInstall = {
+            runCatching { checkpointPlayback() }
+            runCatching { playbackEngine.shutdown() }
         }
         if (DesktopPlatform.isMac && java.awt.Desktop.isDesktopSupported()) {
             val desktop = java.awt.Desktop.getDesktop()
@@ -1683,7 +1690,10 @@ fun MaviMusicDesktopApp() {
                 }
             }
         }
-        onDispose { DesktopMacUpdater.prepareForInstall = null }
+        onDispose {
+            DesktopMacUpdater.prepareForInstall = null
+            DesktopWindowsUpdater.prepareForInstall = null
+        }
     }
     LaunchedEffect(playbackEngine) {
         val checkpoint = DesktopUpdateResume.consume(liveQueue.current?.videoId)
@@ -1691,7 +1701,10 @@ fun MaviMusicDesktopApp() {
             selectedSong = song
             playbackEngine.load(song, playWhenReady = false, startAtMs = checkpoint.positionMs)
         }
-        withContext(Dispatchers.IO) { DesktopMacUpdater.start() }
+        withContext(Dispatchers.IO) {
+            if (DesktopPlatform.isMac) DesktopMacUpdater.start()
+            if (DesktopPlatform.isWindows) DesktopWindowsUpdater.start()
+        }
     }
     val partySync = remember(playbackEngine) {
         DesktopPartySync(

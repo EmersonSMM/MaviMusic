@@ -101,26 +101,32 @@ internal class DesktopAudioSink {
             line = null
         }
 
-        val opened = try {
-            val targetLine = if (mixer == null) {
-                AudioSystem.getLine(infoFor(accepted)) as SourceDataLine
-            } else {
-                mixer.getLine(infoFor(accepted)) as SourceDataLine
+        val opened = run {
+            var lastError: Throwable? = null
+            for (attempt in 1..3) {
+                try {
+                    val targetLine = if (mixer == null) {
+                        AudioSystem.getLine(infoFor(accepted)) as SourceDataLine
+                    } else {
+                        mixer.getLine(infoFor(accepted)) as SourceDataLine
+                    }
+                    targetLine.open(accepted.toAudioFormat(), accepted.byteRate / 5)
+                    targetLine.start()
+                    return@run targetLine
+                } catch (failure: Throwable) {
+                    lastError = failure
+                    DesktopTrackLog.log("audio sink: open attempt $attempt failed on '${mixer?.mixerInfo?.name ?: "default"}': ${failure.message}")
+                    try { Thread.sleep(attempt * 120L) } catch (_: InterruptedException) { break }
+                }
             }
-            targetLine.open(accepted.toAudioFormat(), accepted.byteRate / 5)
-            targetLine.start()
-            targetLine
-        } catch (initialFailure: Throwable) {
-            DesktopTrackLog.log("audio sink: initial open failed on '${mixer?.mixerInfo?.name ?: "default"}', retrying with fallback: ${initialFailure.message}")
             // Fallback: try opening on system default line if specific mixer rejected the line
             try {
-                Thread.sleep(150)
                 val fallbackLine = AudioSystem.getLine(infoFor(accepted)) as SourceDataLine
                 fallbackLine.open(accepted.toAudioFormat(), accepted.byteRate / 5)
                 fallbackLine.start()
                 fallbackLine
             } catch (fallbackFailure: Throwable) {
-                throw initialFailure
+                throw (lastError ?: fallbackFailure)
             }
         }
 

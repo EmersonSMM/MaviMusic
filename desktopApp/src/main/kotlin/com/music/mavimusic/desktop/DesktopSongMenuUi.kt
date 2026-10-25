@@ -339,24 +339,24 @@ internal fun DesktopSongMenu(
             return@DesktopMenuSurface
         }
         if (pickingSleepTimer) {
-            DesktopMenuHeader("Sleep timer") { pickingSleepTimer = false }
+            DesktopMenuHeader(DesktopStrings["sleep_timer", "Temporizador de apagado"]) { pickingSleepTimer = false }
             DesktopMenuDivider()
             DesktopSleepTimer.presets.forEach { minutes ->
                 DesktopMenuRow(
                     icon = Icons.Rounded.Bedtime,
-                    label = "$minutes minutes",
+                    label = "$minutes minutos",
                     selected = sleepTimerMinutes == minutes && !sleepAfterTrack,
                 ) { onSleepTimer(minutes) }
             }
             DesktopMenuRow(
                 icon = Icons.Rounded.Bedtime,
-                label = DesktopStrings["d_end_of_this_track", "End of this track"],
+                label = DesktopStrings["d_end_of_this_track", "Al terminar esta canción"],
                 selected = sleepAfterTrack,
                 onClick = onSleepAfterTrack,
             )
             if (sleepTimerMinutes != null || sleepAfterTrack) {
                 DesktopMenuDivider()
-                DesktopMenuRow(Icons.Rounded.Bedtime, DesktopStrings["d_turn_off", "Turn off"]) { onSleepTimer(null) }
+                DesktopMenuRow(Icons.Rounded.Bedtime, DesktopStrings["d_turn_off", "Desactivar temporizador"]) { onSleepTimer(null) }
             }
             return@DesktopMenuSurface
         }
@@ -365,7 +365,7 @@ internal fun DesktopSongMenu(
         (onRevertToOriginal ?: onUpgradeQuality)?.let { action ->
             DesktopMenuRow(
                 icon = if (onRevertToOriginal != null) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.HighQuality,
-                label = if (onRevertToOriginal != null) "Revert to original" else "Upgrade quality",
+                label = if (onRevertToOriginal != null) DesktopStrings["revert_to_original", "Volver al audio original"] else DesktopStrings["upgrade_quality", "Mejorar calidad a Hi-Fi"],
                 onClick = action,
             )
             DesktopMenuDivider()
@@ -374,18 +374,18 @@ internal fun DesktopSongMenu(
         if (signedIn && !isOffline) {
             DesktopMenuRow(
                 icon = if (liked) MaviMusicIcons.HeartFilled else MaviMusicIcons.Heart,
-                label = if (liked) "Remove from liked" else "Like",
+                label = if (liked) DesktopStrings["remove_from_liked", "Quitar de Me gusta"] else DesktopStrings["like", "Me gusta"],
                 tint = if (liked) DesktopAccent else null,
                 onClick = onToggleLike,
             )
             DesktopMenuRow(
                 icon = if (disliked) Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt,
-                label = if (disliked) "Undo dislike" else "Dislike",
+                label = if (disliked) DesktopStrings["undo_dislike", "Deshacer No me gusta"] else DesktopStrings["dislike", "No me gusta"],
                 tint = if (disliked) DesktopAccent else null,
                 onClick = onToggleDislike,
             )
         }
-        DesktopMenuRow(Icons.AutoMirrored.Rounded.PlaylistAdd, DesktopStrings["add_to_playlist", "Add to playlist"], onClick = onAddToPlaylist)
+        DesktopMenuRow(Icons.AutoMirrored.Rounded.PlaylistAdd, DesktopStrings["add_to_playlist", "Añadir a playlist"], onClick = onAddToPlaylist)
         DesktopMenuDivider()
 
         // A saved copy is offered its own way out whatever the track is playing from — a download
@@ -484,7 +484,7 @@ internal fun DesktopSongMenu(
 }
 
 private fun sleepTimerLabel(minutes: Int?, afterTrack: Boolean): String = when {
-    afterTrack -> "End of track"
+    afterTrack -> "Al terminar pista"
     minutes != null -> "$minutes min"
     else -> ""
 }
@@ -611,16 +611,16 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
-        val shape = RoundedCornerShape(12.dp)
+        val shape = RoundedCornerShape(14.dp)
         Column(
             Modifier
-                .widthIn(min = 232.dp, max = 300.dp)
+                .widthIn(min = 236.dp, max = 308.dp)
                 .clip(shape)
                 .desktopCard(shape)
                 .padding(vertical = 6.dp)
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.
-                .heightIn(max = 460.dp)
+                .heightIn(max = 470.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
             content()

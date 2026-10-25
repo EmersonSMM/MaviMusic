@@ -3,6 +3,7 @@ package com.music.mavimusic.desktop
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +49,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.painterResource
+import mavimusic.desktopapp.generated.resources.Res
+import mavimusic.desktopapp.generated.resources.app_logo
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -166,11 +170,10 @@ internal fun DesktopTopMiniPlayer(
                                         .background(Color.White.copy(alpha = 0.08f)),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(
-                                        MaviMusicIcons.MusicNote,
-                                        contentDescription = null,
-                                        tint = subtitleColor,
-                                        modifier = Modifier.size(28.dp),
+                                    Image(
+                                        painter = painterResource(Res.drawable.app_logo),
+                                        contentDescription = "MaviMusic",
+                                        modifier = Modifier.size(46.dp),
                                     )
                                 }
                             }

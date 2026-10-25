@@ -450,7 +450,10 @@ class DesktopPlaybackEngine(
 
     fun play() {
         paused = false
-        _state.update { it.copy(isPlaying = true) }
+        if (!sink.isOpen && current != null) {
+            commands += Command.Reconfigure
+        }
+        _state.update { it.copy(isPlaying = true, error = null) }
     }
 
     fun pause() {
@@ -907,6 +910,17 @@ class DesktopPlaybackEngine(
             if (paused && fadeRemaining > 0) publishBlend(playing = false)
             Thread.sleep(20)
             return
+        }
+        if (!sink.isOpen) {
+            val trackFormat = track.decoder.outputFormat
+            val reopen = sink.open(trackFormat.copy(bytesPerSample = precisionBytes(), isFloat = preferFloat))
+            if (reopen.isFailure) {
+                Thread.sleep(50)
+                return
+            }
+            sink.gain = volume
+            framesWritten = sink.framesPlayed()
+            buildChain()
         }
         sink.resume()
 

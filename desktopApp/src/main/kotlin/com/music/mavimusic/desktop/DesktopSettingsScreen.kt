@@ -1766,19 +1766,134 @@ internal fun DesktopSettingsScreen(
 
 @Composable
 private fun DesktopUpdateSettings() {
-    val update by DesktopMacUpdater.state.collectAsState()
-    SettingsGroup("Actualizaciones") {
-        Text("MaviMusic ${DesktopUpdateChecker.currentVersion}", fontWeight = FontWeight.SemiBold)
-        Text(update.message, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
-        if (update.ready) {
-            SettingsToggle("Buscar actualizaciones automáticamente", "Comprobar periódicamente si hay una versión nueva.",
-                update.automaticChecks, { DesktopMacUpdater.configure(checks = it) })
-            SettingsToggle("Descargar e instalar al salir", "Descargar en segundo plano e instalar cuando cierres la aplicación por completo.",
-                update.automaticDownloads, { DesktopMacUpdater.configure(downloads = it) })
-            TextButton(onClick = DesktopMacUpdater::check) { Text("Buscar actualizaciones…") }
-        } else {
-            TextButton(onClick = { DesktopExternalLinks.open("https://github.com/EmersonSMM/MaviMusic/releases/latest") }) {
-                Text("Ver versiones en GitHub")
+    if (DesktopPlatform.isWindows) {
+        val winUpdate by DesktopWindowsUpdater.state.collectAsState()
+        SettingsGroup("Actualizaciones del Sistema") {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("MaviMusic ${DesktopUpdateChecker.currentVersion}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(winUpdate.message, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+                }
+                if (winUpdate.checking) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = DesktopAccent)
+                }
+            }
+            if (winUpdate.updateAvailable) {
+                Spacer(Modifier.height(8.dp))
+                val cardShape = RoundedCornerShape(10.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(cardShape)
+                        .background(DesktopAccent.copy(alpha = 0.12f))
+                        .border(1.dp, DesktopAccent.copy(alpha = 0.35f), cardShape)
+                        .padding(12.dp),
+                ) {
+                    Text(
+                        "¡Nueva versión ${winUpdate.latestVersion} disponible!",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (winUpdate.downloading) {
+                        Spacer(Modifier.height(8.dp))
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { winUpdate.downloadProgress },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = DesktopAccent,
+                            trackColor = Color.White.copy(alpha = 0.1f),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Descargando actualización: ${(winUpdate.downloadProgress * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DesktopSecondary,
+                        )
+                    } else if (winUpdate.installerPath != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = { DesktopWindowsUpdater.installNow() },
+                            colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
+                        ) {
+                            Text("Instalar y reiniciar", color = Color.White)
+                        }
+                    } else {
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = { DesktopWindowsUpdater.downloadAndInstall() },
+                            colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
+                        ) {
+                            Text("Descargar e instalar ahora", color = Color.White)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            SettingsToggle(
+                "Buscar actualizaciones automáticamente",
+                "Comprobar periódicamente si hay una versión nueva de MaviMusic.",
+                winUpdate.automaticChecks,
+                { DesktopWindowsUpdater.configure(checks = it) },
+            )
+            SettingsToggle(
+                "Descargar automáticamente en segundo plano",
+                "Descargar el instalador automáticamente en segundo plano cuando haya una actualización.",
+                winUpdate.automaticDownloads,
+                { DesktopWindowsUpdater.configure(downloads = it) },
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = { DesktopWindowsUpdater.check(silent = false) },
+                    enabled = !winUpdate.checking && !winUpdate.downloading,
+                ) {
+                    Text(if (winUpdate.checking) "Buscando…" else "Buscar actualizaciones")
+                }
+                TextButton(onClick = { DesktopExternalLinks.open("https://github.com/EmersonSMM/MaviMusic/releases/latest") }) {
+                    Text("Ver versiones en GitHub")
+                }
+            }
+        }
+    } else {
+        val update by DesktopMacUpdater.state.collectAsState()
+        SettingsGroup("Actualizaciones del Sistema") {
+            Text("MaviMusic ${DesktopUpdateChecker.currentVersion}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(2.dp))
+            Text(update.message, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+            if (update.ready) {
+                SettingsToggle(
+                    "Buscar actualizaciones automáticamente",
+                    "Comprobar periódicamente si hay una versión nueva.",
+                    update.automaticChecks,
+                    { DesktopMacUpdater.configure(checks = it) },
+                )
+                SettingsToggle(
+                    "Descargar e instalar al salir",
+                    "Descargar en segundo plano e instalar cuando cierres la aplicación por completo.",
+                    update.automaticDownloads,
+                    { DesktopMacUpdater.configure(downloads = it) },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = DesktopMacUpdater::check) { Text("Buscar actualizaciones…") }
+                    TextButton(onClick = { DesktopExternalLinks.open("https://github.com/EmersonSMM/MaviMusic/releases/latest") }) {
+                        Text("Ver versiones en GitHub")
+                    }
+                }
+            } else {
+                TextButton(onClick = { DesktopExternalLinks.open("https://github.com/EmersonSMM/MaviMusic/releases/latest") }) {
+                    Text("Ver versiones en GitHub")
+                }
             }
         }
     }
@@ -2123,17 +2238,25 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     val visible = wholeGroup || matched.isNotEmpty()
     // The gap belongs to the group, not to the list: as list spacing, every filtered-out group
     // still left its 18dp behind and the surviving ones sat under a band of empty space.
-    Column(if (visible) Modifier.padding(bottom = 20.dp) else Modifier) {
+    Column(if (visible) Modifier.padding(bottom = 22.dp) else Modifier) {
         if (visible) {
             Text(
                 title.uppercase(),
-                color = DesktopSecondary,
+                color = DesktopAccent,
                 style = MaterialTheme.typography.labelSmall,
-                // In line with the rows' own text, now that no card sets them in.
-                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp),
             )
         }
-        Column {
+        val shape = RoundedCornerShape(14.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Color(0xCC16161D))
+                .border(0.5.dp, Color(0x28FFFFFF), shape)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+        ) {
             CompositionLocalProvider(
                 LocalSettingsQuery provides if (wholeGroup) "" else query,
                 LocalSettingsMatches provides matched,
