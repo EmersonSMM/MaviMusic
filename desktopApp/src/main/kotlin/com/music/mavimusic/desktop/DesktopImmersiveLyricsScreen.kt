@@ -1464,6 +1464,8 @@ private fun WinampVisualizerBackdrop(
     var timeSec by remember { mutableFloatStateOf(0f) }
     val targetFps by DesktopGpuSettings.targetFps.collectAsState()
     val isGpuEnabled by DesktopGpuSettings.enabled.collectAsState()
+    val renderActive by DesktopWindowVisibility.renderActive.collectAsState()
+    val animate = !DesktopPlatform.isWindows || (isPlaying && renderActive)
 
     DisposableEffect(Unit) {
         onDispose {
@@ -1476,7 +1478,8 @@ private fun WinampVisualizerBackdrop(
     val peakValues = remember { FloatArray(numBands) { 0.20f } }
     val peakVelocities = remember { FloatArray(numBands) { 0f } }
 
-    LaunchedEffect(isPlaying, mode, songSeed, targetFps) {
+    LaunchedEffect(isPlaying, mode, songSeed, targetFps, animate) {
+        if (!animate) return@LaunchedEffect
         var lastNanos = 0L
         val minIntervalNanos = 1_000_000_000L / targetFps.coerceIn(30, 120)
         while (true) {

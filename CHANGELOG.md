@@ -1,5 +1,15 @@
 # Novedades de MaviMusic
 
+## 1.8.49
+
+- Windows: tamaño inicial y mínimo ajustados al área útil, sin aplicar el escalado DPI dos veces. Reajuste al cambiar de monitor.
+- Pantalla completa nativa compatible con el marco estándar de Windows, límites exactos del monitor y restauración de la ventana anterior.
+- El visualizador deja de animarse en Windows al pausar, minimizar u ocultar la ventana.
+- Pruebas automáticas de geometría y una prueba nativa de ventana Windows para comprobar pantalla completa y restauración.
+- Entorno de pruebas Linux alineado con las dependencias nativas y el display virtual usados en Release.
+
+La validación automática no sustituye la comprobación visual de DPI, barra de tareas y rendimiento en distintos equipos Windows.
+
 ## 1.8.48
 
 - **Experiencia Nativa y Rendimiento en Windows**:

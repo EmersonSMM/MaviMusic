@@ -26,18 +26,21 @@ namespace {
 
 HWND g_window = nullptr;
 WNDPROC g_original_proc = nullptr;
+bool g_custom_caption = false;
+WINDOWPLACEMENT g_fullscreen_placement{sizeof(WINDOWPLACEMENT)};
+LONG_PTR g_fullscreen_ex_style = 0;
 
 // The style and rectangle the window had before it went borderless fullscreen, kept so exiting can
 // put the caption window back exactly where it was.
 LONG_PTR g_fullscreen_style = 0;
-RECT g_fullscreen_rect{};
 bool g_fullscreen_active = false;
-// The oversized monitor rectangle fullscreen is pinned to; WM_WINDOWPOSCHANGING forces every move
-// and resize back to it so nothing — AWT, the shell, the taskbar raising itself — can uncover it.
+// Exact physical monitor bounds while fullscreen; never hide controls beyond its edges.
 RECT g_fullscreen_target{};
 
 // Posted from Java to start a caption drag on the thread that owns the window; see frame_proc.
 constexpr UINT WM_MAVIMUSIC_DRAG = WM_APP + 0x42;
+constexpr UINT WM_MAVIMUSIC_FULLSCREEN = WM_APP + 0x43;
+bool set_fullscreen(HWND window, bool on);
 // SC_MOVE through the caption: the same move loop a real title bar starts.
 constexpr WPARAM SC_DRAGMOVE = SC_MOVE | HTCAPTION;
 
@@ -78,10 +81,10 @@ int resize_border(HWND window, bool horizontal) {
 }
 
 LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
-    if (message == WM_NCCALCSIZE && wparam == TRUE) {
+    if (message == WM_NCCALCSIZE && wparam == TRUE && (g_custom_caption || g_fullscreen_active)) {
         // Keep the native overlapped-window styles but give the full surface to Compose. DWM still
         // owns the outer frame, shadow and transitions; only the standard caption is removed.
-        if (IsZoomed(window)) {
+        if (IsZoomed(window) && !g_fullscreen_active) {
             // A frameless client normally expands to the maximized window rectangle, which can
             // extend a few pixels into a taskbar docked at the top of the monitor. Use the monitor
             // work area for the client portion so the first row is never hidden behind the taskbar.
@@ -96,12 +99,11 @@ LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     }
 
     if (message == WM_WINDOWPOSCHANGING && g_fullscreen_active && lparam != 0) {
-        // While fullscreen, every attempted move or resize — AWT reasserting its own bounds, the
-        // taskbar raising itself, a focus change — is rewritten to the pinned, oversized monitor
-        // rectangle at the top of the z-order. This is what keeps the taskbar from peeking back.
+        // AWT can reassert its old bounds after a style or DPI change. Keep the fullscreen
+        // client inside the monitor without forcing other applications below it.
         auto* pos = reinterpret_cast<WINDOWPOS*>(lparam);
-        pos->hwndInsertAfter = HWND_TOPMOST;
-        pos->flags &= ~static_cast<UINT>(SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
+        // Keep exact monitor bounds, but allow Alt-Tab to change z-order normally.
+        pos->flags &= ~static_cast<UINT>(SWP_NOMOVE | SWP_NOSIZE);
         pos->x = g_fullscreen_target.left;
         pos->y = g_fullscreen_target.top;
         pos->cx = g_fullscreen_target.right - g_fullscreen_target.left;
@@ -109,7 +111,7 @@ LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         return 0;
     }
 
-    if (message == WM_NCHITTEST && !IsZoomed(window) && !g_fullscreen_active) {
+    if (message == WM_NCHITTEST && g_custom_caption && !IsZoomed(window) && !g_fullscreen_active) {
         POINT point{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         RECT bounds{};
         GetWindowRect(window, &bounds);
@@ -127,6 +129,25 @@ LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         if (right) return HTRIGHT;
         if (top) return HTTOP;
         if (bottom) return HTBOTTOM;
+    }
+
+    if (message == WM_MAVIMUSIC_FULLSCREEN) {
+        return set_fullscreen(window, wparam != 0) ? 1 : 0;
+    }
+    if (g_fullscreen_active && message == WM_ACTIVATE) {
+        // Cover the taskbar only while this fullscreen window is active.
+        SetWindowPos(window, LOWORD(wparam) == WA_INACTIVE ? HWND_NOTOPMOST : HWND_TOPMOST,
+            0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+    if (g_fullscreen_active && (message == WM_DISPLAYCHANGE || message == WM_DPICHANGED)) {
+        MONITORINFO monitor{sizeof(MONITORINFO)};
+        if (GetMonitorInfoW(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST), &monitor)) {
+            g_fullscreen_target = monitor.rcMonitor;
+            SetWindowPos(window, nullptr, monitor.rcMonitor.left, monitor.rcMonitor.top,
+                monitor.rcMonitor.right - monitor.rcMonitor.left,
+                monitor.rcMonitor.bottom - monitor.rcMonitor.top,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+        }
     }
 
     if (message == WM_MAVIMUSIC_DRAG) {
@@ -161,7 +182,7 @@ LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         : DefWindowProcW(window, message, wparam, lparam);
 }
 
-bool install_frame(HWND window) {
+bool install_frame(HWND window, bool custom_caption) {
     if (window == nullptr) return false;
     if (window == g_window && g_original_proc != nullptr) return true;
 
@@ -172,6 +193,9 @@ bool install_frame(HWND window) {
 
     g_window = window;
     g_original_proc = previous;
+    g_custom_caption = custom_caption;
+    // Standard Windows decorations stay untouched; fullscreen works with either caption.
+    if (!custom_caption) return true;
 
     LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
     style &= ~static_cast<LONG_PTR>(WS_POPUP);
@@ -239,9 +263,8 @@ bool send_system_command(UINT command) {
  * can never cover a taskbar told to stay on top, so this is what the player's full-screen button
  * and F11 ask for. The window's own style and rectangle survive the trip and come back on exit.
  *
- * The popup is pushed a few pixels past every edge of the monitor, so DWM's rounded-corner cutout
- * and any sub-pixel seam where the surface used to stop land off-screen rather than showing the
- * desktop through them. WM_WINDOWPOSCHANGING pins that rectangle and the topmost band from then on.
+ * Square DWM corners and exact monitor bounds keep the client fully visible. The normal caption
+ * and window placement are restored on exit, including a previously maximized window.
  */
 bool set_fullscreen(HWND window, bool on) {
     if (window == nullptr || !IsWindow(window)) return false;
@@ -253,14 +276,10 @@ bool set_fullscreen(HWND window, bool on) {
         if (handle == nullptr || GetMonitorInfoW(handle, &monitor) == FALSE) return false;
 
         g_fullscreen_style = GetWindowLongPtrW(window, GWL_STYLE);
-        if (GetWindowRect(window, &g_fullscreen_rect) == FALSE) return false;
-        constexpr int OVERSHOOT = 8;
-        g_fullscreen_target = RECT{
-            monitor.rcMonitor.left - OVERSHOOT,
-            monitor.rcMonitor.top - OVERSHOOT,
-            monitor.rcMonitor.right + OVERSHOOT,
-            monitor.rcMonitor.bottom + OVERSHOOT,
-        };
+        if (!GetWindowPlacement(window, &g_fullscreen_placement)) return false;
+        g_fullscreen_ex_style = GetWindowLongPtrW(window, GWL_EXSTYLE);
+        // Every control must remain inside the physical monitor; no off-screen overscan.
+        g_fullscreen_target = monitor.rcMonitor;
 
         // Corners squared off and no extended frame: the material and the rounded-corner mask are
         // what left the see-through ring around the edges. The flag goes up first so the enabling
@@ -274,12 +293,17 @@ bool set_fullscreen(HWND window, bool on) {
         DwmExtendFrameIntoClientArea(window, &no_frame);
 
         SetWindowLongPtrW(window, GWL_STYLE, WS_POPUP | (g_fullscreen_style & WS_VISIBLE));
-        SetWindowPos(
+        if (!SetWindowPos(
             window, HWND_TOPMOST,
             g_fullscreen_target.left, g_fullscreen_target.top,
             g_fullscreen_target.right - g_fullscreen_target.left,
             g_fullscreen_target.bottom - g_fullscreen_target.top,
-            SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+            SWP_FRAMECHANGED | SWP_SHOWWINDOW)) {
+            g_fullscreen_active = false;
+            SetWindowLongPtrW(window, GWL_STYLE, g_fullscreen_style);
+            SetWindowPlacement(window, &g_fullscreen_placement);
+            return false;
+        }
         return true;
     }
 
@@ -291,12 +315,11 @@ bool set_fullscreen(HWND window, bool on) {
         &rounded, sizeof(rounded));
 
     SetWindowLongPtrW(window, GWL_STYLE, g_fullscreen_style);
+    SetWindowPlacement(window, &g_fullscreen_placement);
     SetWindowPos(
-        window, HWND_NOTOPMOST,
-        g_fullscreen_rect.left, g_fullscreen_rect.top,
-        g_fullscreen_rect.right - g_fullscreen_rect.left,
-        g_fullscreen_rect.bottom - g_fullscreen_rect.top,
-        SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+        window, (g_fullscreen_ex_style & WS_EX_TOPMOST) ? HWND_TOPMOST : HWND_NOTOPMOST,
+        0, 0, 0, 0,
+        SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
     // Hand the frame's own shadow margin and any material back; DesktopWindowBackdrop.apply()
     // re-asserts the chosen material over the top of this on the Kotlin side.
     const MARGINS shadow_frame{1, 1, 1, 1};
@@ -796,8 +819,8 @@ extern "C" {
 
 JNIEXPORT jboolean JNICALL
 Java_com_music_mavimusic_desktop_DesktopWindowsFrame_nativeInstall(
-    JNIEnv* env, jclass, jstring title) {
-    return install_frame(find_window(env, title)) ? JNI_TRUE : JNI_FALSE;
+    JNIEnv* env, jclass, jstring title, jboolean custom_caption) {
+    return install_frame(find_window(env, title), custom_caption == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -828,7 +851,10 @@ Java_com_music_mavimusic_desktop_DesktopWindowsFrame_nativeToggleMaximize(JNIEnv
 
 JNIEXPORT jboolean JNICALL
 Java_com_music_mavimusic_desktop_DesktopWindowsFrame_nativeSetFullscreen(JNIEnv*, jclass, jboolean on) {
-    return set_fullscreen(g_window, on == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+    HWND window = g_window;
+    if (window == nullptr || !IsWindow(window)) return JNI_FALSE;
+    // Change HWND styles on its owner thread, not an arbitrary coroutine thread.
+    return SendMessageW(window, WM_MAVIMUSIC_FULLSCREEN, on == JNI_TRUE, 0) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL
