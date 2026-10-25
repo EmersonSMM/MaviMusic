@@ -39,7 +39,8 @@ internal object DesktopWindowsWindowLayout {
                 (screen.height - insets.top - insets.bottom).coerceAtLeast(1))
             val minimum = minimum(work)
             if (window.minimumSize != minimum) window.minimumSize = minimum
-            if (window.maximizedBounds != work) window.maximizedBounds = work
+            // A decorated HWND lets Windows maximize against the current work area itself.
+            // Supplying custom maximizedBounds can interfere with mixed-DPI monitor handling.
             if (resize && window.extendedState == Frame.NORMAL) {
                 val fitted = fit(window.bounds, work)
                 if (fitted != window.bounds) window.bounds = fitted

@@ -80,3 +80,5 @@ Prompt de continuidad:
 - `windowsWindowSmoke` ejecuta una JVM Windows separada con un JFrame de prueba: caption nativa, tres ciclos fullscreen, límites/insets y restauración de maximizado. No inicia MaviMusic ni su perfil real.
 - Check Linux instala dependencias de audio/display y usa Xvfb como Release. El fallo anterior estaba en la carga nativa de FFmpeg.
 - Validación local Mac: 627 pruebas JVM aprobadas, 2 omitidas (llavero y prueba HWND Windows opt-in). Sin validación visual en hardware Windows.
+
+- Barra inferior Windows compacta (menos de 1440 dp): altura de 110 dp y controles auxiliares con FlowRow; conserva todas las acciones y el slider de volumen. Mac conserva su disposición anterior.
