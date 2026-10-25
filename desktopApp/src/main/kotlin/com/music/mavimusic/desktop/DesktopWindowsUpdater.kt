@@ -82,12 +82,11 @@ internal object DesktopWindowsUpdater {
         val downloads = persistence.boolean(KEY_WINDOWS_DOWNLOADS, false)
         mutableState.update { it.copy(automaticChecks = checks, automaticDownloads = downloads) }
 
-        if (checks) {
-            val lastCheck = persistence.string(KEY_LAST_CHECK, "0").toLongOrNull() ?: 0L
-            val now = System.currentTimeMillis()
-            // Auto-check once per 4 hours on startup
-            if (now - lastCheck > 4 * 3600 * 1000L) {
-                check(silent = true)
+        if (checks) check(silent = true)
+        scope.launch {
+            while (true) {
+                delay(8 * 60 * 60 * 1000L)
+                if (state.value.automaticChecks) check(silent = true)
             }
         }
     }
@@ -152,7 +151,7 @@ internal object DesktopWindowsUpdater {
                         mutableState.update {
                             it.copy(
                                 checking = false,
-                                updateAvailable = false,
+                                updateAvailable = false, installerPath = null, downloadUrl = "", latestVersion = "",
                                 message = "MaviMusic ya está en la versión más reciente ($currentVersion).",
                             )
                         }

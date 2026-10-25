@@ -702,7 +702,7 @@ compose.desktop {
                         <key>SUEnableSystemProfiling</key><false/>
                         <key>SUShowReleaseNotes</key><true/>
                         <key>SUEnableInstallerLauncherService</key><true/>
-                        <key>SUScheduledCheckInterval</key><integer>86400</integer>
+                        <key>SUScheduledCheckInterval</key><integer>28800</integer>
                         <key>CFBundleDocumentTypes</key>
                         <array>
                             <dict>

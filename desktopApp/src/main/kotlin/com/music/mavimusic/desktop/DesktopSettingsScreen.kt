@@ -1874,7 +1874,7 @@ internal fun DesktopSettingsScreen(
 }
 
 @Composable
-private fun DesktopUpdateSettings() {
+internal fun DesktopUpdateSettings() {
     if (DesktopPlatform.isWindows) {
         val winUpdate by DesktopWindowsUpdater.state.collectAsState()
         SettingsGroup("Actualizaciones del Sistema") {

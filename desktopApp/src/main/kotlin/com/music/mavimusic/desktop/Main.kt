@@ -234,6 +234,7 @@ private fun desktopMain() = application {
             LocalDesktopWindowScope provides this,
         ) {
             MaviMusicDesktopApp()
+            DesktopUpdateNoticeDialog()
         }
     }
 

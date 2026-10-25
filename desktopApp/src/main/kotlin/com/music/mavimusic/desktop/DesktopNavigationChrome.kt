@@ -382,6 +382,7 @@ internal fun DesktopTopBar(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MaviMusicFireWordmark()
+                    DesktopUpdatePill()
                     Spacer(Modifier.width(12.dp))
                     DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
                         Icon(

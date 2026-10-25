@@ -238,3 +238,8 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 
 ### 2. Texto del botón de actualización
 - Causa confirmada: DesktopAccent es blanco y el botón antiguo forzaba texto blanco. No era una fuente ausente. Se usa un componente compartido con contraste calculado, fuente SansSerif del sistema y colores de deshabilitado explícitos. La etiqueta permanece visible en descarga y preparación; errores y reintento no eliminan el botón.
+
+### 3. Aviso no invasivo
+- Windows consulta al arrancar y cada 8 h con una corrutina suspendida, sin polling ni avisos de red en pantalla. La preferencia de comprobación automática se respeta.
+- Píldora solo si hay versión nueva; no compone espaciadores cuando no existe. Abre versión, notas y acciones en Windows; en Mac abre el flujo nativo Sparkle.
+- Sparkle usa recordatorios suaves gestionados por la app (sin ventana programada intrusiva); conserva su UI cuando el usuario pide actualizar. Intervalo programado de 8 h.
