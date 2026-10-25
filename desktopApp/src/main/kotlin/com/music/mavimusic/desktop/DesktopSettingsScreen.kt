@@ -1844,6 +1844,7 @@ internal fun DesktopSettingsScreen(
             }
             }
             item {
+                SettingsGroup("Diagnóstico") { DesktopDiagnosticsSettings() }
                 DesktopUpdateSettings()
                 DesktopSettingsFooter(onLicenses = onOpenLicenses)
             }

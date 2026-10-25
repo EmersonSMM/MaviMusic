@@ -326,7 +326,6 @@ jobs:
       contents: write
     name: Publish
     needs: [linux, windows, macos]
-    if: always() && needs.macos.result == 'success' && needs.windows.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -358,15 +357,11 @@ jobs:
           test -s dist/appcast-x64.xml
           (cd dist && shasum -a 256 * > SHA256SUMS)
 
-      # Publishing the reviewed draft makes /releases/latest/download/appcast-*.xml live atomically.
-      - name: Publish the release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.value }}
-          target_commitish: ${{ github.sha }}
-          name: MaviMusic ${{ steps.version.outputs.value }}
-          body_path: release-notes.md
-          draft: false
-          files: dist/*
+      - name: Upload, verify and publish the complete draft
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          python3 scripts/updates/publish_release.py \
+            --directory dist --version "$RELEASE_VERSION" --commit "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" --notes release-notes.md
