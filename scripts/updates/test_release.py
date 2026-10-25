@@ -68,11 +68,14 @@ class ReleaseTest(unittest.TestCase):
                 if endpoint.startswith('git/ref'):
                     return {'object': {'type': 'commit', 'sha': test.commit}}
                 if endpoint.startswith('releases/tags/'):
+                    raise AssertionError('Drafts cannot be queried by tag')
+                if endpoint.startswith('releases?') or endpoint == 'releases/42':
                     if not public and not any(c[:2] == ('release', 'create') for c in self.commands):
-                        return None
+                        return [] if endpoint.startswith('releases?') else None
                     assets = [{'name': p.name, 'size': p.stat().st_size, 'state': 'uploaded', 'digest': 'sha256:' + release.sha256(p)} for p in test.root.iterdir()]
                     if corrupt: assets[0]['digest'] = 'sha256:incorrect'
-                    return {'draft': self.draft, 'target_commitish': test.commit, 'assets': assets, 'html_url': 'https://example.invalid/release'}
+                    value = {'id': 42, 'tag_name': 'v' + test.version, 'draft': self.draft, 'target_commitish': test.commit, 'assets': assets, 'html_url': 'https://example.invalid/release'}
+                    return [value] if endpoint.startswith('releases?') else value
         return Hub()
 
     def test_draft_is_published_only_after_every_uploaded_digest_matches(self):
@@ -99,6 +102,14 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'newer'):
             release.publish(hub, self.root, self.version, self.commit, Path('notes'))
         self.assertFalse(any(c[:2] == ('release', 'edit') for c in hub.commands))
+
+    def test_authenticated_listing_finds_draft_on_later_page(self):
+        class Hub:
+            def api(self, endpoint):
+                if endpoint.endswith('page=1'):
+                    return [{'tag_name': f'v0.0.{i}'} for i in range(100)]
+                return [{'id': 42, 'tag_name': 'v1.8.50', 'draft': True}]
+        self.assertEqual(42, release.find_release(Hub(), 'v1.8.50')['id'])
 
     def test_wrong_tag_commit_blocks_uploads(self):
         hub = self.hub()

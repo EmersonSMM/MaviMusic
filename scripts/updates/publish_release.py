@@ -90,6 +90,20 @@ class GitHub:
         return json.loads(result.stdout)
 
 
+def find_release(hub, tag):
+    # The tag endpoint only resolves published releases. Authenticated listing includes drafts.
+    for page in range(1, 101):
+        releases = hub.api(f'releases?per_page=100&page={page}')
+        matches = [release for release in releases if release['tag_name'] == tag]
+        if len(matches) > 1:
+            raise ValueError('Ambiguous release tag')
+        if matches:
+            return matches[0]
+        if len(releases) < 100:
+            return None
+    raise ValueError('Release listing exceeded the verification limit')
+
+
 def check_tag(hub, version, commit, missing=False):
     ref = hub.api(f'git/ref/tags/v{version}', missing=missing)
     if ref is None:
@@ -128,7 +142,7 @@ def publish(hub, directory, version, commit, notes):
     check_latest(hub, version)
     check_tag(hub, version, commit, missing=True)
     tag = f'v{version}'
-    existing = hub.api(f'releases/tags/{tag}', missing=True)
+    existing = find_release(hub, tag)
     if existing and (not existing['draft'] or existing['target_commitish'] != commit):
         raise ValueError('Refusing to overwrite an existing release from another build')
     if not existing:
@@ -137,11 +151,15 @@ def publish(hub, directory, version, commit, notes):
     check_tag(hub, version, commit)
     hub.run('release', 'upload', tag, '--repo', hub.repo, '--clobber',
             *(str(directory / name) for name in sorted(expected)))
-    verify_uploaded(hub.api(f'releases/tags/{tag}'), expected, commit)
+    uploaded = find_release(hub, tag)
+    if uploaded is None:
+        raise RuntimeError('Uploaded draft was not found')
+    release_endpoint = f'releases/{uploaded["id"]}'
+    verify_uploaded(hub.api(release_endpoint), expected, commit)
     # Recheck after uploads to avoid replacing a newer channel published in the meantime.
     check_latest(hub, version)
     hub.run('release', 'edit', tag, '--repo', hub.repo, '--draft=false', '--latest')
-    released = hub.api(f'releases/tags/{tag}')
+    released = hub.api(release_endpoint)
     if released['draft']:
         raise RuntimeError('GitHub did not publish the verified draft')
     print(f'Published complete release: {released["html_url"]}')
