@@ -207,6 +207,15 @@ internal fun DesktopCommandPalette(
                 action = { onOpenImmersiveLyrics(); onDismiss() },
             ),
             PaletteItem.Command(
+                title = DesktopStrings["command_karaoke", "Modo Karaoke (Supresión vocal)"],
+                subtitle = "Atenuar o restaurar la voz del cantante en tiempo real con tecla K",
+                icon = Icons.Rounded.Mic,
+                action = {
+                    DesktopKaraokeSettings.setActive(!DesktopKaraokeSettings.isActive.value)
+                    onDismiss()
+                },
+            ),
+            PaletteItem.Command(
                 title = DesktopStrings["command_volume_normalization", "Normalización de volumen (LUFS -14 dB)"],
                 subtitle = "Nivelación automática de volumen entre pistas para evitar saltos",
                 icon = Icons.Rounded.VolumeUp,

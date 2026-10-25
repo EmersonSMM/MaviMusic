@@ -306,6 +306,19 @@ internal fun DesktopImmersiveLyricsScreen(
                     return@KeyEventDispatcher true
                 }
             }
+            if (event.id == KeyEvent.KEY_PRESSED &&
+                event.keyCode == KeyEvent.VK_K &&
+                !event.isMetaDown &&
+                !event.isControlDown &&
+                !event.isAltDown &&
+                DesktopKaraokeSettings.isFeatureEnabled()
+            ) {
+                val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+                if (focusOwner !is JTextComponent) {
+                    DesktopKaraokeSettings.setActive(!DesktopKaraokeSettings.isActive.value)
+                    return@KeyEventDispatcher true
+                }
+            }
             false
         }
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(dispatcher)

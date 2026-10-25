@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Pause
@@ -577,6 +578,22 @@ internal fun DesktopBottomPlayerBar(
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    val karaokeFeatureOn by DesktopKaraokeSettings.featureEnabled.collectAsState()
+                    if (karaokeFeatureOn) {
+                        val isKaraokeActive by DesktopKaraokeSettings.isActive.collectAsState()
+                        DesktopToolbarButton(
+                            onClick = { DesktopKaraokeSettings.setActive(!isKaraokeActive) },
+                            size = 32.dp,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Mic,
+                                contentDescription = if (isKaraokeActive) "Modo Karaoke (Activo)" else "Modo Karaoke (K)",
+                                tint = if (isKaraokeActive) Color(0xFF00E5FF) else DesktopSecondary,
+                                modifier = Modifier.size(18.dp),
+                            )
                         }
                     }
 
