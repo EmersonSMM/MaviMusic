@@ -724,8 +724,8 @@ internal fun DesktopSidebarItem(
             )
         }
         if (onHide != null) {
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
+            DesktopGlassMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DesktopGlassMenuItem(
                     text = { Text(DesktopStrings["hide_from_sidebar", "Hide from sidebar"]) },
                     onClick = {
                         menuOpen = false
@@ -776,9 +776,9 @@ internal fun DesktopSidebarRestoreRow(hidden: Map<String, String>) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DesktopGlassMenu(expanded = open, onDismissRequest = { open = false }) {
             hidden.forEach { (key, label) ->
-                DropdownMenuItem(
+                DesktopGlassMenuItem(
                     text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     onClick = {
                         DesktopSidebarVisibility.show(key)
@@ -787,7 +787,7 @@ internal fun DesktopSidebarRestoreRow(hidden: Map<String, String>) {
                 )
             }
             if (hidden.size > 1) {
-                DropdownMenuItem(
+                DesktopGlassMenuItem(
                     text = { Text(DesktopStrings["show_all", "Show all"]) },
                     onClick = {
                         DesktopSidebarVisibility.showAll()

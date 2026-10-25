@@ -1049,9 +1049,9 @@ internal fun DesktopSettingsScreen(
                             DesktopStrings["app_language", "App language"],
                             DesktopStrings.languageLabel(),
                         ) { languageMenuOpen = true }
-                        DropdownMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                        DesktopGlassMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
                             DesktopStrings.available.forEach { language ->
-                                DropdownMenuItem(
+                                DesktopGlassMenuItem(
                                     text = { Text(language.label) },
                                     trailingIcon = if (language.tag == chosen) {
                                         { Icon(MaviMusicIcons.Check, contentDescription = null) }

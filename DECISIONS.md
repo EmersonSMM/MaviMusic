@@ -253,3 +253,8 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - Prioridad: menús/paleta y panel flotante de cola; después panel de letras; después vista de letras/reproductor; por último modo inmersivo y navegación de Ajustes. Los popups con foco procesan su propio Escape antes de volver a la ventana principal.
 - El dispatcher inmersivo solo consume Escape cuando su ventana tiene foco. Q y K existentes se conservan; no se cambia reproducción ni seek.
 - Cierre compartido con IconButton de 44 dp (al menos 40 px al escalado normal), hover de Material y tooltip «Cerrar (Esc)». Se sitúa dentro del contenido, separado de los botones nativos de ventana.
+
+### 6. Menús glass compartidos
+- Radio de contenedor 20 dp y filas 12 dp, borde de 0,5 dp y sombra suave. Contexto de canciones y desplegables usan el mismo modificador/componentes, sin cambiar acciones.
+- Se reutiliza Haze/desktopChromeGlass y su fallback cuando se reduce el desenfoque. No se aplica blur al texto. Pendiente validar captura de fondo entre ventanas Popup en cada backend Windows/Mac; si Haze no puede capturarlo queda el tinte legible, no texto difuminado.
+- Colores semánticos de Material para el menú compartido. El tema global existente sigue siendo oscuro; no se afirma haber implementado un tema claro global nuevo.
