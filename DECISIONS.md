@@ -285,3 +285,8 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - Sparkle admite DMG como archivo de actualización firmado (https://sparkle-project.org/documentation/publishing/). Se inspecciona el DMG real montado de solo lectura y desmontado, comprobando bundle, versión, arquitectura y configuración de confianza. Se mantienen clave pública y feed, sin acceso automático al llavero ni cambios al motor de audio.
 - Check sigue automático para Windows/macOS y backend, con las suites existentes; los empaquetados pesados pasan al flujo manual. Mac compila el puente nativo y verifica las firmas, incluida una imagen DMG sintética con clave temporal.
 - Verificación local: suites JVM correctas antes y después; herramientas Python pasan de 24 a 27 pruebas correctas. Se construyó packageDmg y se inspeccionó el instalador real (bundle/versión/arquitectura/configuración de Sparkle). Pendiente CI Windows/macOS de esta política; no se publicó ni se borró ninguna release para probarla.
+
+
+## Colaboradores en la documentación
+
+Se retiran los workflows heredados que actualizaban listas de colaboradores y publicaban una imagen de avatares, junto con su generador. Se deshabilitan ambos en GitHub y se retira la rama auxiliar de la imagen (solo contenía contributors.svg, generado por el bot). README.md y MAINTAINERS.md actuales no contenían listas de terceros; MAINTAINERS.md conserva únicamente el repositorio de mantenimiento actual y los avisos de atribución necesarios. Esta limpieza no modifica el historial de commits ni las licencias de los componentes.
