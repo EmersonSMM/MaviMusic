@@ -1,5 +1,17 @@
 # Novedades de MaviMusic
 
+## 1.8.51
+
+- **Efectos GPU Activos por Defecto (macOS & Windows)**:
+  - Los visualizadores acelerados por hardware GPU (Túnel Neón, Superficie Líquida y Partículas Cósmicas) impulsados por Shaders SkSL y compilados nativamente a Apple Metal (macOS) y Direct3D (Windows) ahora están activados por defecto.
+- **Rediseño Glass del Menú de Opciones en el Mini Reproductor (Widget macOS)**:
+  - Eliminación total del popup rectangular blanco que desentonaba con el widget.
+  - Nuevo diseño de menú flotante en cristal oscuro translúcido (`liquid obsidian glass`), bordes finos iluminados (`0.5.dp`), esquinas redondeadas (`14.dp`) e iconografía vectorial en alta definición.
+- **Reproductor de Música Local Estilo Winamp en Ajustes (macOS & Windows)**:
+  - Nueva sección interactiva en Ajustes para reproducir música local descargada.
+  - Selección de carpeta con conteo instantáneo de canciones detectadas (MP3, FLAC, WAV, M4A, AAC, OGG).
+  - Botones directos para **«▶ Reproducir carpeta ahora»** y **«🔀 Reproducir en aleatorio (Shuffle)»** al más puro estilo Winamp, además de acceso rápido a la biblioteca local completa.
+
 ## 1.8.50
 
 - **Actualizaciones Automáticas en Windows**:

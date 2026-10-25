@@ -21,7 +21,7 @@ object DesktopGpuSettings {
 
     private val persistence = DesktopPersistence()
 
-    private val _enabled = MutableStateFlow(persistence.boolean(PREF_KEY_ENABLED, false))
+    private val _enabled = MutableStateFlow(persistence.boolean(PREF_KEY_ENABLED, true))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
     private val _targetFps = MutableStateFlow(

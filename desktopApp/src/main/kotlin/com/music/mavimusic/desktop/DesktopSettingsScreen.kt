@@ -410,6 +410,8 @@ internal fun DesktopSettingsScreen(
     onFilterNonMusicAudioChange: (Boolean) -> Unit,
     onChooseLocalMusicFolder: (onChosen: () -> Unit) -> Unit,
     onLocalMusicFolderChanged: () -> Unit,
+    onPlayLocalSongs: ((List<Song>, Int) -> Unit)? = null,
+    onNavigateToLocalMusic: (() -> Unit)? = null,
     syncedLyrics: Boolean,
     onSyncedLyricsChange: (Boolean) -> Unit,
     lyricsBlur: Boolean,
@@ -1100,38 +1102,144 @@ internal fun DesktopSettingsScreen(
                 }
             }
             if (section == DesktopSettingsSection.LOCAL_MUSIC) item {
-                SettingsGroup(DesktopStrings["local_music", "Local Music"]) {
-                    var folderLabel by remember { mutableStateOf(DesktopLocalMusic.folderLabel()) }
-                    SettingsRow(
-                        Icons.Rounded.Folder,
-                        "Local music folder",
-                        folderLabel,
+                SettingsGroup(DesktopStrings["local_music", "Música Local (Reproductor Winamp)"]) {
+                    var folderPath by remember { mutableStateOf(DesktopLocalMusic.folder()) }
+                    var localSongs by remember(folderPath) { mutableStateOf(DesktopLocalMusic.scan()) }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
                     ) {
-                        onChooseLocalMusicFolder { folderLabel = DesktopLocalMusic.folderLabel() }
-                    }
-                    if (DesktopLocalMusic.folder() != null) {
-                        SettingsRow(
-                            MaviMusicIcons.Library,
-                            DesktopStrings["use_all_audio_folders", "Use all audio folders"],
-                            DesktopStrings["use_all_audio_folders_subtitle", "Remove the folder limit and scan music across the device"],
+                        Text(
+                            "Reproductor de Música Local",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Carga una carpeta de tu equipo (con archivos MP3, FLAC, WAV, M4A, AAC u OGG) para escuchar tus descargas y música local con ecualización de estudio y transiciones fluidas.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DesktopSecondary,
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        val folderCardShape = RoundedCornerShape(12.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(folderCardShape)
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), folderCardShape)
+                                .padding(14.dp),
                         ) {
-                            DesktopLocalMusic.setFolder(null)
-                            folderLabel = DesktopLocalMusic.folderLabel()
-                            onLocalMusicFolderChanged()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Rounded.Folder,
+                                    null,
+                                    tint = DesktopAccent,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        text = folderPath?.toAbsolutePath()?.toString() ?: "Sin carpeta configurada",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (folderPath != null) Color.White else DesktopSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = if (folderPath != null) {
+                                            "${localSongs.size} canciones encontradas en esta carpeta"
+                                        } else {
+                                            "Selecciona una carpeta para cargar tus archivos locales"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (localSongs.isNotEmpty()) DesktopAccent else DesktopSecondary,
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Button(
+                                    onClick = {
+                                        onChooseLocalMusicFolder {
+                                            folderPath = DesktopLocalMusic.folder()
+                                            localSongs = DesktopLocalMusic.scan()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
+                                ) {
+                                    Icon(Icons.Rounded.Folder, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(if (folderPath == null) "Elegir carpeta" else "Cambiar carpeta", color = Color.White)
+                                }
+
+                                if (localSongs.isNotEmpty()) {
+                                    Button(
+                                        onClick = {
+                                            onPlayLocalSongs?.invoke(localSongs, 0)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),
+                                    ) {
+                                        Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Reproducir carpeta", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            val shuffled = localSongs.shuffled()
+                                            onPlayLocalSongs?.invoke(shuffled, 0)
+                                        },
+                                    ) {
+                                        Icon(MaviMusicIcons.Shuffle, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Aleatorio", color = Color.White)
+                                    }
+                                }
+                            }
+
+                            if (localSongs.isNotEmpty() && onNavigateToLocalMusic != null) {
+                                Spacer(Modifier.height(10.dp))
+                                TextButton(
+                                    onClick = onNavigateToLocalMusic,
+                                ) {
+                                    Icon(MaviMusicIcons.Library, null, tint = DesktopAccent, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Abrir lista completa en Biblioteca Local →", color = DesktopAccent)
+                                }
+                            }
                         }
                     }
+
+                    HorizontalDivider(thickness = 0.5.dp, color = Color(0x1AFFFFFF), modifier = Modifier.padding(vertical = 8.dp))
+
                     SettingsToggle(
-                        DesktopStrings["filter_non_music_audio", "Filter non-music audio"],
+                        DesktopStrings["filter_non_music_audio", "Filtrar audios cortos y grabaciones"],
                         DesktopStrings[
                             "filter_non_music_audio_subtitle",
-                            "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds",
+                            "Oculta audios de menos de 30 segundos, notas de voz y sonidos del sistema",
                         ],
                         filterNonMusicAudio,
-                        onFilterNonMusicAudioChange,
+                        {
+                            onFilterNonMusicAudioChange(it)
+                            localSongs = DesktopLocalMusic.scan()
+                        },
                     )
                     var bpmEnabled by remember { mutableStateOf(DesktopBpmAnalyzer.isEnabled()) }
                     SettingsToggle(
-                        DesktopStrings["bpm_analyzer_title", "Análisis de tempo (BPM) de la biblioteca"],
+                        DesktopStrings["bpm_analyzer_title", "Análisis de tempo (BPM) de la biblioteca local"],
                         DesktopStrings[
                             "bpm_analyzer_subtitle",
                             "Detecta y guarda el BPM en segundo plano para listas inteligentes y ajuste de tono Key Lock",

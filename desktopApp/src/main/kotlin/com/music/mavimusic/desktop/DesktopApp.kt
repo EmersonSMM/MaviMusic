@@ -4524,6 +4524,14 @@ fun MaviMusicDesktopApp() {
                                         }
                                     },
                                     onLocalMusicFolderChanged = { localMusicRevision++ },
+                                    onPlayLocalSongs = { songs, at ->
+                                        overlays.settingsPage = null
+                                        playSongs(songs, at, DesktopQueueSource(DesktopStrings["local_music", "Música local"], PlaybackSourceType.BROWSE))
+                                    },
+                                    onNavigateToLocalMusic = {
+                                        overlays.settingsPage = null
+                                        selectDestination(DesktopDestination.LOCAL_MUSIC)
+                                    },
                                     filterNonMusicAudio = filterNonMusicAudio,
                                     onFilterNonMusicAudioChange = {
                                         filterNonMusicAudio = it

@@ -32,6 +32,9 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.VolumeDown
 import androidx.compose.material.icons.rounded.VolumeMute
 import androidx.compose.material.icons.rounded.VolumeUp
@@ -40,6 +43,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -311,43 +315,57 @@ internal fun DesktopTopMiniPlayer(
                         DropdownMenu(
                             expanded = moreMenuOpen,
                             onDismissRequest = { moreMenuOpen = false },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFA141419))
+                                .border(0.5.dp, Color(0x38FFFFFF), RoundedCornerShape(14.dp)),
                         ) {
                             if (song != null && onOpenSongMenu != null) {
                                 DropdownMenuItem(
-                                    text = { Text("⋯ Opciones de la canción") },
+                                    text = { Text("Opciones de la canción", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = { Icon(Icons.Rounded.MoreHoriz, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
                                     onClick = {
                                         moreMenuOpen = false
                                         onOpenSongMenu(song)
                                     },
+                                    colors = MenuDefaults.itemColors(textColor = Color.White),
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("🎲 Azar") },
+                                text = { Text("Modo Azar (Shuffle)", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.Shuffle, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     onFeelingLucky()
                                 },
+                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
                             DropdownMenuItem(
-                                text = { Text("🪟 Abrir MaviMusic") },
+                                text = { Text("Abrir MaviMusic", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.OpenInFull, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     onOpenNowPlaying()
                                 },
+                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
                             DropdownMenuItem(
-                                text = { Text("🔍 Spotlight / Buscar (⌘K)") },
+                                text = { Text("Buscar / Paleta (⌘K)", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     DesktopSpotlightState.show()
                                 },
+                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
                             DropdownMenuItem(
-                                text = { Text("⚙ Ajustes") },
+                                text = { Text("Ajustes", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.Settings, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     onToggleExpand()
                                 },
+                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
                         }
                     }
