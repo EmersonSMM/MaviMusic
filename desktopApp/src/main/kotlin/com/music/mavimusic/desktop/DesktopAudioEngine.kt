@@ -814,6 +814,8 @@ class DesktopPlaybackEngine(
      */
     private var equalizer = DesktopEqualizer()
     private var equalizerIncoming = DesktopEqualizer()
+    private var autoEq = DesktopAutoEqProcessor()
+    private var autoEqIncoming = DesktopAutoEqProcessor()
     private var silence: DesktopSilenceSkipper? = null
 
     /** The playing track's heard position, on the sink's played-frame count; see [play]. */
@@ -1016,8 +1018,9 @@ class DesktopPlaybackEngine(
     /** Mixes the outgoing track with the one coming in, filtering each side. */
     private fun blend(track: Track, block: FloatArray, count: Int): Pair<FloatArray, Int> {
         val incoming = upcoming
-        // Widened first, whether or not a mix is running, then equalised.
+        // Widened first, whether or not a mix is running, then headphone corrected, then equalised.
         widen(spatial, track, block, count)
+        autoEqProcess(autoEq, block, count)
         equalise(equalizer, block, count)
         if (fadeRemaining <= 0 || incoming == null) return block to count
 
@@ -1028,6 +1031,7 @@ class DesktopPlaybackEngine(
         incomingSourceFrames += otherCount.toDouble() / sink.format.channels.coerceAtLeast(1) * incomingRate
         if (other != null) {
             widen(spatialIncoming, incoming, other, otherCount)
+            autoEqProcess(autoEqIncoming, other, otherCount)
             equalise(equalizerIncoming, other, otherCount)
         }
         val channels = sink.format.channels.coerceAtLeast(1)
@@ -1236,6 +1240,12 @@ class DesktopPlaybackEngine(
         processor.process(samples, count)
     }
 
+    /** AutoEQ headphone correction, applied before user EQ. */
+    private fun autoEqProcess(processor: DesktopAutoEqProcessor, samples: FloatArray, count: Int) {
+        processor.setCorrection(autoEqEnabled, autoEqProfile, autoEqAbBypass)
+        processor.process(samples, count)
+    }
+
     private fun stretch(samples: FloatArray, count: Int): Pair<FloatArray, Int> {
         val processor = speedProcessor ?: return samples to count
         processor.speed = playbackSpeed
@@ -1298,6 +1308,10 @@ class DesktopPlaybackEngine(
         equalizer = promoted
         // Whichever is now idle starts the next incoming track clean.
         equalizerIncoming.reset()
+        val promotedAutoEq = autoEqIncoming
+        autoEqIncoming = autoEq
+        autoEq = promotedAutoEq
+        autoEqIncoming.reset()
         upcoming = null
         nextSong = null
         fadeRemaining = 0
@@ -1559,6 +1573,8 @@ class DesktopPlaybackEngine(
         spatialIncoming = DesktopSpatialAudio(sink.format.channels, sink.format.sampleRate)
         equalizer.configure(sink.format.channels, sink.format.sampleRate)
         equalizerIncoming.configure(sink.format.channels, sink.format.sampleRate)
+        autoEq.configure(sink.format.channels, sink.format.sampleRate)
+        autoEqIncoming.configure(sink.format.channels, sink.format.sampleRate)
         silence = DesktopSilenceSkipper(sink.format.channels, sink.format.sampleRate)
             .apply {
                 enabled = skipSilenceEnabled
@@ -1599,6 +1615,8 @@ class DesktopPlaybackEngine(
         spatialIncoming = DesktopSpatialAudio(sink.format.channels, sink.format.sampleRate)
         equalizer.configure(sink.format.channels, sink.format.sampleRate)
         equalizerIncoming.configure(sink.format.channels, sink.format.sampleRate)
+        autoEq.configure(sink.format.channels, sink.format.sampleRate)
+        autoEqIncoming.configure(sink.format.channels, sink.format.sampleRate)
         silence = DesktopSilenceSkipper(sink.format.channels, sink.format.sampleRate)
             .apply {
                 enabled = skipSilenceEnabled
@@ -1678,6 +1696,8 @@ class DesktopPlaybackEngine(
         // first moments of the new position.
         equalizer.reset()
         equalizerIncoming.reset()
+        autoEq.reset()
+        autoEqIncoming.reset()
         silence?.reset()
         resetPlayhead(track, millis * 1_000)
         // Cleared by [play] once the first of the new position's audio is on its way out.
@@ -2130,6 +2150,9 @@ class DesktopPlaybackEngine(
     @Volatile private var equalizerCurve: EqCurve = EqCurve.FLAT
 
     @Volatile private var equalizerBalance = 0f
+    @Volatile private var autoEqEnabled = false
+    @Volatile private var autoEqAbBypass = false
+    @Volatile private var autoEqProfile: AutoEqProfile? = null
     @Volatile private var skipSilenceEnabled = false
     @Volatile private var automixPerformance = AutomixPerformanceMode.BALANCED
 
@@ -2149,6 +2172,15 @@ class DesktopPlaybackEngine(
         equalizerCurve = curve
         equalizerBalance = balance.coerceIn(-1f, 1f)
         equalizerEnabled = enabled
+    }
+
+    /** Headphone correction via AutoEQ parametric biquad filters. */
+    fun setHeadphoneCorrection(enabled: Boolean, profile: AutoEqProfile?, abBypass: Boolean) {
+        autoEqProfile = profile
+        autoEqAbBypass = abBypass
+        autoEqEnabled = enabled
+        autoEq.setCorrection(enabled, profile, abBypass)
+        autoEqIncoming.setCorrection(enabled, profile, abBypass)
     }
 
     fun setSpatialAudio(enabled: Boolean) {

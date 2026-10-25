@@ -754,6 +754,13 @@ internal fun DesktopSettingsScreen(
                         },
                         onClick = onOpenEqualizer,
                     )
+                    val autoEqOn by DesktopAutoEqSettings.enabled.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["autoeq_title", "Corrección de auriculares (AutoEQ)"],
+                        DesktopStrings["autoeq_settings_desc", "Filtros paramétricos acústicos Harman Target y preamp anti-clipping"],
+                        autoEqOn,
+                        DesktopAutoEqSettings::setEnabled,
+                    )
                 }
             }
             if (section == DesktopSettingsSection.DESKTOP_PLAYBACK) item {

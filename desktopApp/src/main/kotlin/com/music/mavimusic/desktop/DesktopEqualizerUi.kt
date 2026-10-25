@@ -52,7 +52,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.music.mavimusic.playback.EqLayout
 import com.music.mavimusic.playback.EqualizerPreset
+import com.music.mavimusic.ui.components.SearchField
 import com.music.mavimusic.ui.icons.MaviMusicIcons
+import java.awt.EventQueue
+import java.awt.FileDialog
+import java.awt.Frame
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -129,6 +133,9 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                 color = DesktopSecondary,
                 modifier = Modifier.padding(horizontal = panelInset(22.dp), vertical = 6.dp),
             )
+            Spacer(Modifier.height(14.dp))
+            SectionLabel(DesktopStrings["autoeq_section", "Corrección de auriculares"])
+            AutoEqCard()
             Spacer(Modifier.height(8.dp))
         }
 
@@ -703,3 +710,320 @@ private const val ZERO_DETENT_DB = 0.6f
 
 /** Same, for the balance trim's own centre. */
 private const val BALANCE_DETENT = 0.04f
+
+@Composable
+internal fun AutoEqCard() {
+    val enabled by DesktopAutoEqSettings.enabled.collectAsState()
+    val abBypass by DesktopAutoEqSettings.abBypass.collectAsState()
+    val currentProfile by DesktopAutoEqSettings.currentProfile.collectAsState()
+    val audioDeviceChanges by DesktopAudioDevices.changes.collectAsState()
+    val audioDeviceName = remember(audioDeviceChanges) { DesktopAudioDevices.label() }
+    val suggestedProfile = remember(audioDeviceName) { AutoEqDatabase.suggestProfileForDevice(audioDeviceName) }
+
+    var showProfilePicker by remember { mutableStateOf(false) }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = panelInset(22.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .padding(14.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    DesktopStrings["autoeq_title", "Corrección de auriculares"],
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                )
+                Text(
+                    DesktopStrings["autoeq_subtitle", "Linealiza la respuesta acústica al estándar Harman"],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DesktopSecondary,
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = DesktopAutoEqSettings::setEnabled,
+                colors = desktopSwitchColors(),
+            )
+        }
+
+        if (enabled) {
+            Spacer(Modifier.height(12.dp))
+
+            // Profile selector button
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable { showProfilePicker = true }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        DesktopStrings["autoeq_profile_label", "Perfil activo"],
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DesktopSecondary,
+                    )
+                    Text(
+                        currentProfile.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                    )
+                }
+                Text(
+                    DesktopStrings["change", "Cambiar"],
+                    style = MaterialTheme.typography.labelMedium,
+                    color = DesktopAccent,
+                )
+            }
+
+            // Suggestion badge if detected and different
+            if (suggestedProfile != null && suggestedProfile.id != currentProfile.id) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(DesktopAccent.copy(alpha = 0.15f))
+                        .clickable { DesktopAutoEqSettings.selectProfile(suggestedProfile, audioDeviceName) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "Sugerido para dispositivo: ${suggestedProfile.name}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White,
+                    )
+                    Text(
+                        DesktopStrings["apply", "Aplicar"],
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = DesktopAccent,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // A/B instant comparison switch (level-matched)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    DesktopStrings["autoeq_ab_title", "Modo de audición"],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DesktopSecondary,
+                )
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (!abBypass) DesktopAccent else Color.Transparent)
+                            .clickable { DesktopAutoEqSettings.setAbBypass(false) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            "A: Con corrección",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (!abBypass) FontWeight.Bold else FontWeight.Normal,
+                            color = if (!abBypass) Color.Black else Color.White,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (abBypass) DesktopAccent else Color.Transparent)
+                            .clickable { DesktopAutoEqSettings.setAbBypass(true) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            "B: Bypass (nivelado)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (abBypass) FontWeight.Bold else FontWeight.Normal,
+                            color = if (abBypass) Color.Black else Color.White,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Technical stats row & Anti-clipping info
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Preamp: %.1f dB • %d filtros".format(Locale.ROOT, currentProfile.safePreampDb, currentProfile.filters.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DesktopSecondary,
+                )
+                Text(
+                    DesktopStrings["autoeq_import", "Importar archivo .txt"],
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DesktopAccent,
+                    modifier = Modifier.clickable {
+                        openAutoEqFilePicker { imported ->
+                            AutoEqDatabase.addCustomProfile(imported)
+                            DesktopAutoEqSettings.selectProfile(imported, audioDeviceName)
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    if (showProfilePicker) {
+        AutoEqProfilePickerDialog(
+            currentId = currentProfile.id,
+            onSelect = { profile ->
+                DesktopAutoEqSettings.selectProfile(profile, audioDeviceName)
+                showProfilePicker = false
+            },
+            onDismiss = { showProfilePicker = false },
+        )
+    }
+}
+
+@Composable
+private fun AutoEqProfilePickerDialog(
+    currentId: String,
+    onSelect: (AutoEqProfile) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val allProfiles = remember { AutoEqDatabase.allProfiles() }
+    val filtered = remember(query) {
+        if (query.isBlank()) allProfiles
+        else allProfiles.filter {
+            it.name.contains(query, ignoreCase = true) ||
+            it.brand.contains(query, ignoreCase = true) ||
+            it.model.contains(query, ignoreCase = true)
+        }
+    }
+
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 480, popup = true) {
+        Column(Modifier.padding(panelInset(20.dp))) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    DesktopStrings["autoeq_picker_title", "Perfil de auriculares"],
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                )
+                TextButton(onClick = onDismiss) {
+                    Text(DesktopStrings["cancel", "Cancelar"], color = DesktopSecondary)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                onSubmit = {},
+                placeholder = DesktopStrings["search_headphones", "Buscar marca o modelo (AirPods, Sony, Sennheiser...)"],
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                if (filtered.isEmpty()) {
+                    Text(
+                        DesktopStrings["no_results", "No se encontraron modelos coincidentes."],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DesktopSecondary,
+                        modifier = Modifier.padding(vertical = 16.dp),
+                    )
+                } else {
+                    filtered.forEach { profile ->
+                        val selected = profile.id == currentId
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) DesktopAccent.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable { onSelect(profile) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    profile.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) DesktopAccent else Color.White,
+                                )
+                                Text(
+                                    "${profile.brand} • Preamp: %.1f dB • %d filtros".format(Locale.ROOT, profile.safePreampDb, profile.filters.size),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DesktopSecondary,
+                                )
+                            }
+                            if (selected) {
+                                Text("✓", color = DesktopAccent, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun openAutoEqFilePicker(onSuccess: (AutoEqProfile) -> Unit) {
+    EventQueue.invokeLater {
+        val dialog = FileDialog(null as Frame?, "Importar perfil AutoEQ (.txt)", FileDialog.LOAD)
+        try {
+            dialog.setFilenameFilter { _, name -> name.endsWith(".txt", ignoreCase = true) || name.endsWith(".csv", ignoreCase = true) }
+            dialog.isVisible = true
+            val files = dialog.files
+            val file = files?.firstOrNull() ?: return@invokeLater
+            val content = file.readText()
+            val parsed = AutoEqParser.parse(
+                content = content,
+                id = "custom_" + file.nameWithoutExtension.lowercase().replace(Regex("[^a-z0-9_]"), "_"),
+                name = file.nameWithoutExtension.replace('_', ' ').replace('-', ' '),
+                brand = "Importado",
+                model = file.nameWithoutExtension,
+            )
+            if (parsed != null) {
+                onSuccess(parsed)
+            }
+        } catch (t: Throwable) {
+            DesktopTrackLog.log("Could not import AutoEQ file: ${t.message}")
+        } finally {
+            dialog.dispose()
+        }
+    }
+}
+

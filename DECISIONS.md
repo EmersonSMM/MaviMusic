@@ -92,3 +92,35 @@ En `DesktopThinSlider.kt` (`line 75`), el modificador `.pointerInput(Unit)` capt
   - Panel flotante glass independiente a la derecha, conmutable mediante botón (`Cola (Q)`) o tecla `Q` (`KeyEventDispatcher`), que comparte el estado `liveQueue` del modo normal y permite reproducir al instante, subir/bajar pistas (`onMoveQueueItem`) y eliminar pistas (`onRemoveQueueIndex`).
 - **Punto B.7 (Indicador dinámico de calidad de audio real):**
   - La insignia superior derecha lee `playback.streamFormat` real medido por FFmpeg (`measuredFormat ?: stream.format`) mediante `formatDynamicStreamQuality`, mostrando códec, profundidad de bits o bitrate, frecuencia de muestreo y canales reales (p. ej. `"FLAC 24-bit • 96 kHz • STEREO"`, `"OPUS 153 kbps • 48 kHz • STEREO"`, `"AAC 256 kbps • 44.1 kHz • STEREO"`) o `"N/D"` cuando el dato no está disponible.
+
+---
+
+## 5. Fase 2: Pipeline DSP de AutoEQ (Corrección de Auriculares) y Prevención de Clipping
+
+### 5.1 Orden de Procesamiento en la Cadena DSP
+La cadena de audio de 32-bit float en `DesktopAudioEngine` se estructura en el siguiente orden secuencial estricto:
+1. **Decodificador FFmpeg** (PCM Float 32-bit interleaved).
+2. **Audio Espacial** (`DesktopSpatialAudio`).
+3. **Corrección de Auriculares AutoEQ** (`DesktopAutoEqProcessor` — filtros paramétricos de corrección acústica).
+4. **Ecualizador de Usuario y Tone Pad** (`DesktopEqualizer` — EQ gráfico de 10 bandas y pad tonal Graves/Medios/Agudos).
+5. **Filtro de Transición / Automix** (`TransitionFilter`).
+6. **Smart Trim / Salto de Silencio** (`DesktopSilenceSkipper`).
+7. **Normalización de Volumen y Limitador de Picos** (`Loudness Normalizer` + `PeakLimiter`).
+8. **Salida de Audio** (`DesktopAudioSink` / CoreAudio).
+
+### 5.2 Justificación Acústica
+AutoEQ busca linealizar la respuesta en frecuencia del transductor de los auriculares hacia la curva objetivo Harman Target. Al posicionar AutoEQ **antes** del ecualizador del usuario:
+- Se neutralizan las anomalías acústicas y resonancias del auricular en primera instancia.
+- Cualquier ajuste posterior del usuario (EQ de 10 bandas o Tone Pad) actúa sobre un campo acústico neutro ("lienzo en blanco"), en lugar de amplificar picos de distorsión propios del modelo de auricular.
+
+### 5.3 Protección contra Clipping y Comparación A/B Nivelada
+- **Preamp anti-clipping automático:** Los filtros paramétricos con ganancia positiva pueden elevar picos por encima de 0 dBFS. El procesador calcula automáticamente `preampDb <= -max(0, max_positive_gain)` (o adopta el preamp nominal del perfil), aplicándolo en el dominio lineal float antes de los biquads.
+- **Modo A/B nivelado (Level-Matched Audition):** Al conmutar entre perfil activo (A) y bypass (B), el estado B conserva el mismo preamplificador negativo sin los filtros biquad. De esta forma, el usuario compara estrictamente el balance tonal sin el sesgo psicoacústico de mayor o menor sonoridad (loudness bias).
+
+### 5.4 Arquitectura de Filtros Paramétricos
+Se implementa una cascada de biquads en forma Direct Form II Transpuesta (DF2T) en aritmética de coma flotante de 32 bits, con coeficientes calculados según el Audio EQ Cookbook de Robert Bristow-Johnson:
+- Filtros Peak (Campana/Paramétrico - PK).
+- Filtros Low Shelf (LSC) y High Shelf (HSC).
+- Soporte para importación de perfiles estándar AutoEQ / EqualizerAPO (`Preamp: -X dB`, `Filter N: ON PK Fc X Hz Gain Y dB Q Z`).
+- Persistencia por dispositivo de audio de salida conectado (detectando modelo de CoreAudio / System Sound).
+

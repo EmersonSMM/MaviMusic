@@ -1863,6 +1863,17 @@ fun MaviMusicDesktopApp() {
     LaunchedEffect(eqEnabled, eqMode, eqToneX, eqToneY, eqFocused, eqBalance, eqBands) {
         playbackEngine.setEqualizer(eqEnabled, DesktopEqualizerSettings.curve(), eqBalance)
     }
+    val autoEqEnabled by DesktopAutoEqSettings.enabled.collectAsState()
+    val autoEqProfile by DesktopAutoEqSettings.currentProfile.collectAsState()
+    val autoEqAbBypass by DesktopAutoEqSettings.abBypass.collectAsState()
+    LaunchedEffect(autoEqEnabled, autoEqProfile, autoEqAbBypass) {
+        playbackEngine.setHeadphoneCorrection(autoEqEnabled, autoEqProfile, autoEqAbBypass)
+    }
+    val audioDeviceChanges by DesktopAudioDevices.changes.collectAsState()
+    val audioDeviceSelected by DesktopAudioDevices.selected.collectAsState()
+    LaunchedEffect(audioDeviceChanges, audioDeviceSelected) {
+        DesktopAutoEqSettings.onAudioDeviceChanged(DesktopAudioDevices.label())
+    }
     LaunchedEffect(spatialAudio, skipSilence, outputPrecision, volumeNormalization, smartTrim) {
         playbackEngine.setSpatialAudio(spatialAudio)
         playbackEngine.setSkipSilence(skipSilence)

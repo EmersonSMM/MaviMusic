@@ -18,6 +18,7 @@ class DesktopPredictiveCacheTest {
 
     @BeforeTest
     fun setUp() {
+        DesktopPredictiveCache.clear()
         persistence.savePredictiveBufferEnabled(true)
     }
 
