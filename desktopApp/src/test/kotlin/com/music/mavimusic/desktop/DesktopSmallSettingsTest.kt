@@ -56,4 +56,37 @@ class DesktopSmallSettingsTest {
         }
     }
 
+    // ── Phase 1 Feature Flags Persistence Tests ─────────────────────────────
+
+    @Test
+    fun `fase 1 settings retain their configured values`() {
+        val persistence = DesktopPersistence()
+
+        // 1. Predictive buffer
+        persistence.savePredictiveBufferEnabled(false)
+        assertFalse(persistence.predictiveBufferEnabled())
+        persistence.savePredictiveBufferEnabled(true)
+        assertTrue(persistence.predictiveBufferEnabled())
+
+        // 2. Smart Trim
+        persistence.saveSmartTrimEnabled(true)
+        assertTrue(persistence.smartTrimEnabled())
+        persistence.saveSmartTrimEnabled(false)
+        assertFalse(persistence.smartTrimEnabled())
+
+        // 3. Global Hotkeys
+        persistence.saveGlobalHotkeysEnabled(true)
+        assertTrue(persistence.globalHotkeysEnabled())
+        persistence.saveGlobalHotkeysModifier("CTRL_OPT")
+        assertEquals("CTRL_OPT", persistence.globalHotkeysModifier())
+        persistence.saveGlobalHotkeysEnabled(false)
+        assertFalse(persistence.globalHotkeysEnabled())
+
+        // 4. Menubar Mini Player
+        persistence.saveMenubarMiniPlayerEnabled(false)
+        assertFalse(persistence.menubarMiniPlayerEnabled())
+        persistence.saveMenubarMiniPlayerEnabled(true)
+        assertTrue(persistence.menubarMiniPlayerEnabled())
+    }
+
 }

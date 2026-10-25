@@ -159,6 +159,8 @@ object DesktopStrings {
         "hotkey_like" to "Marcar / Quitar Me Gusta",
         "hotkey_volume_up" to "Subir volumen (+5%)",
         "hotkey_volume_down" to "Bajar volumen (-5%)",
+        "menubar_mini_player" to "Mini-reproductor en la barra de menús",
+        "menubar_mini_player_subtitle" to "Muestra un icono en la barra superior de macOS que despliega un reproductor compacto con carátula y controles",
     )
 
     init {

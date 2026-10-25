@@ -401,6 +401,8 @@ internal fun DesktopSettingsScreen(
     onGlobalHotkeysChange: (Boolean) -> Unit = {},
     globalHotkeysModifier: String = DesktopPersistence.globalHotkeysModifier(),
     onGlobalHotkeysModifierChange: (String) -> Unit = {},
+    menubarMiniPlayer: Boolean = DesktopPersistence.menubarMiniPlayerEnabled(),
+    onMenubarMiniPlayerChange: (Boolean) -> Unit = {},
     preferAudioTracks: Boolean = true,
     onPreferAudioTracksChange: (Boolean) -> Unit = {},
     filterNonMusicAudio: Boolean,
@@ -594,6 +596,18 @@ internal fun DesktopSettingsScreen(
                             }
                         }
                     }
+                    SettingsToggle(
+                        DesktopStrings["menubar_mini_player", "Mini-reproductor en la barra de menús"],
+                        DesktopStrings[
+                            "menubar_mini_player_subtitle",
+                            "Muestra un icono en la barra superior de macOS que despliega un reproductor compacto con carátula y controles",
+                        ],
+                        menubarMiniPlayer,
+                        {
+                            onMenubarMiniPlayerChange(it)
+                            DesktopPersistence.saveMenubarMiniPlayerEnabled(it)
+                        },
+                    )
                     SettingsToggle(
                         DesktopStrings["prefer_audio_tracks", "Modo Solo Canción (Evitar videos musicales)"],
                         DesktopStrings[

@@ -44,8 +44,12 @@ internal object DesktopAwtTray {
                         isImageAutoSize = true
                         val trigger = {
                             EventQueue.invokeLater {
-                                val pt = runCatching { java.awt.MouseInfo.getPointerInfo()?.location }.getOrNull()
-                                DesktopMiniPlayerState.toggle(pt)
+                                if (DesktopPersistence.menubarMiniPlayerEnabled()) {
+                                    val pt = runCatching { java.awt.MouseInfo.getPointerInfo()?.location }.getOrNull()
+                                    DesktopMiniPlayerState.toggle(pt)
+                                } else {
+                                    onActivate()
+                                }
                             }
                         }
                         addActionListener { trigger() }

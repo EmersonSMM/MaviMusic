@@ -313,6 +313,10 @@ class DesktopPersistence {
 
     fun saveGlobalHotkeysModifier(modifier: String) = saveString(KEY_GLOBAL_HOTKEYS_MODIFIER, modifier)
 
+    fun menubarMiniPlayerEnabled(): Boolean = boolean(KEY_MENUBAR_MINI_PLAYER, true)
+
+    fun saveMenubarMiniPlayerEnabled(enabled: Boolean) = saveBoolean(KEY_MENUBAR_MINI_PLAYER, enabled)
+
     fun allowRemixesAndLive(): Boolean = boolean(KEY_ALLOW_REMIXES_LIVE, false)
 
     fun saveAllowRemixesAndLive(enabled: Boolean) = saveBoolean(KEY_ALLOW_REMIXES_LIVE, enabled)
@@ -341,6 +345,7 @@ class DesktopPersistence {
         const val KEY_SMART_TRIM_ENABLED = "smart_trim_enabled"
         const val KEY_GLOBAL_HOTKEYS_ENABLED = "global_hotkeys_enabled"
         const val KEY_GLOBAL_HOTKEYS_MODIFIER = "global_hotkeys_modifier"
+        const val KEY_MENUBAR_MINI_PLAYER = "menubar_mini_player_enabled"
         const val KEY_DJ_MIX_CURVE = "dj_mix_curve"
         const val MAX_HISTORY = 100
         const val MAX_QUEUE = 200
@@ -465,6 +470,17 @@ class DesktopPersistence {
             runCatching {
                 val prefs = DesktopPreferenceMigration.open()
                 prefs.put(KEY_GLOBAL_HOTKEYS_MODIFIER, modifier)
+                prefs.flush()
+            }
+        }
+
+        fun menubarMiniPlayerEnabled(default: Boolean = true): Boolean =
+            runCatching { DesktopPreferenceMigration.open().getBoolean(KEY_MENUBAR_MINI_PLAYER, default) }.getOrDefault(default)
+
+        fun saveMenubarMiniPlayerEnabled(enabled: Boolean) {
+            runCatching {
+                val prefs = DesktopPreferenceMigration.open()
+                prefs.putBoolean(KEY_MENUBAR_MINI_PLAYER, enabled)
                 prefs.flush()
             }
         }

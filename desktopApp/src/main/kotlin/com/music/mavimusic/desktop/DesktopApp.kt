@@ -553,6 +553,9 @@ fun MaviMusicDesktopApp() {
     var globalHotkeysModifier by remember {
         mutableStateOf(persistence.globalHotkeysModifier())
     }
+    var menubarMiniPlayerEnabled by remember {
+        mutableStateOf(persistence.menubarMiniPlayerEnabled())
+    }
     var preferAudioTracks by remember {
         mutableStateOf(persistence.preferAudioTracks())
     }
@@ -2754,7 +2757,7 @@ fun MaviMusicDesktopApp() {
             // On macOS clicking the menu bar icon toggles the Dark Teal Glass Mini Player;
             // on other platforms it brings the main window back.
             onActivate = {
-                if (DesktopPlatform.isMac) {
+                if (DesktopPlatform.isMac && menubarMiniPlayerEnabled) {
                     DesktopMiniPlayerState.toggle()
                 } else {
                     DesktopWindowVisibility.show()
@@ -4403,6 +4406,11 @@ fun MaviMusicDesktopApp() {
                                     onGlobalHotkeysModifierChange = {
                                         globalHotkeysModifier = it
                                         persistence.saveGlobalHotkeysModifier(it)
+                                    },
+                                    menubarMiniPlayer = menubarMiniPlayerEnabled,
+                                    onMenubarMiniPlayerChange = {
+                                        menubarMiniPlayerEnabled = it
+                                        persistence.saveMenubarMiniPlayerEnabled(it)
                                     },
                                     preferAudioTracks = preferAudioTracks,
                                     onPreferAudioTracksChange = {
