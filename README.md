@@ -3,46 +3,135 @@
 
 # MaviMusic
 
-Reproductor de música con integración nativa en macOS.
+**Reproductor de música de alta fidelidad con integración nativa en macOS, Windows y Linux.**
 
-[Descargas](https://github.com/EmersonSMM/MaviMusic/releases) · [Repositorio](https://github.com/EmersonSMM/MaviMusic) · [Licencia](LICENSE)
+[![Última versión](https://img.shields.io/github/v/release/EmersonSMM/MaviMusic?style=for-the-badge&labelColor=0d1117&color=6366f1)](https://github.com/EmersonSMM/MaviMusic/releases)
+[![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=for-the-badge&labelColor=0d1117)](LICENSE)
+[![Plataformas](https://img.shields.io/badge/plataformas-macOS%20%7C%20Windows%20%7C%20Linux-emerald?style=for-the-badge&labelColor=0d1117)](https://github.com/EmersonSMM/MaviMusic/releases)
+
+[Descargas](https://github.com/EmersonSMM/MaviMusic/releases) · [Novedades (Changelog)](CHANGELOG.md) · [Guía de Escritorio](DESKTOP.md) · [Contribución](CONTRIBUTING.md)
 </div>
 
-## Funciones
+---
 
-- Búsqueda y reproducción de YouTube Music, biblioteca local y fuentes configurables.
-- Archivos MP3 desde Finder («Abrir con»), selección múltiple con ⌘O/Ctrl+O o arrastre a la ventana; carpetas locales, etiquetas, carátulas, álbumes en orden de pistas y playlists locales.
-- Sesiones locales de Google y Spotify, sin solicitudes de llavero al iniciar. Recuperación manual opcional de las sesiones migradas por la versión anterior.
-- Descargas a MP3 de 320 kbps con FFmpeg incluido; preferencia por la versión canción, Google/YouTube como origen directo opcional, bloques paralelos y reanudación.
-- Carpetas de artistas, álbumes y playlists; etapas, velocidad, tiempo restante y comprobación de carátula y etiquetas.
-- Registro de descargas sin el límite anterior de 200 pistas, guardado en segundo plano y actualizado al reparar metadatos.
-- Cola y Automix evitan repetir una grabación como video musical; se respetan los temas añadidos manualmente.
-- Crossfade, reproducción continua, ecualizador, normalización y Automix con análisis nativo y modelos ONNX incluidos.
-- Letras sincronizadas, traducción, romanización, modo inmersivo y visualizadores.
-- Paleta de comandos, Spotlight, controles multimedia, menú del Dock y temporizador de apagado.
-- Actualizador integrado de macOS con novedades y paquetes firmados desde GitHub; consulta [la configuración de publicación](docs/UPDATES.md).
-- Playlists, cola, historial, descargas en lote e integraciones de scrobbling.
+## Características Principales
 
-Convertir a MP3 no aumenta la calidad del audio original. Las pistas de proveedores específicos conservan su fuente.
+### 🎧 Motor de Audio de Alta Fidelidad (32-bit Float)
+- **Pipeline en Coma Flotante de 32 bits**: Headroom ampliado procesado mediante FFmpeg nativo, eliminando cualquier distorsión interna o clipping digital.
+- **Reproducción Continua (Gapless) y Crossfade**: Transición ininterrumpida entre temas con curvas de fundido configurables.
+- **Ecualizador Paramétrico y Gráfico**: Convivencia armónica de tone controls (graves, agudos) con ecualización de precisión.
 
-## Desarrollo en macOS
+### 🎚️ AutoDJ Inteligente y Key Lock
+- **Key Lock (Time-Stretching)**: Modifica la velocidad o tempo de reproducción sin alterar el tono musical, utilizando el filtro de alta fidelidad `atempo` de FFmpeg.
+- **Automix Adaptativo con IA**: Detección de BPM y compases en segundo plano mediante modelos ONNX integrados. Transiciones de mezcla progresiva cuando las pistas comparten tempo compatible (rango seguro de ±8%).
 
-Se requiere JDK 21 y las herramientas de línea de comandos de Xcode. Automix se compila con Clang; CMake no es necesario en macOS.
+### 🎨 Visualizadores Reactivos con Shaders GPU (SkSL)
+- **Shaders GPU Acelerados por Hardware**: Renderizados fluidos a 60 o 120 FPS mediante SkSL (*Skia Shading Language*).
+- **Estilos Inmersivos**:
+  - *Túnel de Neón*: Animación geométrica reactiva a frecuencias graves.
+  - *Superficie de Agua*: Mallas dinámicas ondulantes impulsadas por graves, medios y agudos.
+  - *Partículas Cósmicas*: Sistema de partículas espectrales con paletas de color adaptativas derivadas de la carátula.
+- **Eficiencia Energética**: Pausa total y liberación instantánea de memoria gráfica al minimizar la ventana o bloquear la pantalla.
 
-```sh
+### 🎤 Modo Karaoke Instantáneo
+- Supresión de voces en tiempo real mediante cancelación adaptativa de fase estéreo y filtrado paso banda (300 Hz - 3.4 kHz) con preservación del rango sub-grave.
+- Activación instantánea con cero latencia añadida.
+
+### 📡 Soporte AirPlay 2 con Compensación de Latencia
+- Enrutamiento inteligente a altavoces y receptores AirPlay (HomePod, Apple TV).
+- Búfer de amortiguamiento ajustable (0 a 3000 ms) para mantener la sincronización visual exacta de las letras y la barra de reproducción.
+
+### 🎛️ AutoEQ: Corrección Paramétrica de Auriculares
+- Perfiles de ecualización para cientos de modelos de auriculares populares.
+- **Protección contra Saturación (Negative Preamp)**: Ajuste automático de ganancia para garantizar que ningún realce provoque saturación en la salida final.
+- Comparación instantánea A/B y memorización del perfil según el dispositivo de audio conectado.
+
+### 📋 Playlists Inteligentes (Smart Rules)
+- Creación de listas automáticas basadas en reglas lógicas flexibles (Y / O): reproducciones, fecha de adición, Me gusta, género, año, BPM, artista y álbum.
+- Plantillas listas para usar (*Más escuchadas del mes*, *Favoritas rápidas*, *Olvidadas*).
+- Actualización dinámica en segundo plano sin ralentizar la interfaz.
+
+### 📊 Estadísticas Locales y Wrapped Privado
+- Métricas y resumen de hábitos de reproducción (canciones más escuchadas, horas acumuladas, artistas principales).
+- **100 % Local y Privado**: Procesamiento exclusivo en el equipo; ningún dato de telemetría o escucha sale de tu ordenador.
+
+### 🖥️ Integración Nativa con el Sistema Operativo
+- **macOS**:
+  - Mini-Player compacto integrado en la barra de menús con carátula y controles.
+  - Soporte de `MPRemoteCommandCenter` para control desde teclado y auriculares (AirPods).
+  - Integración con Spotlight y menú contextual en el Dock.
+- **Windows**:
+  - Integración nativa con SMTC (System Media Transport Controls) y teclas multimedia globales.
+  - Instalador MSI, instalador Setup EXE y versión portable ZIP.
+- **Linux**:
+  - Integración con MPRIS vía D-Bus. Paquetes universales AppImage, DEB y RPM.
+
+### ⬇️ Descargas y Metadatos de Alta Calidad
+- Descarga a MP3 de 320 kbps con carátula de alta resolución incrustada y etiquetas ID3 enriquecidas.
+- Letras sincronizadas en tiempo real (LRC) con traducción y romanización automática.
+
+---
+
+## Instalación y Descargas
+
+Descarga la última versión para tu sistema operativo desde la sección de [Releases](https://github.com/EmersonSMM/MaviMusic/releases):
+
+| Plataforma | Paquete | Descripción |
+|---|---|---|
+| **macOS (Apple Silicon)** | `MaviMusic-<versión>-macos-arm64.dmg` | Para Mac con chips M1, M2, M3, M4 o superior. |
+| **macOS (Intel)** | `MaviMusic-<versión>-macos-x64.dmg` | Para ordenadores Mac con procesadores Intel. |
+| **macOS (Instalador)** | `MaviMusic-<versión>-macos-*.pkg` | Paquete instalador estándar para macOS. |
+| **Windows** | `MaviMusic-<versión>-windows-x64-setup.exe` | Instalador estándar por usuario para Windows 10 / 11. |
+| **Windows (MSI)** | `MaviMusic-<versión>-windows-x64.msi` | Paquete MSI para despliegues corporativos o locales. |
+| **Windows (Portable)** | `MaviMusic-<versión>-windows-x64-portable.zip` | Versión portable sin necesidad de instalación. |
+| **Linux (AppImage)** | `MaviMusic-<versión>-linux-x86_64.AppImage` | Ejecutable universal para cualquier distribución Linux. |
+| **Linux (Debian/Ubuntu)** | `MaviMusic-<versión>-linux-amd64.deb` | Paquete para Ubuntu, Debian, Linux Mint, etc. |
+| **Linux (Fedora/RHEL)** | `MaviMusic-<versión>-linux-x86_64.rpm` | Paquete para Fedora, RHEL, openSUSE. |
+
+> [!NOTE]
+> **macOS Gatekeeper:** Si al abrir por primera vez una versión compilada o no notarizada macOS muestra un aviso de desarrollador no identificado, retira el atributo de cuarentena ejecutando en la Terminal:
+> ```bash
+> xattr -cr /Applications/MaviMusic.app
+> ```
+
+---
+
+## Compilación y Desarrollo
+
+### Requisitos
+- **JDK 21** (Temurin 21 recomendado).
+- **macOS**: Herramientas de línea de comandos de Xcode (`clang++`).
+- **Linux / Windows**: CMake 3.20+, Ninja y compilador C++17 (GCC/MinGW o MSVC).
+
+### Comandos de Compilación
+
+```bash
+# Ejecutar la aplicación en modo desarrollo
 ./gradlew :desktopApp:run
+
+# Ejecutar el conjunto completo de pruebas unitarias y de integración
 ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test
-./gradlew :desktopApp:packageDmg
+
+# Empaquetar el instalador para la plataforma actual
+./gradlew :desktopApp:packageDmg      # En macOS
+./gradlew :desktopApp:packageExe      # En Windows
+./gradlew :desktopApp:packageDeb      # En Linux
 ```
 
-Consulta [DESKTOP.md](DESKTOP.md) y [docs/MIGRATION.md](docs/MIGRATION.md) para configuración, arquitectura y verificación.
+Para más detalles sobre la arquitectura de compilación, consulta [DESKTOP.md](DESKTOP.md).
 
-## Componentes adicionales
+---
 
-El repositorio contiene la aplicación de escritorio (`desktopApp`), su interfaz (`desktopUi`), el núcleo JVM (`shared`), el cliente web con extensión (`web`) y el servidor de escucha sincronizada (`backend`). Los modelos de Automix pertenecen a `desktopApp/src/main/resources/models`; el DSP y sus puentes JNI están en `native/analyzer`.
+## Estructura del Proyecto
 
-Los servicios alojados deben configurarse con dominios propios antes de desplegarlos. No se utiliza el servidor del proyecto anterior. Los dominios `.invalid` de ejemplos y pruebas son marcadores reservados, no servicios publicados.
+- `desktopApp/`: Estado principal de la aplicación, motor de audio, integración con el SO, visualizadores SkSL y servicios nativos.
+- `desktopUi/`: Componentes gráficos en Compose Multiplatform (reproductor, letras inmersivas, panel de cola, páginas).
+- `shared/`: Modelos de datos, algoritmos de cola, red, clientes de metadatos y lógica multiplataforma.
+- `native/analyzer/`: Núcleo DSP en C++ de análisis de audio y puentes JNI para Automix y beat detection.
 
-## Licencia y atribución
+---
 
-Este proyecto se distribuye bajo la licencia de [LICENSE](LICENSE). Se conservan los avisos de copyright y las licencias de los autores y componentes heredados dentro de sus archivos. Los componentes derivados de Orchard mantienen sus avisos AGPL; los modelos conservan sus licencias respectivas. MaviMusic es independiente de Google, YouTube y Spotify.
+## Licencia y Atribución
+
+Este proyecto está bajo licencia **GNU General Public License v3.0** ([LICENSE](LICENSE)).
+Los componentes y modelos de terceros conservan sus respectivos avisos de licencia y atribución de copyright en sus carpetas de origen. MaviMusic es un proyecto independiente sin afiliación oficial con Google, YouTube o Spotify.

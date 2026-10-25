@@ -97,7 +97,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.skiaCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1782,7 +1782,7 @@ private fun WinampVisualizerBackdrop(
                 if (isGpuEnabled) {
                     drawIntoCanvas { composeCanvas ->
                         drawn = DesktopGpuVisualizerEngine.drawGpuVisualizer(
-                            skiaCanvas = composeCanvas.skiaCanvas,
+                            skiaCanvas = composeCanvas.nativeCanvas,
                             style = GpuVisualizerStyle.NEON_TUNNEL,
                             width = w,
                             height = h,
@@ -1817,7 +1817,7 @@ private fun WinampVisualizerBackdrop(
                 if (isGpuEnabled) {
                     drawIntoCanvas { composeCanvas ->
                         drawn = DesktopGpuVisualizerEngine.drawGpuVisualizer(
-                            skiaCanvas = composeCanvas.skiaCanvas,
+                            skiaCanvas = composeCanvas.nativeCanvas,
                             style = GpuVisualizerStyle.WATER_SURFACE,
                             width = w,
                             height = h,
@@ -1850,7 +1850,7 @@ private fun WinampVisualizerBackdrop(
                 if (isGpuEnabled) {
                     drawIntoCanvas { composeCanvas ->
                         drawn = DesktopGpuVisualizerEngine.drawGpuVisualizer(
-                            skiaCanvas = composeCanvas.skiaCanvas,
+                            skiaCanvas = composeCanvas.nativeCanvas,
                             style = GpuVisualizerStyle.COSMIC_PARTICLES,
                             width = w,
                             height = h,
