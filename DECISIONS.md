@@ -243,3 +243,8 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - Windows consulta al arrancar y cada 8 h con una corrutina suspendida, sin polling ni avisos de red en pantalla. La preferencia de comprobación automática se respeta.
 - Píldora solo si hay versión nueva; no compone espaciadores cuando no existe. Abre versión, notas y acciones en Windows; en Mac abre el flujo nativo Sparkle.
 - Sparkle usa recordatorios suaves gestionados por la app (sin ventana programada intrusiva); conserva su UI cuando el usuario pide actualizar. Intervalo programado de 8 h.
+
+### 4. Búsqueda de Ajustes
+- Causa: se ocultaba el título pero se seguía dibujando el contenedor con padding y borde. SubcomposeLayout mantiene el registro de coincidencias sin colocar ninguna parte de una tarjeta vacía; su altura final es cero.
+- Se filtran filas compartidas y se resaltan coincidencias sin alterar callbacks ni valores; limpiar la búsqueda conserva el estado de controles. Hay estado vacío y transición de tamaño recortada.
+- Pendiente de revisión visual exhaustiva: controles personalizados internos que no usan filas compartidas pueden requerir etiquetas adicionales para búsqueda fina; los bloques de música local y actualizaciones se registran expresamente.
