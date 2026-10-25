@@ -132,7 +132,7 @@ internal fun DesktopBottomPlayerBar(
     var showDjTooltip by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val compact = DesktopPlatform.isWindows && maxWidth < 1440.dp
+        val compact = DesktopPlatform.isWindows && maxWidth < 1800.dp
         Box(
             modifier = Modifier.fillMaxWidth()
                 .height(if (compact) 110.dp else 78.dp)
