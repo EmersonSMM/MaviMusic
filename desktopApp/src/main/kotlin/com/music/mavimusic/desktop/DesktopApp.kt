@@ -3700,6 +3700,8 @@ fun MaviMusicDesktopApp() {
                                 overlays.commandPalette = false
                                 true
                             }
+                            overlays.songMenu -> { overlays.songMenu = false; true }
+                            overlays.sidePanel != null -> { overlays.sidePanel = null; true }
                             overlays.immersiveLyrics -> {
                                 overlays.immersiveLyrics = false
                                 true
@@ -3709,10 +3711,6 @@ fun MaviMusicDesktopApp() {
                             overlays.nowPlaying && PlayerBack.dispatch() -> true
                             overlays.nowPlaying -> {
                                 overlays.nowPlaying = false
-                                true
-                            }
-                            overlays.sidePanel != null -> {
-                                overlays.sidePanel = null
                                 true
                             }
                             // A page of Settings steps back the way the back button does, unless

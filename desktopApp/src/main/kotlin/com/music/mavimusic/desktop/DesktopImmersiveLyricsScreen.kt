@@ -291,9 +291,21 @@ internal fun DesktopImmersiveLyricsScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var activeSubmenu by remember { mutableStateOf(VisualizerSubmenu.NONE) }
 
+    val closeLyrics = androidx.compose.runtime.rememberUpdatedState(onClose)
+    val hostWindow = LocalDesktopWindowScope.current?.window
+
     // Keyboard shortcut 'Q' to toggle the dedicated floating glass queue panel in Immersive Mode
-    DisposableEffect(Unit) {
+    DisposableEffect(hostWindow) {
         val dispatcher = KeyEventDispatcher { event ->
+            if (event.id == KeyEvent.KEY_PRESSED && event.keyCode == KeyEvent.VK_ESCAPE && hostWindow?.isFocused == true) {
+                when {
+                    menuExpanded -> menuExpanded = false
+                    activeSubmenu != VisualizerSubmenu.NONE -> activeSubmenu = VisualizerSubmenu.NONE
+                    showQueuePanel -> showQueuePanel = false
+                    else -> closeLyrics.value()
+                }
+                return@KeyEventDispatcher true
+            }
             if (event.id == KeyEvent.KEY_PRESSED &&
                 event.keyCode == KeyEvent.VK_Q &&
                 !event.isMetaDown &&
@@ -416,32 +428,7 @@ internal fun DesktopImmersiveLyricsScreen(
                     .padding(start = topStartPadding, end = 24.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Surface(
-                    onClick = onClose,
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
-                    modifier = Modifier.height(34.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Rounded.FullscreenExit,
-                            contentDescription = DesktopStrings["exit_immersive_lyrics", "Salir"],
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = DesktopStrings["exit_immersive_lyrics", "Salir (Esc)"],
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
+                DesktopLyricsClose(onClose)
 
                 Spacer(Modifier.weight(1f))
 

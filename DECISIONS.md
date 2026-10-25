@@ -248,3 +248,8 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - Causa: se ocultaba el título pero se seguía dibujando el contenedor con padding y borde. SubcomposeLayout mantiene el registro de coincidencias sin colocar ninguna parte de una tarjeta vacía; su altura final es cero.
 - Se filtran filas compartidas y se resaltan coincidencias sin alterar callbacks ni valores; limpiar la búsqueda conserva el estado de controles. Hay estado vacío y transición de tamaño recortada.
 - Pendiente de revisión visual exhaustiva: controles personalizados internos que no usan filas compartidas pueden requerir etiquetas adicionales para búsqueda fina; los bloques de música local y actualizaciones se registran expresamente.
+
+### 5. Escape y cierre de letras
+- Prioridad: menús/paleta y panel flotante de cola; después panel de letras; después vista de letras/reproductor; por último modo inmersivo y navegación de Ajustes. Los popups con foco procesan su propio Escape antes de volver a la ventana principal.
+- El dispatcher inmersivo solo consume Escape cuando su ventana tiene foco. Q y K existentes se conservan; no se cambia reproducción ni seek.
+- Cierre compartido con IconButton de 44 dp (al menos 40 px al escalado normal), hover de Material y tooltip «Cerrar (Esc)». Se sitúa dentro del contenido, separado de los botones nativos de ventana.
