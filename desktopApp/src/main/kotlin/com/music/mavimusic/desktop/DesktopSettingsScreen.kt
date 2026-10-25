@@ -922,6 +922,62 @@ internal fun DesktopSettingsScreen(
                             )
                         }
                     }
+
+                    var airplayEnabled by remember { mutableStateOf(DesktopAirPlaySettings.isFeatureEnabled()) }
+                    SettingsToggle(
+                        DesktopStrings["airplay_title", "Soporte AirPlay 2"],
+                        DesktopStrings[
+                            "airplay_subtitle",
+                            "Permite transmitir audio a HomePod, Apple TV y receptores AirPlay 2 en la red local con compensación automática de latencia",
+                        ],
+                        airplayEnabled,
+                        {
+                            airplayEnabled = it
+                            DesktopAirPlaySettings.setFeatureEnabled(it)
+                        },
+                    )
+                    if (airplayEnabled) {
+                        var latencyMs by remember { mutableStateOf(DesktopAirPlaySettings.latencyMs.value) }
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .padding(12.dp),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Compensación de latencia AirPlay",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                )
+                                Text(
+                                    "${latencyMs} ms",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DesktopAccent,
+                                )
+                            }
+                            DesktopBareSlider(
+                                value = latencyMs.toFloat(),
+                                onValueChange = { latencyMs = it.toInt() },
+                                onValueChangeFinished = { DesktopAirPlaySettings.setLatencyMs(latencyMs) },
+                                valueRange = 0f..3000f,
+                                steps = 30,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                "Sincroniza la barra de reproducción, letras y visualizadores con el retraso de búfer de red del HomePod o Apple TV (por defecto 2000 ms).",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f),
+                            )
+                        }
+                    }
                     SettingsRow(
                         Icons.Rounded.Bedtime,
                         "Sleep timer",

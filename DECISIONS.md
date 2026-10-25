@@ -188,6 +188,27 @@ Se implementa el motor **DSP de Extracción Central con Doble Filtro Butterworth
 5. **Monitoreo de Presupuesto CPU:** Si el ciclo de procesamiento supera el 25% del tiempo de reproducción de bloque, la interfaz muestra un aviso discreto invitando a reducir la atenuación.
 6. **Abstracción Extensible:** `DesktopKaraokeProcessor` expone una arquitectura modular donde un modelo ONNX de separación offline podría conectarse como motor de backend alternativo en el futuro sin modificar la interfaz de usuario ni el motor de audio.
 
+---
+
+## 9. Fase 3: Emisión a AirPlay 2 y Enrutamiento Nativo en macOS
+
+### 9.1 Evaluación de Arquitectura: Protocolo Inverso AirPlay 2 vs Enrutamiento Nativo macOS
+
+| Criterio | Protocolo AirPlay 2 Inverso (Librerías de terceros en JVM) | Enrutamiento Nativo del Sistema macOS (`AVRoutePickerView` / CoreAudio) |
+|---|---|---|
+| **Cifrado y Autenticación** | AirPlay 2 requiere autenticación criptográfica propietaria de Apple (SRP, HomeKit pairing, FairPlay). Las librerías de terceros (p. ej. jmupnp / airplay2-receiver) quedan obsoletas o rotas con cada actualización de firmware de iOS/tvOS/macOS. | **100% Nativo y Permanente**: El sistema operativo macOS gestiona las claves de sesión, autenticación de hardware y cifrado punto a punto de forma transparente y oficial. |
+| **Estabilidad y Dependencias** | Requiere añadir dependencias Java/JNI pesadas y frágiles (> 30 MB) con riesgos de incompatibilidad y fugas de sockets. | **Cero dependencias externas**: Utiliza las interfaces CoreAudio y el subsistema de sonido nativo de macOS. |
+| **Multi-room y HomePods Estéreo** | Falla frecuentemente con pares estéreo de HomePod y altavoces AirPlay 2 agrupados. | **Soporte Completo**: Permite emparejamiento estéreo, multi-room y volumen independiente gestionado por macOS. |
+| **Compensación de Latencia** | Difícil de sincronizar con el motor de audio local. | **Sincronización Precisa**: El motor de audio (`DesktopAudioEngine`) compensa el retardo del búfer de red (ajustable de 0 a 3.000 ms, por defecto 2.000 ms) asegurando que las letras sincronizadas, la barra de progreso y los visualizadores coincidan con lo que escucha el usuario. |
+
+### 9.2 Decisión y Diseño
+Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latencia (`DesktopAirPlaySettings` / `DesktopAirPlayManager`)**:
+1. **Detección Dinámica:** Detecta receptores AirPlay presentes en CoreAudio y red local, integrándolos con distintivos claros en el selector de salida de audio (`DesktopAudioOutputPopover`).
+2. **Traspaso Sin Cortes:** El cambio entre altavoces locales y receptores AirPlay 2 reconfigura el sink de audio en caliente sin reiniciar la pista ni perder la posición de reproducción (`playhead`).
+3. **Compensación de Latencia:** Aplica un offset temporal en `heardSinkFrames()` para que la visualización, las letras sincronizadas y el playhead no se adelanten al audio reproducido por el búfer de red del HomePod o Apple TV.
+4. **Seguridad y Aislamiento:** Detrás del interruptor "Soporte AirPlay 2" en Ajustes; al estar apagado, no ejecuta tareas en segundo plano ni altera las lecturas de tiempo del sink.
+
+
 
 
 

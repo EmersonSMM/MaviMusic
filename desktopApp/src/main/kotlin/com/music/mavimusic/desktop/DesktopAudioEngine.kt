@@ -1421,7 +1421,17 @@ class DesktopPlaybackEngine(
     }
 
     /** The outgoing track's heard position, from the sink's clock — [publishPosition]'s sum. */
-    private fun outgoingHeardUs(): Long = playhead.at(sink.framesPlayed())
+    private fun outgoingHeardUs(): Long = playhead.at(heardSinkFrames())
+
+    private fun heardSinkFrames(): Long {
+        val raw = sink.framesPlayed()
+        if (!DesktopAirPlaySettings.isAirPlayActive()) return raw
+        val latencyMs = DesktopAirPlaySettings.latencyMs.value
+        if (latencyMs <= 0) return raw
+        val rate = sink.format.sampleRate.toDouble().coerceAtLeast(1.0)
+        val delayFrames = (latencyMs * rate / 1000.0).toLong()
+        return (raw - delayFrames).coerceAtLeast(0L)
+    }
 
     private fun sameGrid(last: MixBlend, beatMs: Float, anchor: Long): Boolean {
         if (beatMs <= 0f || last.beatMs <= 0f) return beatMs <= 0f && last.beatMs <= 0f
@@ -1852,7 +1862,7 @@ class DesktopPlaybackEngine(
             }
             return
         }
-        val positionMs = (playhead.at(sink.framesPlayed()) / 1_000).coerceAtLeast(0)
+        val positionMs = (playhead.at(heardSinkFrames()) / 1_000).coerceAtLeast(0)
         // Taken with the reading, here on the audio thread: see DesktopPlaybackState.
         val sampledAt = System.nanoTime()
         if (_state.value.song?.videoId != track.song.videoId) return

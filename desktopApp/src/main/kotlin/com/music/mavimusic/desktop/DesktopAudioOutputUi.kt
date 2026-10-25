@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,7 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
     val selected by DesktopAudioDevices.selected.collectAsState()
     val changes by DesktopAudioDevices.changes.collectAsState()
     val devices = remember(changes) { DesktopAudioDevices.available() }
+    val airplayEnabled by DesktopAirPlaySettings.featureEnabled.collectAsState()
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
         Column(Modifier.padding(horizontal = panelInset(22.dp), vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -76,6 +78,35 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
                     onDismiss()
                 }
             }
+
+            val airplayEnabled by DesktopAirPlaySettings.featureEnabled.collectAsState()
+            if (airplayEnabled && DesktopPlatform.isMac) {
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 4.dp))
+                val airplayDevices by DesktopAirPlaySettings.discoveredDevices.collectAsState()
+                if (airplayDevices.isNotEmpty()) {
+                    Text(
+                        "Receptores AirPlay 2",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF00E5FF),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                    )
+                    airplayDevices.forEach { ap ->
+                        OutputRow(ap.name, "${ap.type} • Red local", chosen = selected == ap.id) {
+                            DesktopAudioDevices.select(ap.id)
+                            onDismiss()
+                        }
+                    }
+                }
+                OutputRow(
+                    name = "Enrutar en macOS (AirPlay / Salida del sistema)...",
+                    description = "Abre el selector nativo de macOS para agrupar HomePods y Apple TVs",
+                    chosen = false,
+                ) {
+                    DesktopAirPlayManager.openMacSoundSettings()
+                    onDismiss()
+                }
+            }
         }
     }
 }
@@ -92,6 +123,7 @@ internal fun DesktopAudioOutputPopover(
     val selected by DesktopAudioDevices.selected.collectAsState()
     val changes by DesktopAudioDevices.changes.collectAsState()
     val devices = remember(changes) { DesktopAudioDevices.available() }
+    val airplayEnabled by DesktopAirPlaySettings.featureEnabled.collectAsState()
 
     Surface(
         modifier = modifier
@@ -163,6 +195,46 @@ internal fun DesktopAudioOutputPopover(
                             onDismiss()
                         },
                     )
+                }
+
+                if (airplayEnabled && DesktopPlatform.isMac) {
+                    item {
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.08f),
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                        val airplayDevices by DesktopAirPlaySettings.discoveredDevices.collectAsState()
+                        if (airplayDevices.isNotEmpty()) {
+                            Text(
+                                "Receptores AirPlay 2",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF00E5FF),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                    val airplayDevices = DesktopAirPlaySettings.discoveredDevices.value
+                    items(airplayDevices) { ap ->
+                        CompactOutputRow(
+                            name = "${ap.name} (${ap.type})",
+                            chosen = selected == ap.id,
+                            onClick = {
+                                DesktopAudioDevices.select(ap.id)
+                                onDismiss()
+                            },
+                        )
+                    }
+                    item {
+                        CompactOutputRow(
+                            name = "Enrutar en macOS...",
+                            chosen = false,
+                            onClick = {
+                                DesktopAirPlayManager.openMacSoundSettings()
+                                onDismiss()
+                            },
+                        )
+                    }
                 }
             }
         }
