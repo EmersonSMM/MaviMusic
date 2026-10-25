@@ -3615,6 +3615,8 @@ fun MaviMusicDesktopApp() {
         currentTheme
     }
 
+    LaunchedEffect(activeTheme.background) { DesktopWindowsCaption.apply(activeTheme.background) }
+
     val activeScheme = desktopColorScheme(activeTheme).let { scheme ->
         if (dynamicArtworkTheme && selectedSong != null && artworkPalette != DesktopArtworkPalette.Default) {
             scheme.copy(primary = artworkPalette.primary, surfaceTint = artworkPalette.primary)

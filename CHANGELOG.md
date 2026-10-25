@@ -1,5 +1,15 @@
 # Novedades de MaviMusic
 
+## 1.8.52 (en preparación)
+
+- Actualización Windows por MSI verificado, auxiliar independiente e instalación silenciosa por usuario; recuperación transaccional y registro local.
+- Aviso discreto de actualización, comprobaciones cada ocho horas y texto del botón con contraste correcto.
+- Búsqueda de Ajustes sin contenedores vacíos; Escape y cierre accesible en letras.
+- Menús glass compartidos y logo estático con brillo suave al pasar el cursor.
+- Spotlight global configurable en Windows (Ctrl+Alt+K por defecto) y barra nativa con colores DWM.
+- Exportación de diagnóstico sin datos privados y publicación que verifica todos los artefactos antes de hacer pública la release.
+- Validación real de actualización/rollback y revisión visual/rendimiento pendientes; ver docs/WINDOWS_POLISH_STATUS.md.
+
 ## 1.8.51
 
 - **Efectos GPU Activos por Defecto (macOS & Windows)**:

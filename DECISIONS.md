@@ -269,3 +269,9 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 - RegisterHotKey con MOD_NOREPEAT y un hilo daemon bloqueado en GetMessage. Sin polling ni hook global de todas las teclas. El callback se entrega a AWT y abre solo Spotlight existente, no la ventana principal.
 - Se libera con UnregisterHotKey al cambiar combinación y al terminar; la app debe seguir viva en bandeja. Mac conserva Carbon ⌘K/⌘⇧K y la ventana Spotlight externa existente.
 - Pendiente: configuración y aviso de conflicto del registro Carbon en macOS (actualmente combinaciones nativas existentes). No se altera el subsistema multimedia para implementarlo.
+
+### 9. Barra de ventana Windows (criterio de aceptación 10)
+- Se elige DWM vía JNA: atributos 20 (fallback 19 en Windows 10), 35 para caption y 36 para texto. Se aplican al cambiar tema/fondo y al volver de fullscreen. Sin sondeo ni trabajo por frame.
+- Se conservan decoración, botones, arrastre, doble clic, Snap, menú de sistema y redimensionado nativos. No se introduce una barra propia que pueda regresarlos. Windows 11 usa tono de la app y texto contrastado; versiones que no admitan colores específicos conservan el modo oscuro/claro nativo si está disponible.
+- Pendiente: fallback de barra propia para Windows 10 antiguos sin atributos DWM compatibles. No se afirma transparencia Mica en títulos estándar cuando el OS no la soporte; se usa el tono coherente permitido por el requisito.
+- No existe un punto 10 separado en la lista de implementación: este punto cubre la barra nativa y el criterio 10.

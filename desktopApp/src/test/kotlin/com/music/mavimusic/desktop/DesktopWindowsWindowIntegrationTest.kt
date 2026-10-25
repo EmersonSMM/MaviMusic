@@ -1,6 +1,7 @@
 package com.music.mavimusic.desktop
 
 import com.sun.jna.Native
+import androidx.compose.ui.graphics.Color
 import com.sun.jna.platform.win32.User32
 import com.sun.jna.platform.win32.WinDef.HWND
 import com.sun.jna.platform.win32.WinDef.RECT
@@ -47,6 +48,13 @@ class DesktopWindowsWindowIntegrationTest {
                     while (!user32.RegisterHotKey(null, probeId, parsed.modifiers, parsed.key)) delay(50)
                 }
             } finally { user32.UnregisterHotKey(null, probeId) }
+            val captionColor = Color(0xFF202830)
+            DesktopWindowsCaption.attach(frame)
+            DesktopWindowsCaption.apply(captionColor)
+            EventQueue.invokeAndWait { } // Flush the actual app's DWM apply on the HWND owner thread.
+            EventQueue.invokeAndWait {
+                assertTrue(DesktopWindowsCaption.applyTo(frame, captionColor), "Windows runner must accept native caption/text colors")
+            }
             val originalStyle = user32.GetWindowLong(hwnd, WinUser.GWL_STYLE)
             assertTrue(originalStyle and WinUser.WS_CAPTION != 0, "Installing the bridge removed the native caption")
             fun nativeBounds(): Rectangle = RECT().also {
