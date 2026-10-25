@@ -29,10 +29,15 @@ jobs:
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
+      - name: Linux native runtime and display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential libasound2 libasound2-plugins libva2 libva-drm2 libvdpau1 libgl1 libpulse0 xvfb
+
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test
+        run: xvfb-run --auto-servernum ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test
 
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
@@ -77,6 +82,9 @@ jobs:
 
       - name: Tests
         run: .\gradlew.bat :shared:jvmTest :desktopUi:jvmTest :desktopApp:test
+
+      - name: Windows native window smoke test
+        run: .\gradlew.bat :desktopApp:windowsWindowSmoke
 
       - name: Build the distributable
         run: .\gradlew.bat :desktopApp:createDistributable

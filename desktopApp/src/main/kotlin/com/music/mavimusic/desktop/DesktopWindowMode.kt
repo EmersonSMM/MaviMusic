@@ -10,6 +10,8 @@ internal object DesktopWindowMode {
     private val _placement = MutableStateFlow(WindowPlacement.Floating)
     private val _fullScreen = MutableStateFlow(false)
     private val _maximized = MutableStateFlow(false)
+    private var nativeFullscreen = false
+    private var restorePlacement = WindowPlacement.Floating
 
     /** What the window's own `placement` is driven from. */
     val placement: StateFlow<WindowPlacement> = _placement
@@ -27,7 +29,7 @@ internal object DesktopWindowMode {
      * swaps the rendering surface and there leaves the whole screen white.
      */
     private val fillsScreen: WindowPlacement =
-        if (DesktopPlatform.drawsOwnWindowFrame) WindowPlacement.Maximized else WindowPlacement.Fullscreen
+        if (DesktopPlatform.isWindows) WindowPlacement.Maximized else WindowPlacement.Fullscreen
 
     fun toggle() = setFullScreen(!_fullScreen.value)
 
@@ -37,6 +39,7 @@ internal object DesktopWindowMode {
      */
     fun toggleMaximized() {
         if (DesktopPlatform.isWindows && _fullScreen.value && DesktopWindowsFrame.setFullscreen(false)) {
+            nativeFullscreen = false
             DesktopWindowBackdrop.apply()
         }
         _fullScreen.value = false
@@ -53,24 +56,29 @@ internal object DesktopWindowMode {
 
     /** Takes the window's word for how it is sitting, rather than this object's. */
     fun adopt(placement: WindowPlacement) {
+        if (nativeFullscreen) return
         if (placement == _placement.value) return
         if (placement == WindowPlacement.Floating) _fullScreen.value = false
         set(placement)
     }
 
     private fun setFullScreen(on: Boolean) {
+        if (on == _fullScreen.value) return
+        if (on) restorePlacement = _placement.value
         _fullScreen.value = on
         // On Windows the only thing that covers a taskbar told to stay on top is a native borderless
         // window raised above it; no Compose placement does, and true Fullscreen paints the screen
         // white. With that in place the window's placement is left as it was — it is the Win32 style
         // that changes, not the placement.
         if (DesktopPlatform.isWindows && DesktopWindowsFrame.setFullscreen(on)) {
+            nativeFullscreen = on
             // The native window resets DWM's frame margin on the way out; the chosen material goes
             // back over it so the window is exactly as it was before fullscreen.
             if (!on) DesktopWindowBackdrop.apply()
             return
         }
-        set(if (on) fillsScreen else WindowPlacement.Floating)
+        nativeFullscreen = false
+        set(if (on) fillsScreen else restorePlacement)
     }
 
     private fun set(placement: WindowPlacement) {

@@ -16,6 +16,8 @@ internal object DesktopWindowVisibility {
 
     /** What the window's own `visible` is driven from. */
     val visible: StateFlow<Boolean> = _visible
+    private val _renderActive = MutableStateFlow(true)
+    val renderActive: StateFlow<Boolean> = _renderActive
 
     /** Whether a close should hide rather than quit. */
     @Volatile
@@ -27,6 +29,18 @@ internal object DesktopWindowVisibility {
     /** Attaches the active Compose window so show() can bring it to the foreground. */
     fun attachWindow(window: Window) {
         windowRef = WeakReference(window)
+        if (DesktopPlatform.isWindows) {
+            fun refreshRendering() {
+                _renderActive.value = window.isShowing &&
+                    (window !is Frame || window.extendedState and Frame.ICONIFIED == 0)
+            }
+            window.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                override fun componentShown(event: java.awt.event.ComponentEvent) = refreshRendering()
+                override fun componentHidden(event: java.awt.event.ComponentEvent) = refreshRendering()
+            })
+            if (window is Frame) window.addWindowStateListener { refreshRendering() }
+            refreshRendering()
+        }
     }
 
     /**

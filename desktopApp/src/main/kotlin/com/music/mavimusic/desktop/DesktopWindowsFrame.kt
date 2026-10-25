@@ -3,16 +3,13 @@ package com.music.mavimusic.desktop
 import kotlinx.coroutines.delay
 
 /**
- * Windows' native frame kept underneath MaviMusic's Compose-drawn traffic-light controls.
- *
- * The Win32 window remains an overlapped window, so DWM owns its shadow, transitions, taskbar
- * maximization and resize border. Only the caption drawing is replaced by the app. This object is
- * never loaded on Linux, where the window manager continues to provide the ordinary decoration.
+ * Windows fullscreen and window actions, also available with the standard OS caption.
+ * Caption replacement is explicitly opt-in; loading the bridge preserves native decorations.
  */
 internal object DesktopWindowsFrame {
 
     private val available: Boolean by lazy {
-        DesktopPlatform.isWindows && DesktopPlatform.drawsOwnWindowFrame &&
+        DesktopPlatform.isWindows &&
             runCatching { DesktopAnalysisRuntime.loadNative(LIBRARY) }
                 .onFailure { DesktopTrackLog.log("native Windows frame unavailable: ${it.message}") }
                 .isSuccess
@@ -24,7 +21,7 @@ internal object DesktopWindowsFrame {
     suspend fun install(title: String): Boolean {
         if (!available) return false
         repeat(INSTALL_ATTEMPTS) {
-            val ready = runCatching { nativeInstall(title) }.getOrElse {
+            val ready = runCatching { nativeInstall(title, DesktopPlatform.drawsOwnWindowFrame) }.getOrElse {
                 DesktopTrackLog.log("native Windows frame install failed: ${it.message}")
                 false
             }
@@ -73,7 +70,7 @@ internal object DesktopWindowsFrame {
     private external fun nativeSetBackdrop(kind: Int): Boolean
 
     @JvmStatic
-    private external fun nativeInstall(title: String): Boolean
+    private external fun nativeInstall(title: String, customCaption: Boolean): Boolean
 
     @JvmStatic
     private external fun nativeMinimize(): Boolean

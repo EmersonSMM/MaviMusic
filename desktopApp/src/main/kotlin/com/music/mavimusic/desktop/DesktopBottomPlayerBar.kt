@@ -15,6 +15,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -128,12 +131,13 @@ internal fun DesktopBottomPlayerBar(
     var pendingSeekAt by remember(song?.videoId) { mutableStateOf(0L) }
     var showDjTooltip by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(78.dp)
-            .desktopWindowGlass(DesktopChromeEdge.TOP),
-    ) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val compact = DesktopPlatform.isWindows && maxWidth < 1800.dp
+        Box(
+            modifier = Modifier.fillMaxWidth()
+                .height(if (compact) 110.dp else 78.dp)
+                .desktopWindowGlass(DesktopChromeEdge.TOP),
+        ) {
         // Top subtle divider line for Liquid Glass definition
         HorizontalDivider(
             modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
@@ -489,10 +493,7 @@ internal fun DesktopBottomPlayerBar(
                     .fillMaxHeight(),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
+                DesktopPlayerUtilities(compact) {
                     Box {
                         DesktopToolbarButton(
                             onClick = { showOutputPopover = !showOutputPopover },
@@ -648,6 +649,24 @@ internal fun DesktopBottomPlayerBar(
                 }
             }
         }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DesktopPlayerUtilities(compact: Boolean, content: @Composable () -> Unit) {
+    if (compact) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) { content() }
+    } else {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) { content() }
     }
 }
 

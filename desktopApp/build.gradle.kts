@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("mavimusic.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.8.48"
+    ?: "1.8.49"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -160,6 +160,17 @@ tasks.withType<Test> {
     systemProperty("java.awt.headless", "true")
     // Tests must never import or modify the listener's real preferences.
     systemProperty("java.util.prefs.PreferencesFactory", "com.music.mavimusic.desktop.testing.MemoryPreferencesFactory")
+}
+
+// Hosted Windows runners exercise HWND geometry without launching MaviMusic or its real profile.
+tasks.register<Test>("windowsWindowSmoke") {
+    val tests = tasks.named<Test>("test")
+    testClassesDirs = tests.get().testClassesDirs
+    classpath = tests.get().classpath
+    systemProperty("java.awt.headless", "false")
+    systemProperty("mavimusic.test.windowsWindow", "true")
+    filter { includeTestsMatching("*DesktopWindowsWindowIntegrationTest") }
+    onlyIf { hostIsWindows }
 }
 
 kotlin {

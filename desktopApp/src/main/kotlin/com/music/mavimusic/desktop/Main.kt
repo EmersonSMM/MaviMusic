@@ -144,6 +144,12 @@ private fun desktopMain() = application {
         val composeWindow = window
         val openingSize = remember { state.size }
         DisposableEffect(composeWindow) {
+            val detach = if (DesktopPlatform.isWindows) DesktopWindowsWindowLayout.attach(
+                composeWindow, Dimension(openingSize.width.value.roundToInt(), openingSize.height.value.roundToInt()),
+            ) else ({})
+            onDispose { detach() }
+        }
+        DisposableEffect(composeWindow) {
             val previous = composeWindow.dropTarget
             val target = DesktopOpenAudio.attachDropTarget(composeWindow)
             onDispose { target.isActive = false; composeWindow.dropTarget = previous }
@@ -163,25 +169,27 @@ private fun desktopMain() = application {
                 (composeWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
                 composeWindow.rootPane.isOpaque = false
             }
-            val transform = composeWindow.graphicsConfiguration.defaultTransform
-            val scaleX = if (DesktopPlatform.isMac) 1.0 else transform.scaleX
-            val scaleY = if (DesktopPlatform.isMac) 1.0 else transform.scaleY
-            val minW = (MIN_WINDOW_WIDTH_DP * scaleX).roundToInt()
-            val minH = (MIN_WINDOW_HEIGHT_DP * scaleY).roundToInt()
-            composeWindow.minimumSize = Dimension(minW, minH)
-            composeWindow.size = Dimension(
-                (openingSize.width.value * scaleX).roundToInt().coerceAtLeast(minW),
-                (openingSize.height.value * scaleY).roundToInt().coerceAtLeast(minH),
-            )
-            composeWindow.addComponentListener(object : java.awt.event.ComponentAdapter() {
-                override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                    val w = composeWindow.width
-                    val h = composeWindow.height
-                    if (w < minW || h < minH) {
-                        composeWindow.setSize(w.coerceAtLeast(minW), h.coerceAtLeast(minH))
+            if (!DesktopPlatform.isWindows) {
+                val transform = composeWindow.graphicsConfiguration.defaultTransform
+                val scaleX = if (DesktopPlatform.isMac) 1.0 else transform.scaleX
+                val scaleY = if (DesktopPlatform.isMac) 1.0 else transform.scaleY
+                val minW = (MIN_WINDOW_WIDTH_DP * scaleX).roundToInt()
+                val minH = (MIN_WINDOW_HEIGHT_DP * scaleY).roundToInt()
+                composeWindow.minimumSize = Dimension(minW, minH)
+                composeWindow.size = Dimension(
+                    (openingSize.width.value * scaleX).roundToInt().coerceAtLeast(minW),
+                    (openingSize.height.value * scaleY).roundToInt().coerceAtLeast(minH),
+                )
+                composeWindow.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                    override fun componentResized(e: java.awt.event.ComponentEvent?) {
+                        val w = composeWindow.width
+                        val h = composeWindow.height
+                        if (w < minW || h < minH) {
+                            composeWindow.setSize(w.coerceAtLeast(minW), h.coerceAtLeast(minH))
+                        }
                     }
-                }
-            })
+                })
+            }
             if (DesktopPlatform.isWindows && DesktopWindowsFrame.install("MaviMusic")) {
                 DesktopWindowBackdrop.apply()
             } else if (DesktopPlatform.isMac && DesktopMacFrame.install(composeWindow)) {
