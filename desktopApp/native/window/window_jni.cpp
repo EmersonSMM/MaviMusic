@@ -292,7 +292,10 @@ bool set_fullscreen(HWND window, bool on) {
         const MARGINS no_frame{0, 0, 0, 0};
         DwmExtendFrameIntoClientArea(window, &no_frame);
 
-        SetWindowLongPtrW(window, GWL_STYLE, WS_POPUP | (g_fullscreen_style & WS_VISIBLE));
+        const LONG_PTR fullscreen_style =
+            (g_fullscreen_style & ~static_cast<LONG_PTR>(WS_OVERLAPPEDWINDOW | WS_MINIMIZE | WS_MAXIMIZE)) |
+            static_cast<LONG_PTR>(WS_POPUP);
+        SetWindowLongPtrW(window, GWL_STYLE, fullscreen_style);
         if (!SetWindowPos(
             window, HWND_TOPMOST,
             g_fullscreen_target.left, g_fullscreen_target.top,
