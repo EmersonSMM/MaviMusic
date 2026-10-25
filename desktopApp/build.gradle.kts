@@ -782,3 +782,19 @@ afterEvaluate {
         }
     }
 }
+
+// Keep removal of the previous MSI inside Windows Installer's rollback transaction.
+// This runs before release checksums/signing and only changes MSI packaging, never audio code.
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
+    if (hostIsWindows && targetFormat == TargetFormat.Msi) {
+        inputs.file(rootProject.file("scripts/updates/prepare_windows_msi.ps1"))
+        doLast {
+            destinationDir.get().asFile.listFiles { file -> file.extension.equals("msi", true) }.orEmpty().forEach { msi ->
+                providers.exec {
+                    commandLine("powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                        rootProject.file("scripts/updates/prepare_windows_msi.ps1").absolutePath, "-Msi", msi.absolutePath)
+                }.result.get().assertNormalExitValue()
+            }
+        }
+    }
+}

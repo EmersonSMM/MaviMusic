@@ -224,3 +224,14 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 2. **Protección NaN e invariancia bit a bit:** Cuando Karaoke o AirPlay están inactivos, la señal no sufre ninguna transformación ni retardo extra.
 3. **Validación:** 100 transiciones de automix consecutivas sin fallos (`DesktopSeekAndAutomixSimulationTest`), paso completo de suite de pruebas unitarias y generación de DMG v1.8.46.
 
+
+## Windows y macOS: pasada de interfaz y actualización (base 1.8.51)
+
+### 1. Actualización transparente
+- Se usa el MSI exacto de cada versión, no el EXE inicial ni flags /S supuestos. Se verifica tamaño y SHA-256 proporcionado por la API HTTPS del repositorio; esto asegura integridad con GitHub como raíz de confianza, no sustituye Authenticode ni una firma independiente del canal.
+- Auxiliar PowerShell separado: copia solo app/runtime/launcher, captura procesos propios y descendientes con PID+fecha para evitar reutilización, espera 45 s y limita la limpieza forzada a 15 s. No cierra procesos ajenos por nombre.
+- MSI por usuario /qn /norestart; no solicita elevación. Se valida instalación HKCU existente. Portable e instalación por máquina quedan en actualización manual, sin convertirlas silenciosamente.
+- Se cambia RemoveExistingProducts del MSI generado a justo después de InstallInitialize, dentro de la transacción de rollback (la plantilla de jpackage 21 lo ponía antes de CostInitialize). Se conserva además una copia de archivos de programa para recuperación. INSTALLDIR mantiene la ubicación anterior. No se copian ni borran ajustes, biblioteca, caché o estadísticas. Ventana oculta se restaura mediante argumento interno, con checkpoint existente.
+- El motor de audio, Automix y seek no se modifican. Se reutiliza el callback de cierre ya existente solo después de que el auxiliar esté listo.
+- Pendiente de aceptación física: actualización real entre MSI, bloqueo por antivirus, fallo de MSI/registro y restauración en diferentes ubicaciones. Si Windows Installer excede 10 min, no se intenta copiar archivos encima de una transacción viva: se conserva el registro y se requiere recuperación manual.
+- macOS conserva Sparkle y su cierre/checkpoint actual. Pendiente probar una actualización real entre dos instalaciones firmadas; no se reemplaza por el auxiliar Windows.

@@ -48,7 +48,8 @@ fun main(args: Array<String>) {
         System.setProperty("sun.java2d.noddraw", "false")
     }
 
-    DesktopOpenAudio.install(args)
+    if (DesktopPlatform.isWindows && "--mavimusic-start-hidden" in args) DesktopWindowVisibility.startHidden()
+    DesktopOpenAudio.install(args.filterNot { it == "--mavimusic-start-hidden" }.toTypedArray())
 
     // Initialize application default locale (Spanish by default)
     runCatching {

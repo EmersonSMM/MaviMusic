@@ -152,6 +152,14 @@ jobs:
       - name: Tests
         run: .\gradlew.bat :shared:jvmTest :desktopUi:jvmTest :desktopApp:test "-Pmavimusic.version=${{ steps.version.outputs.value }}"
 
+      - name: Parse Windows updater helper
+        shell: pwsh
+        run: |
+          $parseTokens = $null
+          $parseErrors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$pwd/desktopApp/src/main/resources/updates/windows-update.ps1", [ref]$parseTokens, [ref]$parseErrors)
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+
       - name: Windows native window smoke test
         run: .\gradlew.bat :desktopApp:windowsWindowSmoke
 
