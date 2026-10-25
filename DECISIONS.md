@@ -224,3 +224,54 @@ Se adopta el **Enrutamiento Nativo del Sistema macOS con Compensación de Latenc
 2. **Protección NaN e invariancia bit a bit:** Cuando Karaoke o AirPlay están inactivos, la señal no sufre ninguna transformación ni retardo extra.
 3. **Validación:** 100 transiciones de automix consecutivas sin fallos (`DesktopSeekAndAutomixSimulationTest`), paso completo de suite de pruebas unitarias y generación de DMG v1.8.46.
 
+
+## Windows y macOS: pasada de interfaz y actualización (base 1.8.51)
+
+### 1. Actualización transparente
+- Se usa el MSI exacto de cada versión, no el EXE inicial ni flags /S supuestos. Se verifica tamaño y SHA-256 proporcionado por la API HTTPS del repositorio; esto asegura integridad con GitHub como raíz de confianza, no sustituye Authenticode ni una firma independiente del canal.
+- Auxiliar PowerShell separado: copia solo app/runtime/launcher, captura procesos propios y descendientes con PID+fecha para evitar reutilización, espera 45 s y limita la limpieza forzada a 15 s. No cierra procesos ajenos por nombre.
+- MSI por usuario /qn /norestart; no solicita elevación. Se valida instalación HKCU existente. Portable e instalación por máquina quedan en actualización manual, sin convertirlas silenciosamente.
+- Se cambia RemoveExistingProducts del MSI generado a justo después de InstallInitialize, dentro de la transacción de rollback (la plantilla de jpackage 21 lo ponía antes de CostInitialize). Se conserva además una copia de archivos de programa para recuperación. INSTALLDIR mantiene la ubicación anterior. No se copian ni borran ajustes, biblioteca, caché o estadísticas. Ventana oculta se restaura mediante argumento interno, con checkpoint existente.
+- El motor de audio, Automix y seek no se modifican. Se reutiliza el callback de cierre ya existente solo después de que el auxiliar esté listo.
+- Pendiente de aceptación física: actualización real entre MSI, bloqueo por antivirus, fallo de MSI/registro y restauración en diferentes ubicaciones. Si Windows Installer excede 10 min, no se intenta copiar archivos encima de una transacción viva: se conserva el registro y se requiere recuperación manual.
+- macOS conserva Sparkle y su cierre/checkpoint actual. Pendiente probar una actualización real entre dos instalaciones firmadas; no se reemplaza por el auxiliar Windows.
+
+### 2. Texto del botón de actualización
+- Causa confirmada: DesktopAccent es blanco y el botón antiguo forzaba texto blanco. No era una fuente ausente. Se usa un componente compartido con contraste calculado, fuente SansSerif del sistema y colores de deshabilitado explícitos. La etiqueta permanece visible en descarga y preparación; errores y reintento no eliminan el botón.
+
+### 3. Aviso no invasivo
+- Windows consulta al arrancar y cada 8 h con una corrutina suspendida, sin polling ni avisos de red en pantalla. La preferencia de comprobación automática se respeta.
+- Píldora solo si hay versión nueva; no compone espaciadores cuando no existe. Abre versión, notas y acciones en Windows; en Mac abre el flujo nativo Sparkle.
+- Sparkle usa recordatorios suaves gestionados por la app (sin ventana programada intrusiva); conserva su UI cuando el usuario pide actualizar. Intervalo programado de 8 h.
+
+### 4. Búsqueda de Ajustes
+- Causa: se ocultaba el título pero se seguía dibujando el contenedor con padding y borde. SubcomposeLayout mantiene el registro de coincidencias sin colocar ninguna parte de una tarjeta vacía; su altura final es cero.
+- Se filtran filas compartidas y se resaltan coincidencias sin alterar callbacks ni valores; limpiar la búsqueda conserva el estado de controles. Hay estado vacío y transición de tamaño recortada.
+- Pendiente de revisión visual exhaustiva: controles personalizados internos que no usan filas compartidas pueden requerir etiquetas adicionales para búsqueda fina; los bloques de música local y actualizaciones se registran expresamente.
+
+### 5. Escape y cierre de letras
+- Prioridad: menús/paleta y panel flotante de cola; después panel de letras; después vista de letras/reproductor; por último modo inmersivo y navegación de Ajustes. Los popups con foco procesan su propio Escape antes de volver a la ventana principal.
+- El dispatcher inmersivo solo consume Escape cuando su ventana tiene foco. Q y K existentes se conservan; no se cambia reproducción ni seek.
+- Cierre compartido con IconButton de 44 dp (al menos 40 px al escalado normal), hover de Material y tooltip «Cerrar (Esc)». Se sitúa dentro del contenido, separado de los botones nativos de ventana.
+
+### 6. Menús glass compartidos
+- Radio de contenedor 20 dp y filas 12 dp, borde de 0,5 dp y sombra suave. Contexto de canciones y desplegables usan el mismo modificador/componentes, sin cambiar acciones.
+- Se reutiliza Haze/desktopChromeGlass y su fallback cuando se reduce el desenfoque. No se aplica blur al texto. Pendiente validar captura de fondo entre ventanas Popup en cada backend Windows/Mac; si Haze no puede capturarlo queda el tinte legible, no texto difuminado.
+- Colores semánticos de Material para el menú compartido. El tema global existente sigue siendo oscuro; no se afirma haber implementado un tema claro global nuevo.
+
+### 7. Logo sin bucle
+- Se conserva la palabra MaviMusic como glifos vectoriales escalables con degradado cálido y resplandor fijo; no hay GIF, secuencia, descarga ni recurso asíncrono que parpadee. Brushes recordados en memoria y caché de fuentes existente.
+- Solo se anima el brillo al hover durante 180 ms. Se consulta reducir movimiento de NSWorkspace o SPI_GETCLIENTAREAANIMATION al componer; en ese caso la transición es instantánea. No hay temporizador en reposo.
+- Pendiente: refrescar automáticamente esa preferencia si cambia en el sistema mientras la vista permanece compuesta; al volver a componer se toma de nuevo.
+
+### 8. Spotlight global
+- Por defecto Windows Ctrl+Alt+K, para evitar apropiarse del Ctrl+K común. En Ajustes puede cambiarse a Ctrl+K, Ctrl+Shift+K u otra combinación con Ctrl/Alt/Win y una letra; se muestra conflicto sin ventana modal.
+- RegisterHotKey con MOD_NOREPEAT y un hilo daemon bloqueado en GetMessage. Sin polling ni hook global de todas las teclas. El callback se entrega a AWT y abre solo Spotlight existente, no la ventana principal.
+- Se libera con UnregisterHotKey al cambiar combinación y al terminar; la app debe seguir viva en bandeja. Mac conserva Carbon ⌘K/⌘⇧K y la ventana Spotlight externa existente.
+- Pendiente: configuración y aviso de conflicto del registro Carbon en macOS (actualmente combinaciones nativas existentes). No se altera el subsistema multimedia para implementarlo.
+
+### 9. Barra de ventana Windows (criterio de aceptación 10)
+- Se elige DWM vía JNA: atributos 20 (fallback 19 en Windows 10), 35 para caption y 36 para texto. Se aplican al cambiar tema/fondo y al volver de fullscreen. Sin sondeo ni trabajo por frame.
+- Se conservan decoración, botones, arrastre, doble clic, Snap, menú de sistema y redimensionado nativos. No se introduce una barra propia que pueda regresarlos. Windows 11 usa tono de la app y texto contrastado; versiones que no admitan colores específicos conservan el modo oscuro/claro nativo si está disponible.
+- Pendiente: fallback de barra propia para Windows 10 antiguos sin atributos DWM compatibles. No se afirma transparencia Mica en títulos estándar cuando el OS no la soporte; se usa el tono coherente permitido por el requisito.
+- No existe un punto 10 separado en la lista de implementación: este punto cubre la barra nativa y el criterio 10.

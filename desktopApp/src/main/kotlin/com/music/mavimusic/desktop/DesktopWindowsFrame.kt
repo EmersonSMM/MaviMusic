@@ -54,7 +54,7 @@ internal object DesktopWindowsFrame {
      * caption window back. False without the native frame, and the caller falls back to maximize.
      */
     fun setFullscreen(on: Boolean): Boolean =
-        installed && runCatching { nativeSetFullscreen(on) }.getOrDefault(false)
+        installed && runCatching { nativeSetFullscreen(on) }.getOrDefault(false).also { if (!on) DesktopWindowsCaption.refresh() }
 
     @JvmStatic
     private external fun nativeSetFullscreen(on: Boolean): Boolean
@@ -64,7 +64,7 @@ internal object DesktopWindowsFrame {
      * False without the native frame, or on a Windows too old to have one.
      */
     fun setBackdrop(kind: Int): Boolean =
-        installed && runCatching { nativeSetBackdrop(kind) }.getOrDefault(false)
+        installed && runCatching { nativeSetBackdrop(kind) }.getOrDefault(false).also { DesktopWindowsCaption.refresh() }
 
     @JvmStatic
     private external fun nativeSetBackdrop(kind: Int): Boolean

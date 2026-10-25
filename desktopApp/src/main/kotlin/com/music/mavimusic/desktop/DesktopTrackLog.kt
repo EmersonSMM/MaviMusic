@@ -23,6 +23,7 @@ internal object DesktopTrackLog {
     }
 
     fun log(line: String) {
+        DesktopDiagnostics.recordLog(line)
         val stamped = "${LocalTime.now().format(clock)}  $line"
         println("MaviMusic: $stamped")
         val target = file ?: return

@@ -554,9 +554,9 @@ internal fun DesktopCollectionPage(
                             }
                             Box {
                                 DesktopCircleButton(Icons.Rounded.MoreHoriz, DesktopStrings["more", "More"], onClick = { moreOpen = true })
-                                DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                                DesktopGlassMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                                     onEditRules?.let { editRules ->
-                                        DropdownMenuItem(
+                                        DesktopGlassMenuItem(
                                             text = { Text("Editar reglas inteligentes") },
                                             leadingIcon = { Icon(MaviMusicIcons.Sparkles, null, tint = DesktopAccent) },
                                             onClick = {
@@ -565,7 +565,7 @@ internal fun DesktopCollectionPage(
                                             },
                                         )
                                     }
-                                    DropdownMenuItem(
+                                    DesktopGlassMenuItem(
                                         text = { Text(DesktopStrings["download_all", "Download all"]) },
                                         leadingIcon = { Icon(MaviMusicIcons.Download, null) },
                                         onClick = {
@@ -574,7 +574,7 @@ internal fun DesktopCollectionPage(
                                         },
                                     )
                                     onShare?.let { share ->
-                                        DropdownMenuItem(
+                                        DesktopGlassMenuItem(
                                             text = { Text(DesktopStrings["share", "Share"]) },
                                             leadingIcon = { Icon(Icons.Rounded.Share, null) },
                                             onClick = {
@@ -584,7 +584,7 @@ internal fun DesktopCollectionPage(
                                         )
                                     }
                                     onRename?.let { rename ->
-                                        DropdownMenuItem(
+                                        DesktopGlassMenuItem(
                                             text = { Text(DesktopStrings["rename", "Rename"]) },
                                             leadingIcon = { Icon(Icons.Rounded.Edit, null) },
                                             onClick = {
@@ -594,7 +594,7 @@ internal fun DesktopCollectionPage(
                                         )
                                     }
                                     onReorder?.let { reorder ->
-                                        DropdownMenuItem(
+                                        DesktopGlassMenuItem(
                                             text = { Text(DesktopStrings["reorder_playlist", "Edit order"]) },
                                             leadingIcon = { Icon(Icons.Rounded.DragHandle, null) },
                                             onClick = {
@@ -604,7 +604,7 @@ internal fun DesktopCollectionPage(
                                         )
                                     }
                                     onDelete?.let { delete ->
-                                        DropdownMenuItem(
+                                        DesktopGlassMenuItem(
                                             text = { Text(DesktopStrings["delete", "Delete"]) },
                                             leadingIcon = { Icon(Icons.Rounded.Delete, null) },
                                             onClick = {

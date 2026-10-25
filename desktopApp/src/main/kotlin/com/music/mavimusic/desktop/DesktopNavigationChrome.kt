@@ -382,6 +382,7 @@ internal fun DesktopTopBar(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MaviMusicFireWordmark()
+                    DesktopUpdatePill()
                     Spacer(Modifier.width(12.dp))
                     DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
                         Icon(
@@ -723,8 +724,8 @@ internal fun DesktopSidebarItem(
             )
         }
         if (onHide != null) {
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
+            DesktopGlassMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DesktopGlassMenuItem(
                     text = { Text(DesktopStrings["hide_from_sidebar", "Hide from sidebar"]) },
                     onClick = {
                         menuOpen = false
@@ -775,9 +776,9 @@ internal fun DesktopSidebarRestoreRow(hidden: Map<String, String>) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DesktopGlassMenu(expanded = open, onDismissRequest = { open = false }) {
             hidden.forEach { (key, label) ->
-                DropdownMenuItem(
+                DesktopGlassMenuItem(
                     text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     onClick = {
                         DesktopSidebarVisibility.show(key)
@@ -786,7 +787,7 @@ internal fun DesktopSidebarRestoreRow(hidden: Map<String, String>) {
                 )
             }
             if (hidden.size > 1) {
-                DropdownMenuItem(
+                DesktopGlassMenuItem(
                     text = { Text(DesktopStrings["show_all", "Show all"]) },
                     onClick = {
                         DesktopSidebarVisibility.showAll()
@@ -994,33 +995,15 @@ internal fun DesktopSearchField(
  */
 @Composable
 internal fun MaviMusicFireWordmark() {
-    val transition = rememberInfiniteTransition(label = "mavi_fire_shimmer")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "fire_phase",
-    )
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val reduced = remember { DesktopMotionPreference.reduceMotion() }
+    val glow by androidx.compose.animation.core.animateFloatAsState(
+        if (hovered) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(if (reduced) 0 else 180), label = "wordmark-hover")
+    val fireBrush = remember { Brush.horizontalGradient(listOf(Color(0xFFFFD76A), Color(0xFFFF9A32), Color(0xFFFF632D))) }
 
-    val shift = phase * 260f
-    val fireBrush = Brush.linearGradient(
-        colors = listOf(
-            Color(0xFFFFD54F).copy(alpha = 0.93f),
-            Color(0xFFFF7043).copy(alpha = 0.90f),
-            Color(0xFFFF3D00).copy(alpha = 0.92f),
-            Color(0xFFFFF8E1).copy(alpha = 0.97f),
-            Color(0xFFFFAB00).copy(alpha = 0.93f),
-            Color(0xFFFF5722).copy(alpha = 0.91f),
-            Color(0xFFFFD54F).copy(alpha = 0.93f),
-        ),
-        start = Offset(shift - 180f, 0f),
-        end = Offset(shift + 80f, 4f),
-    )
-
-    val auraBrush = Brush.horizontalGradient(
+    val auraBrush = remember { Brush.horizontalGradient(
         colors = listOf(
             Color(0x00FF3D00),
             Color(0x2EFF5722),
@@ -1028,10 +1011,11 @@ internal fun MaviMusicFireWordmark() {
             Color(0x2EFF3D00),
             Color(0x00FF3D00),
         ),
-    )
+    ) }
 
     Box(
         modifier = Modifier
+            .hoverable(interaction)
             .clip(RoundedCornerShape(10.dp))
             .background(auraBrush)
             .padding(horizontal = 8.dp, vertical = 3.dp),
@@ -1045,9 +1029,9 @@ internal fun MaviMusicFireWordmark() {
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.5.sp,
                 shadow = Shadow(
-                    color = Color(0xCCFF3D00),
+                    color = Color(0xFFFF632D).copy(alpha = 0.6f + glow * 0.25f),
                     offset = Offset(0f, 0f),
-                    blurRadius = 11f,
+                    blurRadius = 10f + glow * 4f,
                 ),
             ),
             maxLines = 1,

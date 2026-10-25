@@ -48,7 +48,8 @@ fun main(args: Array<String>) {
         System.setProperty("sun.java2d.noddraw", "false")
     }
 
-    DesktopOpenAudio.install(args)
+    if (DesktopPlatform.isWindows && "--mavimusic-start-hidden" in args) DesktopWindowVisibility.startHidden()
+    DesktopOpenAudio.install(args.filterNot { it == "--mavimusic-start-hidden" }.toTypedArray())
 
     // Initialize application default locale (Spanish by default)
     runCatching {
@@ -156,6 +157,8 @@ private fun desktopMain() = application {
         }
         LaunchedEffect(composeWindow) {
             DesktopWindowVisibility.attachWindow(composeWindow)
+            DesktopWindowsHotkey.start()
+            DesktopWindowsCaption.attach(composeWindow)
             // AWT's default is white, and it is what shows for the frame or two a moved or resized
             // window takes to repaint: a white band along its edges.
             // Not over a transparent window, whose clear background is what the material shows
@@ -233,6 +236,7 @@ private fun desktopMain() = application {
             LocalDesktopWindowScope provides this,
         ) {
             MaviMusicDesktopApp()
+            DesktopUpdateNoticeDialog()
         }
     }
 

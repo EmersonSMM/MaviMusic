@@ -175,9 +175,9 @@ def find_run(hub, branch, commit, previous_ids, attempts=60):
     raise RuntimeError("GitHub no inició la compilación a tiempo. Revisa Actions; no se publicó la release.")
 
 
-def verify_release(hub, directory, version, commit, key_file):
+def verify_release(hub, directory, version, commit, key_file, allow_published=False):
     release = hub.repo_api(f"releases/tags/v{version}")
-    if not release["draft"] or release.get("prerelease"):
+    if (not allow_published and not release["draft"]) or release.get("prerelease"):
         raise ValueError("El resultado debe ser un borrador estable antes de publicarlo.")
     if release.get("target_commitish") != commit:
         raise ValueError("La release no apunta a la instantánea que se compiló.")
@@ -226,8 +226,12 @@ def finish_release(hub, run_id, directory, version, commit, key_file, timeout):
     completed = hub.repo_api(f"actions/runs/{run_id}")
     if completed["conclusion"] != "success" or completed["head_sha"] != commit:
         raise ValueError("La compilación no terminó correctamente; no se publicará la release.")
-    verify_release(hub, directory, version, commit, key_file)
+    verified = verify_release(hub, directory, version, commit, key_file, allow_published=True)
     latest = hub.repo_api("releases/latest", missing=True)
+    if not verified["draft"]:
+        if latest and latest["tag_name"] == f"v{version}" and not latest["draft"]:
+            return latest
+        raise ValueError("La versión está publicada pero otra release ocupa el canal; no se modificará.")
     if latest and tuple(map(int, version_number(latest["tag_name"]).split('.'))) >= tuple(map(int, version.split('.'))):
         raise ValueError("Se publicó una versión igual o superior mientras se compilaba; se conserva este borrador.")
     hub.run("release", "edit", f"v{version}", "--repo", hub.repo, "--draft=false", "--latest")

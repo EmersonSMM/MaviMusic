@@ -312,60 +312,52 @@ internal fun DesktopTopMiniPlayer(
                         DesktopMiniControlButton(onClick = { moreMenuOpen = true }, size = 28.dp) {
                             Icon(Icons.Rounded.MoreHoriz, "Opciones", tint = subtitleColor, modifier = Modifier.size(20.dp))
                         }
-                        DropdownMenu(
+                        DesktopGlassMenu(
                             expanded = moreMenuOpen,
                             onDismissRequest = { moreMenuOpen = false },
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFA141419))
-                                .border(0.5.dp, Color(0x38FFFFFF), RoundedCornerShape(14.dp)),
+                            modifier = Modifier,
                         ) {
                             if (song != null && onOpenSongMenu != null) {
-                                DropdownMenuItem(
-                                    text = { Text("Opciones de la canción", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
-                                    leadingIcon = { Icon(Icons.Rounded.MoreHoriz, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
+                                DesktopGlassMenuItem(
+                                    text = { Text("Opciones de la canción", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = { Icon(Icons.Rounded.MoreHoriz, null, modifier = Modifier.size(17.dp)) },
                                     onClick = {
                                         moreMenuOpen = false
                                         onOpenSongMenu(song)
                                     },
-                                    colors = MenuDefaults.itemColors(textColor = Color.White),
                                 )
                             }
-                            DropdownMenuItem(
-                                text = { Text("Modo Azar (Shuffle)", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = { Icon(Icons.Rounded.Shuffle, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
+                            DesktopGlassMenuItem(
+                                text = { Text("Modo Azar (Shuffle)", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.Shuffle, null, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     onFeelingLucky()
                                 },
-                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
-                            DropdownMenuItem(
-                                text = { Text("Abrir MaviMusic", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = { Icon(Icons.Rounded.OpenInFull, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
+                            DesktopGlassMenuItem(
+                                text = { Text("Abrir MaviMusic", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.OpenInFull, null, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     onOpenNowPlaying()
                                 },
-                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
-                            DropdownMenuItem(
-                                text = { Text("Buscar / Paleta (⌘K)", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
+                            DesktopGlassMenuItem(
+                                text = { Text("Buscar / Paleta (⌘K)", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.Search, null, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     DesktopSpotlightState.show()
                                 },
-                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
-                            DropdownMenuItem(
-                                text = { Text("Ajustes", color = Color.White, style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = { Icon(Icons.Rounded.Settings, null, tint = DesktopAccent, modifier = Modifier.size(17.dp)) },
+                            DesktopGlassMenuItem(
+                                text = { Text("Ajustes", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Rounded.Settings, null, modifier = Modifier.size(17.dp)) },
                                 onClick = {
                                     moreMenuOpen = false
                                     onToggleExpand()
                                 },
-                                colors = MenuDefaults.itemColors(textColor = Color.White),
                             )
                         }
                     }

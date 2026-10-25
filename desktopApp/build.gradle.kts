@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("mavimusic.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.8.51"
+    ?: "1.8.52"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -702,7 +702,7 @@ compose.desktop {
                         <key>SUEnableSystemProfiling</key><false/>
                         <key>SUShowReleaseNotes</key><true/>
                         <key>SUEnableInstallerLauncherService</key><true/>
-                        <key>SUScheduledCheckInterval</key><integer>86400</integer>
+                        <key>SUScheduledCheckInterval</key><integer>28800</integer>
                         <key>CFBundleDocumentTypes</key>
                         <array>
                             <dict>
@@ -779,6 +779,22 @@ afterEvaluate {
             providers.exec {
                 commandLine("python3", rootProject.file("scripts/updates/notarize_macos.py").absolutePath, "--app", app.absolutePath)
             }.result.get().assertNormalExitValue()
+        }
+    }
+}
+
+// Keep removal of the previous MSI inside Windows Installer's rollback transaction.
+// This runs before release checksums/signing and only changes MSI packaging, never audio code.
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
+    if (hostIsWindows && targetFormat == TargetFormat.Msi) {
+        inputs.file(rootProject.file("scripts/updates/prepare_windows_msi.ps1"))
+        doLast {
+            destinationDir.get().asFile.listFiles { file -> file.extension.equals("msi", true) }.orEmpty().forEach { msi ->
+                providers.exec {
+                    commandLine("powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                        rootProject.file("scripts/updates/prepare_windows_msi.ps1").absolutePath, "-Msi", msi.absolutePath)
+                }.result.get().assertNormalExitValue()
+            }
         }
     }
 }

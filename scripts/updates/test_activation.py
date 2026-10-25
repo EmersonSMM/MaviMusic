@@ -121,7 +121,7 @@ class ActivationTest(unittest.TestCase):
                 activation.finish_release(hub, 1, Path("unused"), "1.8.36", "commit", Path("unused"), 1)
             self.assertFalse(any(cmd[:2] == ("release", "edit") for cmd in hub.commands))
         hub = Hub()
-        with patch.object(activation, "verify_release") as verify:
+        with patch.object(activation, "verify_release", return_value={"draft": True}) as verify:
             activation.finish_release(hub, 1, Path("unused"), "1.8.36", "commit", Path("unused"), 1)
             verify.assert_called_once()
             self.assertEqual(1, sum(cmd[:2] == ("release", "edit") for cmd in hub.commands))

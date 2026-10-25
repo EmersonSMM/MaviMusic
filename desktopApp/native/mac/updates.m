@@ -30,9 +30,12 @@ static void emitUpdateEvent(int event, NSString *message) {
     if (attached) (*updateVM)->DetachCurrentThread(updateVM);
 }
 
-@interface MaviUpdateDelegate : NSObject <SPUUpdaterDelegate>
+@interface MaviUpdateDelegate : NSObject <SPUUpdaterDelegate, SPUStandardUserDriverDelegate>
 @end
 @implementation MaviUpdateDelegate
+- (BOOL)supportsGentleScheduledUpdateReminders { return YES; }
+- (BOOL)standardUserDriverShouldHandleShowingScheduledUpdate:(SUAppcastItem *)update andInImmediateFocus:(BOOL)immediateFocus { return NO; }
+- (void)updaterDidNotFindUpdate:(SPUUpdater *)updater error:(NSError *)error { emitUpdateEvent(4, @""); }
 - (void)updater:(SPUUpdater *)updater didFindValidUpdate:(SUAppcastItem *)item {
     emitUpdateEvent(1, item.displayVersionString);
 }
@@ -63,7 +66,7 @@ JNIEXPORT jstring JNICALL Java_com_music_mavimusic_desktop_DesktopMacUpdater_nat
             return;
         }
         updateDelegate = [MaviUpdateDelegate new];
-        updateController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO updaterDelegate:updateDelegate userDriverDelegate:nil];
+        updateController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO updaterDelegate:updateDelegate userDriverDelegate:updateDelegate];
         NSError *error = nil;
         if (![updateController.updater startUpdater:&error]) {
             failure = error.localizedDescription;

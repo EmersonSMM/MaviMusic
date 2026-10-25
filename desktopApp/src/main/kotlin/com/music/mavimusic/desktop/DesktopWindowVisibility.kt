@@ -14,6 +14,8 @@ internal object DesktopWindowVisibility {
 
     private val _visible = MutableStateFlow(true)
 
+    fun startHidden() { _visible.value = false }
+
     /** What the window's own `visible` is driven from. */
     val visible: StateFlow<Boolean> = _visible
     private val _renderActive = MutableStateFlow(true)

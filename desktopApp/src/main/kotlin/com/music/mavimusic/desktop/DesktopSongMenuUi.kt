@@ -590,7 +590,7 @@ private fun DesktopOffsetStepper(label: String, enabled: Boolean, onClick: () ->
         Text(
             text = label,
             style = MaterialTheme.typography.titleLarge,
-            color = if (enabled) Color.White else DesktopSecondary,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else DesktopSecondary,
         )
     }
 }
@@ -611,12 +611,11 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
-        val shape = RoundedCornerShape(14.dp)
+        val shape = DesktopMenuShape
         Column(
             Modifier
                 .widthIn(min = 236.dp, max = 308.dp)
-                .clip(shape)
-                .desktopCard(shape)
+                .desktopMenuGlass()
                 .padding(vertical = 6.dp)
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.
@@ -670,7 +669,7 @@ private fun DesktopMenuHeader(title: String, onBack: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 32.dp)
+            .heightIn(min = 40.dp)
             .clickable(onClick = onBack)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -713,11 +712,11 @@ private fun DesktopMenuRow(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 5.dp)
-            .clip(RoundedCornerShape(7.dp))
-            .background(if (hovered && enabled) DesktopRowHover else Color.Transparent)
+            .clip(DesktopMenuRowShape)
+            .background(if (hovered && enabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f) else Color.Transparent)
             .hoverable(interaction, enabled = enabled)
             .clickable(enabled = enabled, onClick = onClick)
-            .heightIn(min = 32.dp)
+            .heightIn(min = 40.dp)
             .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -727,7 +726,7 @@ private fun DesktopMenuRow(
             Icon(
                 icon,
                 null,
-                tint = tint ?: if (enabled) Color.White.copy(alpha = 0.82f) else DesktopSecondary,
+                tint = tint ?: if (enabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f) else DesktopSecondary,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -736,7 +735,7 @@ private fun DesktopMenuRow(
             label,
             Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = tint ?: if (enabled) Color.White else DesktopSecondary,
+            color = tint ?: if (enabled) MaterialTheme.colorScheme.onSurface else DesktopSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

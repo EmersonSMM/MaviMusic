@@ -1,4 +1,11 @@
 package com.music.mavimusic.desktop
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.mavimusic.ui.components.LocalShelfRowChrome
 import com.music.mavimusic.ui.components.ShelfRowChrome
@@ -48,7 +55,6 @@ import com.music.mavimusic.ui.player.QueueSidePanel
 import com.music.mavimusic.ui.player.PlayerBack
 import com.music.mavimusic.ui.player.RepeatModes
 import com.music.mavimusic.ui.player.rememberMixPulse
-import androidx.compose.runtime.SideEffect
 import com.music.mavimusic.data.model.QueueTier
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -206,7 +212,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -245,10 +250,8 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -258,7 +261,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
@@ -476,6 +478,19 @@ internal fun DesktopSettingsScreen(
     DesktopSettingsPageFrame {
             Column(Modifier.fillMaxSize()) {
                 val settingsQuery = query
+                var searchWasActive by remember { mutableStateOf(false) }
+                var previousScroll by remember { mutableStateOf(0 to 0) }
+                LaunchedEffect(settingsQuery) {
+                    if (settingsQuery.isNotBlank()) {
+                        if (!searchWasActive) previousScroll = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                        searchWasActive = true
+                        listState.scrollToItem(0)
+                    } else if (searchWasActive) {
+                        searchWasActive = false
+                        listState.scrollToItem(previousScroll.first, previousScroll.second)
+                    }
+                }
+                val visibleSettingsGroups = remember(settingsQuery) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -494,7 +509,7 @@ internal fun DesktopSettingsScreen(
                         modifier = Modifier.padding(start = 24.dp).width(280.dp),
                     )
                 }
-                CompositionLocalProvider(LocalSettingsQuery provides settingsQuery.trim()) {
+                CompositionLocalProvider(LocalSettingsQuery provides settingsQuery.trim(), LocalSettingsHighlight provides settingsQuery.trim(), LocalSettingsGroups provides visibleSettingsGroups) {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     state = listState,
@@ -1034,9 +1049,9 @@ internal fun DesktopSettingsScreen(
                             DesktopStrings["app_language", "App language"],
                             DesktopStrings.languageLabel(),
                         ) { languageMenuOpen = true }
-                        DropdownMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                        DesktopGlassMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
                             DesktopStrings.available.forEach { language ->
-                                DropdownMenuItem(
+                                DesktopGlassMenuItem(
                                     text = { Text(language.label) },
                                     trailingIcon = if (language.tag == chosen) {
                                         { Icon(MaviMusicIcons.Check, contentDescription = null) }
@@ -1103,8 +1118,15 @@ internal fun DesktopSettingsScreen(
             }
             if (section == DesktopSettingsSection.LOCAL_MUSIC) item {
                 SettingsGroup(DesktopStrings["local_music", "Música Local (Reproductor Winamp)"]) {
+                    if (!settingsRowVisible("Reproductor de música local", "carpeta MP3 FLAC WAV AAC OGG aleatorio biblioteca")) return@SettingsGroup
                     var folderPath by remember { mutableStateOf(DesktopLocalMusic.folder()) }
-                    var localSongs by remember(folderPath) { mutableStateOf(DesktopLocalMusic.scan()) }
+                    var localSongs by remember(folderPath) { mutableStateOf<List<Song>>(emptyList()) }
+                    var localScanLoading by remember(folderPath) { mutableStateOf(true) }
+                    LaunchedEffect(folderPath) {
+                        localScanLoading = true
+                        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+                        localScanLoading = false
+                    }
 
                     Column(
                         modifier = Modifier
@@ -1154,7 +1176,7 @@ internal fun DesktopSettingsScreen(
                                     Spacer(Modifier.height(2.dp))
                                     Text(
                                         text = if (folderPath != null) {
-                                            "${localSongs.size} canciones encontradas en esta carpeta"
+                                            if (localScanLoading) "Explorando carpeta…" else "${localSongs.size} canciones encontradas en esta carpeta"
                                         } else {
                                             "Selecciona una carpeta para cargar tus archivos locales"
                                         },
@@ -1175,7 +1197,7 @@ internal fun DesktopSettingsScreen(
                                     onClick = {
                                         onChooseLocalMusicFolder {
                                             folderPath = DesktopLocalMusic.folder()
-                                            localSongs = DesktopLocalMusic.scan()
+
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
@@ -1823,7 +1845,7 @@ internal fun DesktopSettingsScreen(
                 // integration option Android has lives behind it; inline, the
                 // list was longer than the rest of Settings put together.
                 SettingsGroup(DesktopStrings["d_account", "Account"]) {
-                    DesktopSessionRecovery()
+                    if (settingsRowVisible("Recuperar sesiones anteriores", "Cuenta llavero iniciar sesión")) DesktopSessionRecovery()
                     SettingsRow(
                         Icons.Rounded.Share,
                         DesktopStrings["account_integrations", "Account & integrations"],
@@ -1844,8 +1866,17 @@ internal fun DesktopSettingsScreen(
             }
             }
             item {
+                SettingsGroup("Atajos de teclado") {
+                    if (settingsRowVisible("Spotlight global", "atajo Ctrl Alt Win teclado")) DesktopShortcutSettings()
+                }
+                SettingsGroup("Diagnóstico") {
+                    if (settingsRowVisible("Exportar diagnóstico", "informe pantallas escalado renderizador incidencias técnicas")) DesktopDiagnosticsSettings()
+                }
                 DesktopUpdateSettings()
-                DesktopSettingsFooter(onLicenses = onOpenLicenses)
+                if (settingsQuery.isBlank()) DesktopSettingsFooter(onLicenses = onOpenLicenses)
+                if (settingsQuery.isNotBlank() && visibleSettingsGroups.values.none { it }) {
+                    Text("Sin resultados para «$settingsQuery»", color = DesktopSecondary, modifier = Modifier.padding(20.dp))
+                }
             }
         }
         }
@@ -1873,10 +1904,11 @@ internal fun DesktopSettingsScreen(
 }
 
 @Composable
-private fun DesktopUpdateSettings() {
+internal fun DesktopUpdateSettings() {
     if (DesktopPlatform.isWindows) {
         val winUpdate by DesktopWindowsUpdater.state.collectAsState()
         SettingsGroup("Actualizaciones del Sistema") {
+            if (!settingsRowVisible("Actualizaciones del sistema", "versión descargar instalar reiniciar")) return@SettingsGroup
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1921,26 +1953,22 @@ private fun DesktopUpdateSettings() {
                             style = MaterialTheme.typography.bodySmall,
                             color = DesktopSecondary,
                         )
+                        DesktopUpdateAction("Descargando…", enabled = false) {}
+                    } else if (winUpdate.installing) {
+                        DesktopUpdateAction("Preparando instalación…", enabled = false) {}
                     } else if (winUpdate.installerPath != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { DesktopWindowsUpdater.installNow() },
-                            colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
-                        ) {
-                            Text("Instalar y reiniciar", color = Color.White)
-                        }
+                        DesktopUpdateAction("Instalar y reiniciar") { DesktopWindowsUpdater.installNow() }
                     } else {
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { DesktopWindowsUpdater.downloadAndInstall() },
-                            colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent),
-                        ) {
-                            Text("Descargar e instalar ahora", color = Color.White)
-                        }
+                        DesktopUpdateAction("Descargar e instalar") { DesktopWindowsUpdater.downloadAndInstall() }
+                    }
+                    if (winUpdate.releaseNotes.isNotBlank()) {
+                        Text(winUpdate.releaseNotes, style = MaterialTheme.typography.bodySmall,
+                            color = DesktopSecondary, modifier = Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()))
                     }
                 }
                 Spacer(Modifier.height(8.dp))
             }
+            winUpdate.lastError?.let { Text(it, color = Color(0xFFFFA997), style = MaterialTheme.typography.bodySmall) }
             SettingsToggle(
                 "Buscar actualizaciones automáticamente",
                 "Comprobar periódicamente si hay una versión nueva de MaviMusic.",
@@ -1972,6 +2000,7 @@ private fun DesktopUpdateSettings() {
     } else {
         val update by DesktopMacUpdater.state.collectAsState()
         SettingsGroup("Actualizaciones del Sistema") {
+            if (!settingsRowVisible("Actualizaciones del sistema", "versión descargar instalar reiniciar")) return@SettingsGroup
             Text("MaviMusic ${DesktopUpdateChecker.currentVersion}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(2.dp))
             Text(update.message, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
@@ -2339,38 +2368,55 @@ private fun phraseBarsDetail(bars: Int): String = when (bars) {
 @Composable
 private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     val query = LocalSettingsQuery.current
-    // A group whose own name matches shows whole; otherwise only its matching rows do, and the
-    // heading goes with them when none are left.
+    val registry = LocalSettingsGroups.current
     val wholeGroup = query.isBlank() || title.contains(query, ignoreCase = true)
     val matched = remember(query) { androidx.compose.runtime.mutableStateListOf<String>() }
-    val visible = wholeGroup || matched.isNotEmpty()
-    // The gap belongs to the group, not to the list: as list spacing, every filtered-out group
-    // still left its 18dp behind and the surviving ones sat under a band of empty space.
-    Column(if (visible) Modifier.padding(bottom = 22.dp) else Modifier) {
-        if (visible) {
-            Text(
-                title.uppercase(),
-                color = DesktopAccent,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp),
-            )
-        }
-        val shape = RoundedCornerShape(14.dp)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(Color(0xCC16161D))
-                .border(0.5.dp, Color(0x28FFFFFF), shape)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-        ) {
-            CompositionLocalProvider(
-                LocalSettingsQuery provides if (wholeGroup) "" else query,
-                LocalSettingsMatches provides matched,
-            ) {
-                content()
+    DisposableEffect(title, query) { onDispose { registry?.remove(title) } }
+    SubcomposeLayout(Modifier.fillMaxWidth().clipToBounds().animateContentSize()) { constraints ->
+        // Always compose rows so their match registrations remain live. Hidden cards are never placed.
+        val body = subcompose("body") {
+            val visible = wholeGroup || matched.isNotEmpty()
+            SideEffect { if (registry?.get(title) != visible) registry?.set(title, visible) }
+            val shape = RoundedCornerShape(14.dp)
+            Column(Modifier.fillMaxWidth().clip(shape).background(Color(0xCC16161D))
+                .border(0.5.dp, Color(0x28FFFFFF), shape).padding(horizontal = 16.dp, vertical = 6.dp)) {
+                CompositionLocalProvider(LocalSettingsQuery provides if (wholeGroup) "" else query,
+                    LocalSettingsMatches provides matched) { content() }
             }
+        }.map { it.measure(constraints.copy(minHeight = 0)) }
+        if (!wholeGroup && matched.isEmpty()) {
+            layout(constraints.maxWidth, 0) {}
+        } else {
+            val header = subcompose("header") {
+                Text(highlightSettings(title.uppercase()), color = DesktopAccent,
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp))
+            }.map { it.measure(constraints.copy(minHeight = 0)) }
+            val height = header.sumOf { it.height } + body.sumOf { it.height } + 22.dp.roundToPx()
+            layout(constraints.maxWidth, height) {
+                var y = 0
+                header.forEach { it.placeRelative(0, y); y += it.height }
+                body.forEach { it.placeRelative(0, y); y += it.height }
+            }
+        }
+    }
+}
+
+private val LocalSettingsGroups = compositionLocalOf<MutableMap<String, Boolean>?> { null }
+private val LocalSettingsHighlight = compositionLocalOf { "" }
+
+@Composable
+private fun highlightSettings(text: String): androidx.compose.ui.text.AnnotatedString {
+    val query = LocalSettingsHighlight.current
+    return buildAnnotatedString {
+        if (query.isBlank()) { append(text); return@buildAnnotatedString }
+        var from = 0
+        while (from < text.length) {
+            val at = text.indexOf(query, from, ignoreCase = true)
+            if (at < 0) { append(text.substring(from)); break }
+            append(text.substring(from, at))
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, background = Color(0x55FFBA55))) { append(text.substring(at, at + query.length)) }
+            from = at + query.length
         }
     }
 }
@@ -2410,9 +2456,9 @@ private fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(highlightSettings(title), style = MaterialTheme.typography.bodyLarge)
             Text(
-                subtitle,
+                highlightSettings(subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = DesktopSecondary,
                 maxLines = 2,
@@ -2442,8 +2488,8 @@ private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, on
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+            Text(highlightSettings(title), style = MaterialTheme.typography.bodyLarge)
+            Text(highlightSettings(subtitle), color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
         }
         Spacer(Modifier.width(18.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange, colors = desktopSwitchColors())
@@ -2473,8 +2519,8 @@ private fun SettingsRow(
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+            Text(highlightSettings(title), style = MaterialTheme.typography.bodyLarge)
+            Text(highlightSettings(subtitle), color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
         }
         if (onClick != null) {
             Spacer(Modifier.width(10.dp))

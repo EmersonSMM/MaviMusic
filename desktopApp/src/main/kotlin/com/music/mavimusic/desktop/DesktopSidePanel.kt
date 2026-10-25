@@ -157,14 +157,7 @@ internal fun DesktopSidePanelColumn(
                                 }
                                 Spacer(Modifier.width(4.dp))
                             }
-                            DesktopToolbarButton(onClick = onClose, size = 28.dp) {
-                                Icon(
-                                    Icons.Rounded.Close,
-                                    DesktopStrings["close", "Cerrar"],
-                                    tint = DesktopSecondary,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
+                            DesktopLyricsClose(onClose)
                         }
                         Box(
                             Modifier

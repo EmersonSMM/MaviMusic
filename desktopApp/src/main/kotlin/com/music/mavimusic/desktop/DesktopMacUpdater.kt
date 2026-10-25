@@ -13,6 +13,7 @@ internal object DesktopMacUpdater {
         val ready: Boolean = false,
         val automaticChecks: Boolean = true,
         val automaticDownloads: Boolean = false,
+        val availableVersion: String? = null,
         val message: String = "Las actualizaciones automáticas están disponibles en la app instalada para macOS.",
     )
     private val mutableState = MutableStateFlow(State())
@@ -56,13 +57,14 @@ internal object DesktopMacUpdater {
 
     private fun refreshPreferences(message: String) {
         val flags = nativePreferences()
-        mutableState.value = State(true, flags and 1 != 0, flags and 2 != 0, message)
+        mutableState.update { it.copy(ready = true, automaticChecks = flags and 1 != 0, automaticDownloads = flags and 2 != 0, message = message) }
     }
 
     @JvmStatic
     private fun onNativeEvent(event: Int, message: String) {
         when (event) {
-            1 -> mutableState.update { it.copy(message = "MaviMusic $message disponible.") }
+            1 -> mutableState.update { it.copy(availableVersion = message, message = "MaviMusic $message disponible.") }
+            4 -> mutableState.update { it.copy(availableVersion = null) }
             2 -> refreshPreferences(message.takeIf(String::isNotBlank) ?: "Comprobación finalizada.")
             3 -> {
                 val prepare = prepareForInstall
