@@ -20,6 +20,7 @@ internal object DesktopRemoteSecurity {
     private const val KEY_BACKGROUND_ALLOWED = "remote_background_allowed"
     private const val KEY_SERVER_PORT = "remote_server_port"
     private const val KEY_REMOTE_ENABLED = "remote_server_enabled"
+    private const val KEY_AUTO_TRUST_LOCAL = "remote_auto_trust_local"
 
     private val secureRandom = SecureRandom()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -35,6 +36,14 @@ internal object DesktopRemoteSecurity {
 
     private val _devices = MutableStateFlow<List<DeviceSession>>(emptyList())
     val devices = _devices.asStateFlow()
+
+    private val _autoTrustLocalNetwork = MutableStateFlow(DesktopPersistence().boolean(KEY_AUTO_TRUST_LOCAL, true))
+    val autoTrustLocalNetwork = _autoTrustLocalNetwork.asStateFlow()
+
+    fun setAutoTrustLocalNetwork(value: Boolean) {
+        _autoTrustLocalNetwork.value = value
+        DesktopPersistence().saveBoolean(KEY_AUTO_TRUST_LOCAL, value)
+    }
 
     private var currentPin = generatePin()
     private var otpToken: String = generateRandomToken()
@@ -100,8 +109,13 @@ internal object DesktopRemoteSecurity {
         return false
     }
 
-    /** Attempts to pair a new device using PIN or OTP. Returns session token on success. */
-    fun pair(pinAttempt: String?, otpAttempt: String?, deviceName: String): PairResult = synchronized(this) {
+    /** Attempts to pair a new device using PIN, OTP or LAN auto-trust. Returns session token on success. */
+    fun pair(
+        pinAttempt: String?,
+        otpAttempt: String?,
+        deviceName: String,
+        autoTrust: Boolean = false,
+    ): PairResult = synchronized(this) {
         val now = System.currentTimeMillis()
         if (now < lockoutUntilMs) {
             val remainingSec = ((lockoutUntilMs - now) / 1000L).coerceAtLeast(1)
@@ -109,7 +123,9 @@ internal object DesktopRemoteSecurity {
         }
 
         var authorized = false
-        if (!otpAttempt.isNullOrBlank()) {
+        if (autoTrust && _autoTrustLocalNetwork.value) {
+            authorized = true
+        } else if (!otpAttempt.isNullOrBlank()) {
             if (now <= otpExpiresAtMs && constantTimeEquals(otpAttempt, otpToken)) {
                 authorized = true
                 // Invalidate OTP after first successful use
@@ -122,13 +138,15 @@ internal object DesktopRemoteSecurity {
         }
 
         if (!authorized) {
-            failedAttempts++
-            if (failedAttempts >= 5) {
-                lockoutUntilMs = now + 2 * 60 * 1000L // 2 min lockout
-                failedAttempts = 0
-                DesktopTrackLog.log("Remote security: PIN brute-force detected. Lockout applied for 2 minutes.")
+            if (!autoTrust) {
+                failedAttempts++
+                if (failedAttempts >= 5) {
+                    lockoutUntilMs = now + 2 * 60 * 1000L // 2 min lockout
+                    failedAttempts = 0
+                    DesktopTrackLog.log("Remote security: PIN brute-force detected. Lockout applied for 2 minutes.")
+                }
             }
-            return PairResult.Error("PIN o código de emparejamiento inválido o expirado.")
+            return PairResult.Error(if (autoTrust) "Se requiere PIN para nuevos dispositivos." else "PIN o código de emparejamiento inválido o expirado.")
         }
 
         // Success

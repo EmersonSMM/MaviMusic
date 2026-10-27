@@ -51,6 +51,7 @@ import java.util.Locale
 internal fun DesktopRemoteSettingsUi() {
     val enabled by DesktopRemoteDiscovery.enabled.collectAsState()
     val allowInBackground by DesktopRemoteDiscovery.allowInBackground.collectAsState()
+    val autoTrustLocal by DesktopRemoteSecurity.autoTrustLocalNetwork.collectAsState()
     val activePort by DesktopRemoteDiscovery.activePort.collectAsState()
     val devices by DesktopRemoteSecurity.devices.collectAsState()
     val connectedCount by DesktopRemoteBridge.connectedClientsCount.collectAsState()
@@ -273,6 +274,38 @@ internal fun DesktopRemoteSettingsUi() {
                 Switch(
                     checked = allowInBackground,
                     onCheckedChange = { DesktopRemoteDiscovery.setAllowInBackground(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = DesktopAccent,
+                    ),
+                )
+            }
+
+            // Auto-trust LAN devices (seamless iPhone Home Screen PWA addition)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { DesktopRemoteSecurity.setAutoTrustLocalNetwork(!autoTrustLocal) }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Red local de confianza (Auto-vincular)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "Permite conectar dispositivos de tu red Wi-Fi y añadirlos a la pantalla de inicio de iPhone sin pedir PIN continuamente.",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = autoTrustLocal,
+                    onCheckedChange = { DesktopRemoteSecurity.setAutoTrustLocalNetwork(it) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = DesktopAccent,

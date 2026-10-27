@@ -55,6 +55,23 @@ El objetivo de **MaviMusic Remote** es permitir a cualquier usuario en la misma 
   - Soporte completo para Notch y barra de inicio de iPhone (`viewport-fit=cover`, `padding-bottom: env(safe-area-inset-bottom)`).
   - Reconexión y resincronización automática de WebSocket al desbloquear el teléfono.
 
+### D-8: Red Local de Confianza (Auto-vincular y Soporte PWA iOS)
+- **Problema en iOS**: Al pulsar "Añadir a pantalla de inicio" en Safari, iOS aísla el entorno de almacenamiento de la PWA del navegador Safari regular. Si el emparejamiento exige un PIN cada vez que se detecta un `localStorage` vacío, el usuario tiene que buscar el PIN o el QR cada vez que abre la PWA.
+- **Decisión**: Se implementa la política de "Red local de confianza" (habilitada por defecto en Ajustes). Cuando un dispositivo que ya está en la red privada local abre la aplicación o se inicia desde la pantalla de inicio, solicita automáticamente el emparejamiento (`autoTrust: true`). El servidor de escritorio genera una sesión autenticada, registra el dispositivo en la lista de "Dispositivos autorizados" visible en el escritorio (permitiendo revocarlo en cualquier momento) y devuelve el token de sesión. Si el usuario desea mayor restricción, puede desactivar el auto-emparejamiento y exigir PIN para cada nuevo dispositivo.
+
+### D-9: Control de Salidas de Audio y Receptores AirPlay 2
+- **Decisión**: Se añade el control remoto de dispositivos de salida de sonido directamente desde la interfaz móvil.
+- **Integración**: MaviMusic Remote agrega tanto las salidas directas del sistema (`DesktopAudioDevices.available()`) como los receptores AirPlay 2 descubiertos en la red local (`DesktopAirPlaySettings.discoveredDevices`: HomePods, Apple TVs y receptores AirPlay).
+- **Comando bidireccional**: Al seleccionar una salida desde la hoja modal inferior en el móvil, se envía `SET_OUTPUT_DEVICE { deviceId }`, el motor de escritorio conmuta la ruta mediante `DesktopAudioDevices.select(deviceId)` y difunde el nuevo estado a todos los clientes conectados.
+
+### D-10: Viewport Dinámico e Integración Visual iPhone (Safe Area & dvh)
+- **Problema**: En iPhones con Dynamic Island y barra de inicio inferior (como el iPhone 17 Pro Max o 15/16 Pro), el uso de `100vh` empujaba la barra de pestañas inferior fuera de la pantalla debido a la barra de herramientas dinámica de Safari.
+- **Solución**:
+  - Se sustituye `100vh` por `100dvh` (Dynamic Viewport Height) y `-webkit-fill-available`.
+  - La barra de navegación inferior (`.bottom-nav`) se integra como elemento flex anclado con relleno dinámico `env(safe-area-inset-bottom)`.
+  - Se definen dimensiones proporcionales para la carátula (`min(70vw, 33vh, 260px)`) y espaciados flex compactos, garantizando que todos los elementos (carátula, títulos, seekbar, controles, volumen y selector de salida) queden perfectamente visibles y holgados sin recortes.
+  - Se añaden etiquetas `<link rel="apple-touch-icon">` y se sirven en `/apple-touch-icon.png` y `/favicon.ico` con el logotipo oficial de alta resolución de MaviMusic (`app_logo.png`).
+
 ---
 
 ## 3. Métricas de Rendimiento y Consumo

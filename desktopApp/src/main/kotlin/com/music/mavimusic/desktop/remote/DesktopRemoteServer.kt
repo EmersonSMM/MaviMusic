@@ -67,6 +67,7 @@ internal object DesktopRemoteServer {
         val pin: String? = null,
         val otp: String? = null,
         val deviceName: String? = null,
+        val autoTrust: Boolean = false,
     )
 
     @Serializable
@@ -125,6 +126,10 @@ internal object DesktopRemoteServer {
                         get("/manifest.json") { serveStaticResource(call, "manifest.json", ContentType.Application.Json) }
                         get("/icon-192.png") { serveStaticResource(call, "icon-192.png", ContentType.Image.PNG) }
                         get("/icon-512.png") { serveStaticResource(call, "icon-512.png", ContentType.Image.PNG) }
+                        get("/icon.png") { serveStaticResource(call, "icon-192.png", ContentType.Image.PNG) }
+                        get("/apple-touch-icon.png") { serveStaticResource(call, "icon-192.png", ContentType.Image.PNG) }
+                        get("/apple-touch-icon-precomposed.png") { serveStaticResource(call, "icon-192.png", ContentType.Image.PNG) }
+                        get("/favicon.ico") { serveStaticResource(call, "icon-192.png", ContentType.Image.PNG) }
 
                         // Pairing endpoint (public to LAN)
                         post("/api/pair") {
@@ -134,10 +139,12 @@ internal object DesktopRemoteServer {
                                 val pinAttempt = body?.pin ?: call.request.queryParameters["pin"]
                                 val otpAttempt = body?.otp ?: call.request.queryParameters["otp"]
                                 val devName = body?.deviceName ?: call.request.queryParameters["deviceName"] ?: "Navegador Web"
+                                val autoTrust = body?.autoTrust ?: (call.request.queryParameters["autoTrust"]?.toBooleanStrictOrNull() ?: false)
                                 val result = DesktopRemoteSecurity.pair(
                                     pinAttempt = pinAttempt,
                                     otpAttempt = otpAttempt,
                                     deviceName = devName,
+                                    autoTrust = autoTrust,
                                 )
                                 when (result) {
                                     is DesktopRemoteSecurity.PairResult.Success -> {

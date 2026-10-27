@@ -2252,10 +2252,17 @@ fun MaviMusicDesktopApp() {
     LaunchedEffect(remoteServerEnabled) {
         if (remoteServerEnabled) {
             DesktopRemoteServer.start(DesktopRemoteDiscovery.port.value)
+            if (DesktopPlatform.isMac && DesktopAirPlaySettings.isFeatureEnabled()) {
+                DesktopAirPlayManager.startDiscovery()
+            }
         } else {
             DesktopRemoteServer.stop()
         }
     }
+
+    val currentOutputId by DesktopAudioDevices.selected.collectAsState()
+    val audioChanges by DesktopAudioDevices.changes.collectAsState()
+    val airplayDevices by DesktopAirPlaySettings.discoveredDevices.collectAsState()
 
     // MaviMusic Remote: command dispatchers binding
     LaunchedEffect(playbackEngine, liveQueue, selectedSong, shuffle, repeatMode, likedIds, automixOnSkip) {
@@ -2300,6 +2307,9 @@ fun MaviMusicDesktopApp() {
                 saveQueue()
             }
         }
+        DesktopRemoteBridge.onSetOutputDevice = { devId ->
+            DesktopAudioDevices.select(devId)
+        }
     }
 
     // MaviMusic Remote: push playback state
@@ -2312,7 +2322,10 @@ fun MaviMusicDesktopApp() {
         shuffle,
         repeatMode,
         likedIds,
-        audioQuality
+        audioQuality,
+        currentOutputId,
+        audioChanges,
+        airplayDevices
     ) {
         val song = selectedSong?.let {
             DesktopRemoteBridge.RemoteTrack(
@@ -2329,6 +2342,46 @@ fun MaviMusicDesktopApp() {
             DesktopRepeatMode.ALL -> "ALL"
             DesktopRepeatMode.ONE -> "ONE"
         }
+        val audioOutputs = buildList {
+            add(
+                DesktopRemoteBridge.RemoteAudioOutput(
+                    id = "",
+                    name = DesktopStrings["d_system_default", "Predeterminado del sistema"],
+                    type = "default",
+                    isSelected = currentOutputId.isEmpty(),
+                )
+            )
+            for (dev in DesktopAudioDevices.available()) {
+                val lower = dev.name.lowercase()
+                val kind = when {
+                    lower.contains("headphone") || lower.contains("auricular") || lower.contains("airpod") -> "headphones"
+                    else -> "speaker"
+                }
+                add(
+                    DesktopRemoteBridge.RemoteAudioOutput(
+                        id = dev.id,
+                        name = dev.name,
+                        type = kind,
+                        isSelected = currentOutputId == dev.id,
+                    )
+                )
+            }
+            for (ap in airplayDevices) {
+                val kind = when (ap.type.lowercase()) {
+                    "homepod" -> "homepod"
+                    "apple tv" -> "apple_tv"
+                    else -> "airplay"
+                }
+                add(
+                    DesktopRemoteBridge.RemoteAudioOutput(
+                        id = ap.id,
+                        name = "${ap.name} (${ap.type})",
+                        type = kind,
+                        isSelected = currentOutputId == ap.id,
+                    )
+                )
+            }
+        }
         val remoteState = DesktopRemoteBridge.RemotePlaybackState(
             isPlaying = playback.isPlaying,
             positionMs = playback.positionMs,
@@ -2340,6 +2393,9 @@ fun MaviMusicDesktopApp() {
             isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
             audioQuality = audioQuality.name,
             song = song,
+            outputDevices = audioOutputs,
+            currentOutputId = currentOutputId,
+            currentOutputName = DesktopAudioDevices.label(),
         )
         DesktopRemoteBridge.updatePlaybackState(remoteState)
     }

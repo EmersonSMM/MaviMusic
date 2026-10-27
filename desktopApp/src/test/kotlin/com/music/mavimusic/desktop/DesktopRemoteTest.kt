@@ -139,6 +139,7 @@ class DesktopRemoteTest {
         var repeatCalled = false
         var likeCalled = false
         var queueIdx: Int? = null
+        var outputDeviceId: String? = null
 
         DesktopRemoteBridge.onPlayPause = { playPauseCalled = true }
         DesktopRemoteBridge.onNext = { nextCalled = true }
@@ -149,6 +150,7 @@ class DesktopRemoteTest {
         DesktopRemoteBridge.onCycleRepeat = { repeatCalled = true }
         DesktopRemoteBridge.onToggleLike = { likeCalled = true }
         DesktopRemoteBridge.onPlayQueueIndex = { queueIdx = it }
+        DesktopRemoteBridge.onSetOutputDevice = { outputDeviceId = it }
 
         DesktopRemoteBridge.dispatchCommand("PLAY_PAUSE", emptyMap())
         assertTrue(playPauseCalled)
@@ -176,6 +178,39 @@ class DesktopRemoteTest {
 
         DesktopRemoteBridge.dispatchCommand("PLAY_QUEUE_INDEX", mapOf("index" to 3))
         assertEquals(3, queueIdx)
+
+        DesktopRemoteBridge.dispatchCommand("SET_OUTPUT_DEVICE", mapOf("deviceId" to "AirPlay_HomePod_Living"))
+        assertEquals("AirPlay_HomePod_Living", outputDeviceId)
+    }
+
+    @Test
+    fun `auto-trust allows LAN devices to pair without PIN and enter trusted list`() {
+        DesktopRemoteSecurity.setAutoTrustLocalNetwork(true)
+        val result = DesktopRemoteSecurity.pair(
+            pinAttempt = null,
+            otpAttempt = null,
+            deviceName = "iPhone 17 Pro Max (Home Screen)",
+            autoTrust = true,
+        )
+
+        assertTrue(result is DesktopRemoteSecurity.PairResult.Success)
+        assertNotNull(result.token)
+        assertEquals("iPhone 17 Pro Max (Home Screen)", result.deviceName)
+
+        // Verifies the device was stored into trusted devices list
+        val devices = DesktopRemoteSecurity.devices.value
+        assertTrue(devices.any { it.name == "iPhone 17 Pro Max (Home Screen)" })
+
+        // When autoTrust is disabled, pair with autoTrust = true is rejected
+        DesktopRemoteSecurity.setAutoTrustLocalNetwork(false)
+        val rejected = DesktopRemoteSecurity.pair(
+            pinAttempt = null,
+            otpAttempt = null,
+            deviceName = "Unauthorized Phone",
+            autoTrust = true,
+        )
+        assertTrue(rejected is DesktopRemoteSecurity.PairResult.Error)
+        DesktopRemoteSecurity.setAutoTrustLocalNetwork(true) // Reset
     }
 
     @Test
@@ -190,12 +225,16 @@ class DesktopRemoteTest {
         try {
             val baseUrl = "http://127.0.0.1:${DesktopRemoteDiscovery.activePort.value}"
 
-            // 1. Static web app HTML
+            // 1. Static web app HTML & PWA Icons
             val resIndex = client.get("$baseUrl/")
             assertEquals(HttpStatusCode.OK, resIndex.status)
             val html = resIndex.bodyAsText()
             assertTrue(html.contains("MaviMusic Remote"))
             assertTrue(html.contains("id=\"view-player\""))
+            assertTrue(html.contains("apple-touch-icon"))
+
+            val resIcon = client.get("$baseUrl/apple-touch-icon.png")
+            assertEquals(HttpStatusCode.OK, resIcon.status)
 
             // 2. Unauthenticated state request should return 401
             val resStateUnauth = client.get("$baseUrl/api/state")

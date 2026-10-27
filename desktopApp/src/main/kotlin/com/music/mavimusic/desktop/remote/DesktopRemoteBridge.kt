@@ -24,6 +24,14 @@ internal object DesktopRemoteBridge {
     )
 
     @Serializable
+    data class RemoteAudioOutput(
+        val id: String = "",
+        val name: String = "",
+        val type: String = "speaker", // default, speaker, headphones, airplay, homepod, apple_tv
+        val isSelected: Boolean = false,
+    )
+
+    @Serializable
     data class RemotePlaybackState(
         val isPlaying: Boolean = false,
         val positionMs: Long = 0L,
@@ -35,6 +43,9 @@ internal object DesktopRemoteBridge {
         val isLiked: Boolean = false,
         val audioQuality: String = "HIGH",
         val song: RemoteTrack? = null,
+        val outputDevices: List<RemoteAudioOutput> = emptyList(),
+        val currentOutputId: String = "",
+        val currentOutputName: String = "",
     )
 
     @Serializable
@@ -86,6 +97,7 @@ internal object DesktopRemoteBridge {
     var onPlayQueueIndex: ((Int) -> Unit)? = null
     var onRemoveFromQueue: ((Int) -> Unit)? = null
     var onMoveQueueItem: ((Int, Int) -> Unit)? = null
+    var onSetOutputDevice: ((String) -> Unit)? = null
 
     fun setConnectedClients(count: Int) {
         _connectedClientsCount.value = count
@@ -151,6 +163,10 @@ internal object DesktopRemoteBridge {
                 val from = (params["fromIndex"] as? Number)?.toInt() ?: return
                 val to = (params["toIndex"] as? Number)?.toInt() ?: return
                 onMoveQueueItem?.invoke(from, to)
+            }
+            "SET_OUTPUT_DEVICE" -> {
+                val devId = params["deviceId"]?.toString() ?: ""
+                onSetOutputDevice?.invoke(devId)
             }
         }
     }

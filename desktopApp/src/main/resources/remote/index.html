@@ -11,6 +11,12 @@
   <meta name="apple-mobile-web-app-title" content="MaviMusic">
   <meta name="theme-color" content="#0B0B0F">
   <meta name="format-detection" content="telephone=no">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon-precomposed" href="icon-192.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -102,6 +108,16 @@
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
           </svg>
         </div>
+
+        <div class="output-row">
+          <button id="btn-output" class="btn-output-pill" aria-label="Dispositivo de salida de audio">
+            <svg id="output-pill-icon" class="output-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/>
+              <polygon points="12 15 17 21 7 21 12 15" fill="currentColor"/>
+            </svg>
+            <span id="output-name">Predeterminado</span>
+          </button>
+        </div>
       </section>
 
       <!-- 2. LYRICS -->
@@ -164,6 +180,20 @@
 
       <button id="btn-submit-pin" class="btn-primary">Vincular dispositivo</button>
       <div id="pairing-error" class="pairing-error"></div>
+    </div>
+  </div>
+
+  <!-- AUDIO OUTPUT / AIRPLAY ACTION SHEET MODAL -->
+  <div id="output-modal" class="sheet-backdrop" style="display:none;">
+    <div class="sheet-container">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Salida de audio</div>
+        <button id="btn-close-output" class="sheet-close" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="output-list" id="output-devices-list">
+        <!-- Rendered dynamically -->
+      </div>
     </div>
   </div>
 

@@ -37,6 +37,14 @@
   const btnRepeat = document.getElementById('btn-repeat');
   const volumeSlider = document.getElementById('volume-slider');
 
+  // Output Elements
+  const btnOutput = document.getElementById('btn-output');
+  const outputName = document.getElementById('output-name');
+  const outputPillIcon = document.getElementById('output-pill-icon');
+  const outputModal = document.getElementById('output-modal');
+  const outputDevicesList = document.getElementById('output-devices-list');
+  const btnCloseOutput = document.getElementById('btn-close-output');
+
   // Views & Tabs
   const lyricsContainer = document.getElementById('lyrics-container');
   const queueContainer = document.getElementById('queue-container');
@@ -61,6 +69,9 @@
     repeatMode: 'OFF', // OFF, ALL, ONE
     isLiked: false,
     song: null,
+    outputDevices: [],
+    currentOutputId: '',
+    currentOutputName: '',
   };
 
   // --- Device Detection ---
@@ -81,6 +92,16 @@
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   // --- Pairing Flow ---
@@ -293,6 +314,89 @@
     if (!document.activeElement || document.activeElement !== volumeSlider) {
       volumeSlider.value = Math.round((state.volume || 1.0) * 100);
     }
+
+    // Audio Output device pill
+    if (outputName) {
+      const activeName = state.currentOutputName || 'Predeterminado';
+      outputName.textContent = activeName;
+      const isAirPlay = (state.outputDevices || []).some(
+        d => d.isSelected && (d.type === 'airplay' || d.type === 'homepod' || d.type === 'apple_tv')
+      );
+      btnOutput.classList.toggle('airplay-active', isAirPlay);
+    }
+
+    // If output sheet is currently open, refresh its selection state
+    if (outputModal && outputModal.style.display !== 'none') {
+      renderOutputDevices();
+    }
+  }
+
+  // --- Output Devices Modal ---
+  function renderOutputDevices() {
+    if (!outputDevicesList) return;
+    outputDevicesList.innerHTML = '';
+    const devices = state.outputDevices || [];
+    if (devices.length === 0) {
+      outputDevicesList.innerHTML = '<div class="lyrics-empty" style="padding: 24px 0;">No se detectaron dispositivos de salida.</div>';
+      return;
+    }
+
+    devices.forEach((dev) => {
+      const item = document.createElement('div');
+      const isAirPlay = dev.type === 'airplay' || dev.type === 'homepod' || dev.type === 'apple_tv';
+      item.className = `output-item ${dev.isSelected ? 'selected' : ''} ${isAirPlay ? 'airplay' : ''}`;
+
+      let iconSvg = '';
+      if (isAirPlay) {
+        iconSvg = `<svg class="output-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/>
+          <polygon points="12 15 17 21 7 21 12 15" fill="currentColor"/>
+        </svg>`;
+      } else if (dev.type === 'headphones') {
+        iconSvg = `<svg class="output-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+        </svg>`;
+      } else {
+        iconSvg = `<svg class="output-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>`;
+      }
+
+      const badgeText = isAirPlay
+        ? 'AirPlay 2 • Red local'
+        : (dev.type === 'default' ? 'Sistema predeterminado' : 'Altavoz / Conexión directa');
+
+      item.innerHTML = `
+        <div class="output-item-info">
+          ${iconSvg}
+          <div class="output-item-names">
+            <span class="output-item-title">${escapeHtml(dev.name)}</span>
+            <span class="output-item-badge">${badgeText}</span>
+          </div>
+        </div>
+        <svg class="output-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      `;
+
+      item.addEventListener('click', () => {
+        sendCommand('SET_OUTPUT_DEVICE', { deviceId: dev.id });
+        closeOutputModal();
+      });
+
+      outputDevicesList.appendChild(item);
+    });
+  }
+
+  function openOutputModal() {
+    renderOutputDevices();
+    if (outputModal) outputModal.style.display = 'flex';
+  }
+
+  function closeOutputModal() {
+    if (outputModal) outputModal.style.display = 'none';
   }
 
   // 60 FPS playhead interpolation loop
@@ -503,6 +607,18 @@
       const vol = parseFloat(e.target.value) / 100.0;
       sendCommand('SET_VOLUME', { volume: vol });
     });
+
+    if (btnOutput) {
+      btnOutput.addEventListener('click', openOutputModal);
+    }
+    if (btnCloseOutput) {
+      btnCloseOutput.addEventListener('click', closeOutputModal);
+    }
+    if (outputModal) {
+      outputModal.addEventListener('click', (e) => {
+        if (e.target === outputModal) closeOutputModal();
+      });
+    }
   }
 
   function showPairingModal() {
@@ -511,22 +627,53 @@
     setTimeout(() => pinInputs[0].focus(), 100);
   }
 
+  async function initAuth() {
+    const params = new URLSearchParams(window.location.search);
+    const otp = params.get('otp');
+    if (otp) {
+      await pair(otp, null);
+      return;
+    }
+
+    if (token) {
+      connectWebSocket();
+      return;
+    }
+
+    // Seamless auto-trust for LAN devices (e.g. iPhone added to Home Screen)
+    try {
+      const q = new URLSearchParams();
+      q.set('deviceName', getDeviceName());
+      q.set('autoTrust', 'true');
+      const res = await fetch(`/api/pair?${q.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          autoTrust: true,
+          deviceName: getDeviceName(),
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.token) {
+        token = data.token;
+        localStorage.setItem('mavimusic_remote_token', token);
+        connectWebSocket();
+        return;
+      }
+    } catch (e) {
+      // Fallback to manual PIN entry
+    }
+
+    showPairingModal();
+  }
+
   function init() {
     setupPinInputs();
     setupNavigation();
     setupControls();
     setupScrubber();
 
-    // Check for OTP in URL query
-    const params = new URLSearchParams(window.location.search);
-    const otp = params.get('otp');
-    if (otp) {
-      pair(otp, null);
-    } else if (token) {
-      connectWebSocket();
-    } else {
-      showPairingModal();
-    }
+    initAuth();
 
     // Visibility wake-up listener for iOS Safari
     document.addEventListener('visibilitychange', () => {
