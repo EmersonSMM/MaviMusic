@@ -68,6 +68,19 @@ internal object DesktopRemoteServer {
     private val activeSessions = Collections.newSetFromMap(ConcurrentHashMap<WebSocketSession, Boolean>())
     private val sessionDevices = ConcurrentHashMap<WebSocketSession, String>()
 
+    private data class CachedStream(
+        val url: String,
+        val headers: Map<String, String>,
+        val expiresAtMs: Long,
+    )
+    private val streamCache = ConcurrentHashMap<String, CachedStream>()
+    private val proxyHttpClient: java.net.http.HttpClient by lazy {
+        java.net.http.HttpClient.newBuilder()
+            .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+    }
+
     @Serializable
     private data class PairRequest(
         val pin: String? = null,
@@ -226,10 +239,24 @@ internal object DesktopRemoteServer {
                                 return@get
                             }
 
-                            val streamUrl = withContext(Dispatchers.IO) {
-                                runCatching {
-                                    StreamResolver.resolve(videoId)
-                                }.getOrNull()
+                            val now = System.currentTimeMillis()
+                            val cached = streamCache[videoId]?.takeIf { it.expiresAtMs > now }
+                            val (streamUrl, mediaHeaders) = if (cached != null) {
+                                cached.url to cached.headers
+                            } else {
+                                val resolved = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        StreamResolver.resolve(videoId)
+                                    }.getOrNull()
+                                }
+                                if (resolved != null) {
+                                    val hdrs = StreamResolver.mediaHeadersFor(resolved)
+                                    // Googlevideo stream URLs are valid for ~6h; cache resolution for 30 mins
+                                    streamCache[videoId] = CachedStream(resolved, hdrs, now + 30 * 60 * 1000L)
+                                    resolved to hdrs
+                                } else {
+                                    null to emptyMap()
+                                }
                             }
 
                             if (streamUrl == null) {
@@ -239,21 +266,17 @@ internal object DesktopRemoteServer {
 
                             try {
                                 val rangeHeader = call.request.header(HttpHeaders.Range)
-                                val client = java.net.http.HttpClient.newBuilder()
-                                    .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
-                                    .build()
-
                                 val reqBuilder = java.net.http.HttpRequest.newBuilder(URI.create(streamUrl))
                                     .timeout(Duration.ofSeconds(30))
                                 if (!rangeHeader.isNullOrBlank()) {
                                     reqBuilder.header("Range", rangeHeader)
                                 }
-                                for ((k, v) in StreamResolver.mediaHeadersFor(streamUrl)) {
+                                for ((k, v) in mediaHeaders) {
                                     reqBuilder.header(k, v)
                                 }
 
                                 val response = withContext(Dispatchers.IO) {
-                                    client.send(reqBuilder.build(), java.net.http.HttpResponse.BodyHandlers.ofInputStream())
+                                    proxyHttpClient.send(reqBuilder.build(), java.net.http.HttpResponse.BodyHandlers.ofInputStream())
                                 }
 
                                 val status = HttpStatusCode.fromValue(response.statusCode())

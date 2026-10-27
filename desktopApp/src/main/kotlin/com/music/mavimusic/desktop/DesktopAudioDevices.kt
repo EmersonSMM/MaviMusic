@@ -30,6 +30,18 @@ internal object DesktopAudioDevices {
     fun select(id: String) {
         DesktopPersistence().saveString(KEY_DEVICE, id)
         _selected.value = id
+        if (DesktopPlatform.isMac) {
+            if (id.isEmpty()) {
+                DesktopAirPlayManager.routeSystemToDefault()
+            } else {
+                val airplayDevice = DesktopAirPlaySettings.discoveredDevices.value.firstOrNull {
+                    it.id.equals(id, ignoreCase = true) || it.name.equals(id, ignoreCase = true)
+                }
+                if (airplayDevice != null) {
+                    DesktopAirPlayManager.routeSystemToAirPlay(airplayDevice.name)
+                }
+            }
+        }
     }
 
     private val _changes = MutableStateFlow(0)

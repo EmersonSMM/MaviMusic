@@ -2310,6 +2310,12 @@ fun MaviMusicDesktopApp() {
         }
         DesktopRemoteBridge.onSetOutputDevice = { devId ->
             DesktopAudioDevices.select(devId)
+            val ap = airplayDevices.firstOrNull { it.id.equals(devId, ignoreCase = true) || it.name.equals(devId, ignoreCase = true) }
+            if (ap != null) {
+                DesktopAirPlayManager.routeSystemToAirPlay(ap.name)
+            } else if (devId.isEmpty()) {
+                DesktopAirPlayManager.routeSystemToDefault()
+            }
         }
         DesktopRemoteBridge.onMuteDesktop = { muted ->
             playbackEngine.setVolume(if (muted) 0f else volume)

@@ -159,6 +159,108 @@ object DesktopAirPlayManager {
     }
 
     /**
+     * Routes macOS system audio output to the specified AirPlay or network audio receiver
+     * via AppleScript System Settings Sound panel.
+     */
+    fun routeSystemToAirPlay(deviceName: String) {
+        if (!DesktopPlatform.isMac || deviceName.isBlank()) return
+        scope.launch(Dispatchers.IO) {
+            val sanitized = deviceName.replace("\"", "\\\"").trim()
+            val script = """
+                tell application "System Settings"
+                    reveal pane id "com.apple.Sound-Settings.extension"
+                end tell
+                delay 0.5
+                tell application "System Events"
+                    tell process "System Settings"
+                        try
+                            set win to window 1
+                            set targetRows to {}
+                            try
+                                set targetRows to (every row of outline 1 of scroll area 1 of group 2 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of win)
+                            on error
+                                try
+                                    set targetRows to (every row of outline 1 of scroll area 1 of win)
+                                end try
+                            end try
+                            repeat with r in targetRows
+                                try
+                                    set tName to value of static text 1 of group 1 of UI element 1 of r
+                                    if tName contains "$sanitized" then
+                                        select r
+                                        exit repeat
+                                    end if
+                                end try
+                            end repeat
+                        end try
+                    end tell
+                end tell
+                delay 0.2
+                tell application "System Settings" to quit
+            """.trimIndent()
+
+            runCatching {
+                val pb = ProcessBuilder("osascript", "-e", script)
+                pb.redirectErrorStream(true)
+                val p = pb.start()
+                val output = p.inputStream.bufferedReader().readText()
+                p.waitFor()
+                DesktopTrackLog.log("AirPlay route to '$sanitized' finished: ${output.trim()}")
+            }.onFailure {
+                DesktopTrackLog.log("AirPlay route error for '$sanitized': ${it.message}")
+            }
+        }
+    }
+
+    /**
+     * Routes macOS system audio output back to default Mac speakers.
+     */
+    fun routeSystemToDefault() {
+        if (!DesktopPlatform.isMac) return
+        scope.launch(Dispatchers.IO) {
+            val script = """
+                tell application "System Settings"
+                    reveal pane id "com.apple.Sound-Settings.extension"
+                end tell
+                delay 0.5
+                tell application "System Events"
+                    tell process "System Settings"
+                        try
+                            set win to window 1
+                            set targetRows to {}
+                            try
+                                set targetRows to (every row of outline 1 of scroll area 1 of group 2 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of win)
+                            on error
+                                try
+                                    set targetRows to (every row of outline 1 of scroll area 1 of win)
+                                end try
+                            end try
+                            repeat with r in targetRows
+                                try
+                                    set tName to value of static text 1 of group 1 of UI element 1 of r
+                                    if tName contains "Altavoces" or tName contains "Speakers" or tName contains "Internal" then
+                                        select r
+                                        exit repeat
+                                    end if
+                                end try
+                            end repeat
+                        end try
+                    end tell
+                end tell
+                delay 0.2
+                tell application "System Settings" to quit
+            """.trimIndent()
+
+            runCatching {
+                val pb = ProcessBuilder("osascript", "-e", script)
+                pb.redirectErrorStream(true)
+                val p = pb.start()
+                p.waitFor()
+            }
+        }
+    }
+
+    /**
      * Opens macOS System Settings -> Sound to allow the user to easily route or manage
      * system AirPlay receivers with Apple native FairPlay encryption and multi-room grouping.
      */

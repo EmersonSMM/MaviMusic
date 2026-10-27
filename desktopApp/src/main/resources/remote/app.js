@@ -348,6 +348,8 @@
   }
 
   // --- "En este dispositivo" (Local Browser / TV Playback) ---
+  let localAudioLoaded = false;
+
   function selectThisDeviceOutput(enable) {
     state.isThisDevice = enable;
     localStorage.setItem('mavimusic_remote_this_device', enable ? 'true' : 'false');
@@ -367,27 +369,48 @@
     const targetUrl = `/api/stream?token=${encodeURIComponent(token)}&videoId=${encodeURIComponent(state.song.videoId)}`;
     if (localAudio.dataset.videoId !== state.song.videoId) {
       localAudio.dataset.videoId = state.song.videoId;
+      localAudioLoaded = false;
       localAudio.src = targetUrl;
-      if (state.positionMs > 0) {
-        localAudio.currentTime = state.positionMs / 1000.0;
-      }
+      const initialSec = (state.positionMs > 0) ? (state.positionMs / 1000.0) : 0;
+
+      const onReady = function() {
+        localAudio.removeEventListener('loadedmetadata', onReady);
+        localAudio.removeEventListener('canplay', onReady);
+        localAudioLoaded = true;
+        if (initialSec > 0 && initialSec < (localAudio.duration || 9999)) {
+          try {
+            localAudio.currentTime = initialSec;
+          } catch (e) {}
+        }
+        if (state.isPlaying) {
+          localAudio.play().catch(e => console.log('Playback waiting for user interaction:', e));
+        }
+      };
+
+      localAudio.addEventListener('loadedmetadata', onReady, { once: true });
+      localAudio.addEventListener('canplay', onReady, { once: true });
+      localAudio.load();
+      return;
+    }
+
+    if (!localAudioLoaded) {
+      return;
     }
 
     if (state.isPlaying) {
-      // Correct drift if needed
-      const currentLocalSec = localAudio.currentTime;
-      const expectedSec = state.positionMs / 1000.0;
-      if (Math.abs(currentLocalSec - expectedSec) > 3.0 && isFinite(expectedSec)) {
-        localAudio.currentTime = expectedSec;
+      if (localAudio.paused) {
+        localAudio.play().catch(e => console.log('Playback waiting for user interaction:', e));
       }
-      localAudio.play().catch(e => console.log('Playback waiting for user interaction:', e));
     } else {
-      localAudio.pause();
+      if (!localAudio.paused) {
+        localAudio.pause();
+      }
     }
   }
 
   function stopLocalAudio() {
     if (!localAudio) return;
+    localAudioLoaded = false;
     localAudio.pause();
     localAudio.removeAttribute('src');
     localAudio.dataset.videoId = '';
@@ -530,11 +553,16 @@
   function updatePlayhead() {
     if (!isSeeking && state.durationMs > 0) {
       let currentMs = state.positionMs;
-      if (state.isPlaying) {
+      if (state.isThisDevice && localAudio && localAudio.readyState >= 1 && !isNaN(localAudio.currentTime)) {
+        currentMs = Math.round(localAudio.currentTime * 1000);
+      } else if (state.isPlaying) {
         const elapsed = Date.now() - state.timestamp;
         currentMs = Math.min(state.durationMs, state.positionMs + elapsed);
       }
-      const pct = Math.max(0, Math.min(100, (currentMs / state.durationMs) * 100));
+      const dur = (state.isThisDevice && localAudio && !isNaN(localAudio.duration) && localAudio.duration > 0)
+        ? Math.round(localAudio.duration * 1000)
+        : state.durationMs;
+      const pct = Math.max(0, Math.min(100, (currentMs / dur) * 100));
       progressFill.style.width = pct + '%';
       timeCurrent.textContent = formatTime(currentMs);
 
