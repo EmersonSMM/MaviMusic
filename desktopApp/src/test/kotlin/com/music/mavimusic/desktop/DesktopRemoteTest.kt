@@ -181,6 +181,11 @@ class DesktopRemoteTest {
 
         DesktopRemoteBridge.dispatchCommand("SET_OUTPUT_DEVICE", mapOf("deviceId" to "AirPlay_HomePod_Living"))
         assertEquals("AirPlay_HomePod_Living", outputDeviceId)
+
+        var muteCalledWith: Boolean? = null
+        DesktopRemoteBridge.onMuteDesktop = { muteCalledWith = it }
+        DesktopRemoteBridge.dispatchCommand("MUTE_DESKTOP", mapOf("muted" to true))
+        assertEquals(true, muteCalledWith)
     }
 
     @Test

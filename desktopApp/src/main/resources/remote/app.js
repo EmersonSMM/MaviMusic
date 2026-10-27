@@ -38,6 +38,7 @@
   const volumeSlider = document.getElementById('volume-slider');
 
   // Output Elements
+  const localAudio = document.getElementById('local-audio');
   const btnOutput = document.getElementById('btn-output');
   const outputName = document.getElementById('output-name');
   const outputPillIcon = document.getElementById('output-pill-icon');
@@ -72,6 +73,7 @@
     outputDevices: [],
     currentOutputId: '',
     currentOutputName: '',
+    isThisDevice: localStorage.getItem('mavimusic_remote_this_device') === 'true',
   };
 
   // --- Device Detection ---
@@ -314,16 +316,30 @@
     if (!document.activeElement || document.activeElement !== volumeSlider) {
       volumeSlider.value = Math.round((state.volume || 1.0) * 100);
     }
+    if (state.isThisDevice && localAudio) {
+      localAudio.volume = state.volume || 1.0;
+    }
 
     // Audio Output device pill
     if (outputName) {
-      const activeName = state.currentOutputName || 'Predeterminado';
-      outputName.textContent = activeName;
-      const isAirPlay = (state.outputDevices || []).some(
-        d => d.isSelected && (d.type === 'airplay' || d.type === 'homepod' || d.type === 'apple_tv')
-      );
-      btnOutput.classList.toggle('airplay-active', isAirPlay);
+      if (state.isThisDevice) {
+        const isTv = /Tizen|SmartTV|SMART-TV|Web0S|BRAVIA|HbbTV|NetCast/i.test(navigator.userAgent);
+        outputName.textContent = isTv ? 'En esta Smart TV' : 'En este dispositivo';
+        btnOutput.classList.remove('airplay-active');
+        btnOutput.classList.add('this-device-active');
+      } else {
+        btnOutput.classList.remove('this-device-active');
+        const activeName = state.currentOutputName || 'MaviMusic Desktop';
+        outputName.textContent = activeName;
+        const isAirPlay = (state.outputDevices || []).some(
+          d => d.isSelected && (d.type === 'airplay' || d.type === 'homepod' || d.type === 'apple_tv')
+        );
+        btnOutput.classList.toggle('airplay-active', isAirPlay);
+      }
     }
+
+    // Sync local audio playback if "En este dispositivo" is active
+    syncLocalAudio();
 
     // If output sheet is currently open, refresh its selection state
     if (outputModal && outputModal.style.display !== 'none') {
@@ -331,20 +347,130 @@
     }
   }
 
+  // --- "En este dispositivo" (Local Browser / TV Playback) ---
+  function selectThisDeviceOutput(enable) {
+    state.isThisDevice = enable;
+    localStorage.setItem('mavimusic_remote_this_device', enable ? 'true' : 'false');
+    if (enable) {
+      sendCommand('MUTE_DESKTOP', { muted: true });
+      syncLocalAudio();
+    } else {
+      stopLocalAudio();
+      sendCommand('MUTE_DESKTOP', { muted: false });
+    }
+    renderPlayerState();
+  }
+
+  function syncLocalAudio() {
+    if (!state.isThisDevice || !localAudio || !state.song || !token) return;
+
+    const targetUrl = `/api/stream?token=${encodeURIComponent(token)}&videoId=${encodeURIComponent(state.song.videoId)}`;
+    if (localAudio.dataset.videoId !== state.song.videoId) {
+      localAudio.dataset.videoId = state.song.videoId;
+      localAudio.src = targetUrl;
+      if (state.positionMs > 0) {
+        localAudio.currentTime = state.positionMs / 1000.0;
+      }
+    }
+
+    if (state.isPlaying) {
+      // Correct drift if needed
+      const currentLocalSec = localAudio.currentTime;
+      const expectedSec = state.positionMs / 1000.0;
+      if (Math.abs(currentLocalSec - expectedSec) > 3.0 && isFinite(expectedSec)) {
+        localAudio.currentTime = expectedSec;
+      }
+      localAudio.play().catch(e => console.log('Playback waiting for user interaction:', e));
+    } else {
+      localAudio.pause();
+    }
+  }
+
+  function stopLocalAudio() {
+    if (!localAudio) return;
+    localAudio.pause();
+    localAudio.removeAttribute('src');
+    localAudio.dataset.videoId = '';
+  }
+
   // --- Output Devices Modal ---
   function renderOutputDevices() {
     if (!outputDevicesList) return;
     outputDevicesList.innerHTML = '';
-    const devices = state.outputDevices || [];
-    if (devices.length === 0) {
-      outputDevicesList.innerHTML = '<div class="lyrics-empty" style="padding: 24px 0;">No se detectaron dispositivos de salida.</div>';
-      return;
-    }
 
+    const isTv = /Tizen|SmartTV|SMART-TV|Web0S|BRAVIA|HbbTV|NetCast/i.test(navigator.userAgent);
+
+    // 1. "En este dispositivo" (TV Samsung / iPhone / Navegador)
+    const thisDevItem = document.createElement('div');
+    const isThisDevSelected = !!state.isThisDevice;
+    thisDevItem.className = `output-item ${isThisDevSelected ? 'selected' : ''}`;
+    const devIconSvg = isTv ? `
+      <svg class="output-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+        <polyline points="17 2 12 7 7 2"></polyline>
+      </svg>
+    ` : `
+      <svg class="output-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+      </svg>
+    `;
+    const devTitle = isTv ? 'En esta Smart TV' : 'En este dispositivo';
+    const devSub = isTv ? 'Reproducir audio por los altavoces del televisor' : 'Reproducir audio en este navegador / teléfono';
+
+    thisDevItem.innerHTML = `
+      <div class="output-item-info">
+        ${devIconSvg}
+        <div class="output-item-names">
+          <span class="output-item-title">${devTitle}</span>
+          <span class="output-item-badge">${devSub}</span>
+        </div>
+      </div>
+      <svg class="output-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    `;
+    thisDevItem.addEventListener('click', () => {
+      selectThisDeviceOutput(true);
+      closeOutputModal();
+    });
+    outputDevicesList.appendChild(thisDevItem);
+
+    // 2. "MaviMusic Desktop" (Computadora)
+    const desktopItem = document.createElement('div');
+    const isDesktopSelected = !state.isThisDevice && (state.currentOutputId === '' || state.currentOutputId === 'default');
+    desktopItem.className = `output-item ${isDesktopSelected ? 'selected' : ''}`;
+    desktopItem.innerHTML = `
+      <div class="output-item-info">
+        <svg class="output-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        <div class="output-item-names">
+          <span class="output-item-title">MaviMusic Desktop</span>
+          <span class="output-item-badge">Altavoces de la computadora (Mac / PC)</span>
+        </div>
+      </div>
+      <svg class="output-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    `;
+    desktopItem.addEventListener('click', () => {
+      selectThisDeviceOutput(false);
+      sendCommand('SET_OUTPUT_DEVICE', { deviceId: '' });
+      closeOutputModal();
+    });
+    outputDevicesList.appendChild(desktopItem);
+
+    // 3. AirPlay & Other Hardware outputs from state
+    const devices = state.outputDevices || [];
     devices.forEach((dev) => {
+      if (dev.type === 'default' || dev.id === '') return; // Handled by desktopItem above
       const item = document.createElement('div');
-      const isAirPlay = dev.type === 'airplay' || dev.type === 'homepod' || dev.type === 'apple_tv';
-      item.className = `output-item ${dev.isSelected ? 'selected' : ''} ${isAirPlay ? 'airplay' : ''}`;
+      const isAirPlay = dev.type === 'airplay' || dev.type === 'homepod' || dev.type === 'apple_tv' || dev.type === 'smart_tv' || dev.type === 'soundbar';
+      const isSelected = !state.isThisDevice && dev.isSelected;
+      item.className = `output-item ${isSelected ? 'selected' : ''} ${isAirPlay ? 'airplay' : ''}`;
 
       let iconSvg = '';
       if (isAirPlay) {
@@ -366,7 +492,7 @@
 
       const badgeText = isAirPlay
         ? 'AirPlay 2 • Red local'
-        : (dev.type === 'default' ? 'Sistema predeterminado' : 'Altavoz / Conexión directa');
+        : 'Altavoz / Salida directa';
 
       item.innerHTML = `
         <div class="output-item-info">
@@ -382,6 +508,7 @@
       `;
 
       item.addEventListener('click', () => {
+        selectThisDeviceOutput(false);
         sendCommand('SET_OUTPUT_DEVICE', { deviceId: dev.id });
         closeOutputModal();
       });
@@ -559,7 +686,12 @@
         document.removeEventListener('mouseup', onUp);
         const finalMs = handleSeek(ev);
         isSeeking = false;
-        if (finalMs !== undefined) sendCommand('SEEK', { positionMs: finalMs });
+        if (finalMs !== undefined) {
+          if (state.isThisDevice && localAudio) {
+            localAudio.currentTime = finalMs / 1000.0;
+          }
+          sendCommand('SEEK', { positionMs: finalMs });
+        }
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
@@ -580,6 +712,9 @@
       const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
       const targetMs = Math.round(ratio * state.durationMs);
       isSeeking = false;
+      if (state.isThisDevice && localAudio) {
+        localAudio.currentTime = targetMs / 1000.0;
+      }
       sendCommand('SEEK', { positionMs: targetMs });
     });
   }
@@ -596,7 +731,16 @@
   }
 
   function setupControls() {
-    btnPlay.addEventListener('click', () => sendCommand('PLAY_PAUSE'));
+    btnPlay.addEventListener('click', () => {
+      if (state.isThisDevice && localAudio) {
+        if (localAudio.paused) {
+          localAudio.play().catch(e => console.log('Local audio play error:', e));
+        } else {
+          localAudio.pause();
+        }
+      }
+      sendCommand('PLAY_PAUSE');
+    });
     btnNext.addEventListener('click', () => sendCommand('NEXT'));
     btnPrev.addEventListener('click', () => sendCommand('PREVIOUS'));
     btnLike.addEventListener('click', () => sendCommand('TOGGLE_LIKE'));
@@ -605,8 +749,17 @@
 
     volumeSlider.addEventListener('input', (e) => {
       const vol = parseFloat(e.target.value) / 100.0;
+      if (state.isThisDevice && localAudio) {
+        localAudio.volume = vol;
+      }
       sendCommand('SET_VOLUME', { volume: vol });
     });
+
+    if (localAudio) {
+      localAudio.addEventListener('ended', () => {
+        sendCommand('NEXT');
+      });
+    }
 
     if (btnOutput) {
       btnOutput.addEventListener('click', openOutputModal);

@@ -22,7 +22,7 @@ object DesktopAirPlaySettings {
 
     private val persistence = DesktopPersistence()
 
-    private val _featureEnabled = MutableStateFlow(persistence.boolean(PREF_KEY_ENABLED, false))
+    private val _featureEnabled = MutableStateFlow(persistence.boolean(PREF_KEY_ENABLED, true))
     val featureEnabled: StateFlow<Boolean> = _featureEnabled.asStateFlow()
 
     private val _latencyMs = MutableStateFlow(
@@ -89,12 +89,14 @@ object DesktopAirPlayManager {
 
     /**
      * Refreshes the list of AirPlay receivers available on macOS.
-     * Identifies devices via CoreAudio HAL mixers containing AirPlay, HomePod, or Apple TV signatures.
+     * Identifies devices via CoreAudio HAL mixers as well as mDNS / Bonjour network advertisement.
      */
     fun refreshAirPlayDevices() {
         runCatching {
-            val mixers = AudioSystem.getMixerInfo()
             val detected = mutableListOf<DesktopAirPlayDevice>()
+
+            // 1. CoreAudio HAL mixers
+            val mixers = AudioSystem.getMixerInfo()
             for (info in mixers) {
                 val name = info.name.trim()
                 val lower = name.lowercase()
@@ -106,12 +108,53 @@ object DesktopAirPlayManager {
                     val kind = when {
                         lower.contains("homepod") -> "HomePod"
                         lower.contains("apple tv") -> "Apple TV"
-                        else -> "AirPlay Receptor"
+                        lower.contains("soundbar") || lower.contains("barra") -> "Barra de sonido"
+                        lower.contains("tv") || lower.contains("samsung") -> "Smart TV"
+                        else -> "AirPlay"
                     }
                     detected.add(DesktopAirPlayDevice(id = name, name = name, type = kind))
                 }
             }
-            DesktopAirPlaySettings.updateDiscovered(detected.distinctBy { it.id })
+
+            // 2. Discover network AirPlay receivers via Bonjour on macOS
+            if (DesktopPlatform.isMac) {
+                runCatching {
+                    val proc = ProcessBuilder("dns-sd", "-B", "_airplay._tcp", "local.")
+                        .redirectErrorStream(true)
+                        .start()
+                    val reader = proc.inputStream.bufferedReader()
+                    val localHostName = runCatching { java.net.InetAddress.getLocalHost().hostName }.getOrDefault("")
+                    val deadline = System.currentTimeMillis() + 1000L
+                    while (System.currentTimeMillis() < deadline) {
+                        if (reader.ready()) {
+                            val line = reader.readLine() ?: break
+                            if (line.contains(" Add ") || line.contains("\tAdd\t")) {
+                                val parts = line.trim().split(Regex("\\s+"))
+                                if (parts.size >= 7) {
+                                    val instanceName = parts.subList(6, parts.size).joinToString(" ").trim()
+                                    val lower = instanceName.lowercase()
+                                    if (!instanceName.contains("Mac mini", ignoreCase = true) &&
+                                        !instanceName.contains(localHostName, ignoreCase = true)) {
+                                        val kind = when {
+                                            lower.contains("homepod") -> "HomePod"
+                                            lower.contains("apple tv") -> "Apple TV"
+                                            lower.contains("soundbar") || lower.contains("barra") -> "Barra de sonido"
+                                            lower.contains("tv") || lower.contains("samsung") || lower.contains("recámara") -> "Smart TV"
+                                            else -> "AirPlay"
+                                        }
+                                        detected.add(DesktopAirPlayDevice(id = instanceName, name = instanceName, type = kind))
+                                    }
+                                }
+                            }
+                        } else {
+                            Thread.sleep(40L)
+                        }
+                    }
+                    proc.destroyForcibly()
+                }
+            }
+
+            DesktopAirPlaySettings.updateDiscovered(detected.distinctBy { it.name })
         }
     }
 

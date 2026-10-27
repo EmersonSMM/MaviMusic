@@ -2252,7 +2252,8 @@ fun MaviMusicDesktopApp() {
     LaunchedEffect(remoteServerEnabled) {
         if (remoteServerEnabled) {
             DesktopRemoteServer.start(DesktopRemoteDiscovery.port.value)
-            if (DesktopPlatform.isMac && DesktopAirPlaySettings.isFeatureEnabled()) {
+            if (DesktopPlatform.isMac) {
+                DesktopAirPlaySettings.setFeatureEnabled(true)
                 DesktopAirPlayManager.startDiscovery()
             }
         } else {
@@ -2309,6 +2310,9 @@ fun MaviMusicDesktopApp() {
         }
         DesktopRemoteBridge.onSetOutputDevice = { devId ->
             DesktopAudioDevices.select(devId)
+        }
+        DesktopRemoteBridge.onMuteDesktop = { muted ->
+            playbackEngine.setVolume(if (muted) 0f else volume)
         }
     }
 

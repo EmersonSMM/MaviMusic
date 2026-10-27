@@ -98,6 +98,7 @@ internal object DesktopRemoteBridge {
     var onRemoveFromQueue: ((Int) -> Unit)? = null
     var onMoveQueueItem: ((Int, Int) -> Unit)? = null
     var onSetOutputDevice: ((String) -> Unit)? = null
+    var onMuteDesktop: ((Boolean) -> Unit)? = null
 
     fun setConnectedClients(count: Int) {
         _connectedClientsCount.value = count
@@ -167,6 +168,10 @@ internal object DesktopRemoteBridge {
             "SET_OUTPUT_DEVICE" -> {
                 val devId = params["deviceId"]?.toString() ?: ""
                 onSetOutputDevice?.invoke(devId)
+            }
+            "MUTE_DESKTOP" -> {
+                val muted = (params["muted"] as? Boolean) ?: false
+                onMuteDesktop?.invoke(muted)
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.music.mavimusic.desktop.remote
 
+import com.music.mavimusic.data.innertube.StreamResolver
 import com.music.mavimusic.desktop.DesktopTrackLog
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -17,8 +18,10 @@ import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.header
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveText
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytes
+import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -37,6 +40,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -47,6 +51,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import java.net.InetAddress
+import java.net.URI
+import java.time.Duration
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
@@ -203,6 +209,78 @@ internal object DesktopRemoteServer {
                             val items = DesktopRemoteBridge.getCurrentQueue()
                             val res = DesktopRemoteBridge.WsMessage(type = "QUEUE", items = items)
                             call.respondText(json.encodeToString(res), ContentType.Application.Json)
+                        }
+
+                        // Audio stream proxy endpoint for "En este dispositivo" (Samsung Smart TV, Phone browser, etc.)
+                        get("/api/stream") {
+                            val token = extractToken(call)
+                            if (DesktopRemoteSecurity.validateToken(token) == null) {
+                                call.respond(HttpStatusCode.Unauthorized, "No autorizado")
+                                return@get
+                            }
+
+                            val videoId = call.request.queryParameters["videoId"]
+                                ?: DesktopRemoteBridge.getCurrentState().song?.videoId
+                            if (videoId.isNullOrBlank()) {
+                                call.respond(HttpStatusCode.NotFound, "No hay pista seleccionada")
+                                return@get
+                            }
+
+                            val streamUrl = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    StreamResolver.resolve(videoId)
+                                }.getOrNull()
+                            }
+
+                            if (streamUrl == null) {
+                                call.respond(HttpStatusCode.NotFound, "No se pudo resolver el stream de audio")
+                                return@get
+                            }
+
+                            try {
+                                val rangeHeader = call.request.header(HttpHeaders.Range)
+                                val client = java.net.http.HttpClient.newBuilder()
+                                    .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+                                    .build()
+
+                                val reqBuilder = java.net.http.HttpRequest.newBuilder(URI.create(streamUrl))
+                                    .timeout(Duration.ofSeconds(30))
+                                if (!rangeHeader.isNullOrBlank()) {
+                                    reqBuilder.header("Range", rangeHeader)
+                                }
+                                for ((k, v) in StreamResolver.mediaHeadersFor(streamUrl)) {
+                                    reqBuilder.header(k, v)
+                                }
+
+                                val response = withContext(Dispatchers.IO) {
+                                    client.send(reqBuilder.build(), java.net.http.HttpResponse.BodyHandlers.ofInputStream())
+                                }
+
+                                val status = HttpStatusCode.fromValue(response.statusCode())
+                                val contentTypeStr = response.headers().firstValue("Content-Type").orElse("audio/mp4")
+                                val contentLength = response.headers().firstValue("Content-Length").orElse(null)
+                                val contentRange = response.headers().firstValue("Content-Range").orElse(null)
+
+                                call.response.status(status)
+                                call.response.header(HttpHeaders.ContentType, contentTypeStr)
+                                call.response.header(HttpHeaders.AcceptRanges, "bytes")
+                                if (contentLength != null) {
+                                    call.response.header(HttpHeaders.ContentLength, contentLength)
+                                }
+                                if (contentRange != null) {
+                                    call.response.header(HttpHeaders.ContentRange, contentRange)
+                                }
+
+                                val bodyStream = response.body()
+                                call.respondOutputStream(ContentType.parse(contentTypeStr), status) {
+                                    bodyStream.use { input ->
+                                        input.copyTo(this, bufferSize = 64 * 1024)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                DesktopTrackLog.log("Remote server stream proxy error: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError, "Error transmitiendo audio")
+                            }
                         }
 
                         // WebSocket real-time connection
