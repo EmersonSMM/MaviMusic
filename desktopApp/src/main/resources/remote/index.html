@@ -136,6 +136,24 @@
           <div class="lyrics-empty">La cola está vacía.</div>
         </div>
       </section>
+
+      <!-- 4. SEARCH -->
+      <section id="view-search" class="view">
+        <div class="view-header">Buscar música</div>
+        <div class="search-header-container">
+          <div class="search-input-wrapper">
+            <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="search" id="search-input" class="search-input" placeholder="Canciones, artistas..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+            <button id="search-clear-btn" class="search-clear-btn" style="display:none;" aria-label="Limpiar búsqueda">&times;</button>
+          </div>
+        </div>
+        <div class="search-results-list" id="search-results-container">
+          <div class="search-placeholder">Escribe el nombre de una canción o artista para buscar en YouTube Music.</div>
+        </div>
+      </section>
     </div>
 
     <!-- BOTTOM TAB NAVIGATION -->
@@ -157,6 +175,12 @@
           <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
         </svg>
         <span>Cola</span>
+      </button>
+      <button class="nav-tab" data-view="view-search">
+        <svg viewBox="0 0 24 24">
+          <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <span>Buscar</span>
       </button>
     </nav>
   </div>

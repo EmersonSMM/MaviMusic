@@ -2320,6 +2320,28 @@ fun MaviMusicDesktopApp() {
         DesktopRemoteBridge.onMuteDesktop = { muted ->
             playbackEngine.setVolume(if (muted) 0f else volume)
         }
+        DesktopRemoteBridge.onPlaySearchTrack = { track ->
+            val song = Song(
+                videoId = track.videoId,
+                title = track.title,
+                artist = track.artist,
+                thumbnailUrl = track.thumbnailUrl,
+                durationText = track.durationText,
+                albumName = track.albumName,
+            )
+            playSong(song, startPlaying = true, source = DesktopQueueSource("Remote Search", PlaybackSourceType.SEARCH))
+        }
+        DesktopRemoteBridge.onQueueSearchTrack = { track ->
+            val song = Song(
+                videoId = track.videoId,
+                title = track.title,
+                artist = track.artist,
+                thumbnailUrl = track.thumbnailUrl,
+                durationText = track.durationText,
+                albumName = track.albumName,
+            )
+            addToQueue(song)
+        }
     }
 
     // MaviMusic Remote: push playback state

@@ -52,6 +52,11 @@
   const navTabs = document.querySelectorAll('.nav-tab');
   const views = document.querySelectorAll('.view');
 
+  // Search Elements
+  const searchInput = document.getElementById('search-input');
+  const searchClearBtn = document.getElementById('search-clear-btn');
+  const searchResultsContainer = document.getElementById('search-results-container');
+
   // --- State ---
   let token = localStorage.getItem('mavimusic_remote_token') || '';
   let socket = null;
@@ -59,6 +64,9 @@
   let isSeeking = false;
   let currentLyrics = [];
   let activeLyricIndex = -1;
+  let searchDebounceTimer = null;
+  let currentSearchQuery = '';
+  let toastTimeout = null;
 
   let state = {
     isPlaying: false,
@@ -691,6 +699,157 @@
     queueContainer.appendChild(fragment);
   }
 
+  // --- Toast Notification ---
+  function showToast(message) {
+    let toast = document.getElementById('remote-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'remote-toast';
+      toast.className = 'remote-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 2000);
+  }
+
+  // --- Search Feature ---
+  function setupSearch() {
+    if (!searchInput || !searchResultsContainer) return;
+
+    searchInput.addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      currentSearchQuery = q;
+      if (searchClearBtn) {
+        searchClearBtn.style.display = q.length > 0 ? 'flex' : 'none';
+      }
+
+      clearTimeout(searchDebounceTimer);
+      if (!q) {
+        searchResultsContainer.innerHTML = '<div class="search-placeholder">Escribe el nombre de una canción o artista para buscar en YouTube Music.</div>';
+        return;
+      }
+
+      searchResultsContainer.innerHTML = '<div class="search-loading">Buscando canciones…</div>';
+      searchDebounceTimer = setTimeout(() => {
+        executeSearch(q);
+      }, 350);
+    });
+
+    if (searchClearBtn) {
+      searchClearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        currentSearchQuery = '';
+        searchClearBtn.style.display = 'none';
+        searchResultsContainer.innerHTML = '<div class="search-placeholder">Escribe el nombre de una canción o artista para buscar en YouTube Music.</div>';
+        searchInput.focus();
+      });
+    }
+  }
+
+  async function executeSearch(query) {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&token=${encodeURIComponent(token)}`);
+      if (currentSearchQuery !== query) return; // Discard stale results
+
+      if (!res.ok) {
+        searchResultsContainer.innerHTML = '<div class="search-placeholder">Error al realizar la búsqueda. Comprueba la conexión.</div>';
+        return;
+      }
+      const tracks = await res.json();
+      if (!tracks || tracks.length === 0) {
+        searchResultsContainer.innerHTML = '<div class="search-placeholder">No se encontraron resultados para "' + escapeHtml(query) + '".</div>';
+        return;
+      }
+
+      renderSearchResults(tracks);
+    } catch (e) {
+      if (currentSearchQuery === query) {
+        searchResultsContainer.innerHTML = '<div class="search-placeholder">Error al conectar con el servidor.</div>';
+      }
+    }
+  }
+
+  function renderSearchResults(tracks) {
+    if (!searchResultsContainer) return;
+    searchResultsContainer.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    tracks.forEach((track) => {
+      const item = document.createElement('div');
+      item.className = 'search-item';
+
+      const thumbUrl = track.thumbnailUrl ? `/api/artwork?token=${encodeURIComponent(token)}&url=${encodeURIComponent(track.thumbnailUrl)}` : 'icon-192.png';
+      const durationStr = track.durationText ? ` &bull; ${escapeHtml(track.durationText)}` : '';
+
+      item.innerHTML = `
+        <img class="search-thumb" src="${thumbUrl}" alt="Portada" loading="lazy" onerror="this.src='icon-192.png'">
+        <div class="search-meta">
+          <div class="search-title">${escapeHtml(track.title)}</div>
+          <div class="search-artist">${escapeHtml(track.artist)}${durationStr}</div>
+        </div>
+        <div class="search-actions">
+          <button class="search-action-btn btn-add-queue" title="Añadir a la cola" aria-label="Añadir a la cola">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      `;
+
+      // Play immediately on row tap
+      item.addEventListener('click', () => {
+        if (state.isThisDevice && localAudio) {
+          localAudio.dataset.videoId = '';
+        }
+        sendCommand('PLAY_TRACK', {
+          videoId: track.videoId,
+          title: track.title,
+          artist: track.artist,
+          durationText: track.durationText,
+          thumbnailUrl: track.thumbnailUrl,
+          albumName: track.albumName,
+        });
+        showToast('Reproduciendo: ' + track.title);
+        // Switch to player view so the user sees the new playing track
+        navTabs.forEach(t => t.classList.toggle('active', t.dataset.view === 'view-player'));
+        views.forEach(v => v.classList.toggle('active', v.id === 'view-player'));
+      });
+
+      // Add to queue button tap
+      const btnAdd = item.querySelector('.btn-add-queue');
+      if (btnAdd) {
+        btnAdd.addEventListener('click', (e) => {
+          e.stopPropagation();
+          sendCommand('QUEUE_TRACK', {
+            videoId: track.videoId,
+            title: track.title,
+            artist: track.artist,
+            durationText: track.durationText,
+            thumbnailUrl: track.thumbnailUrl,
+            albumName: track.albumName,
+          });
+          showToast('Añadida a la cola');
+          btnAdd.style.background = 'var(--accent)';
+          btnAdd.style.color = '#FFF';
+          setTimeout(() => {
+            btnAdd.style.background = '';
+            btnAdd.style.color = '';
+          }, 800);
+        });
+      }
+
+      fragment.appendChild(item);
+    });
+
+    searchResultsContainer.appendChild(fragment);
+  }
+
   // --- Progress Scrubber Events ---
   function setupScrubber() {
     function handleSeek(e) {
@@ -853,6 +1012,7 @@
     setupNavigation();
     setupControls();
     setupScrubber();
+    setupSearch();
 
     initAuth();
 

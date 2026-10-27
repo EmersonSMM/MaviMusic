@@ -60,6 +60,16 @@ internal object DesktopRemoteBridge {
     )
 
     @Serializable
+    data class RemoteSearchTrack(
+        val videoId: String = "",
+        val title: String = "",
+        val artist: String = "",
+        val durationText: String? = null,
+        val thumbnailUrl: String? = null,
+        val albumName: String? = null,
+    )
+
+    @Serializable
     data class RemoteLyricLine(
         val timeMs: Long = 0L,
         val text: String = "",
@@ -99,6 +109,8 @@ internal object DesktopRemoteBridge {
     var onMoveQueueItem: ((Int, Int) -> Unit)? = null
     var onSetOutputDevice: ((String) -> Unit)? = null
     var onMuteDesktop: ((Boolean) -> Unit)? = null
+    var onPlaySearchTrack: ((RemoteSearchTrack) -> Unit)? = null
+    var onQueueSearchTrack: ((RemoteSearchTrack) -> Unit)? = null
 
     fun setConnectedClients(count: Int) {
         _connectedClientsCount.value = count
@@ -172,6 +184,42 @@ internal object DesktopRemoteBridge {
             "MUTE_DESKTOP" -> {
                 val muted = (params["muted"] as? Boolean) ?: false
                 onMuteDesktop?.invoke(muted)
+            }
+            "PLAY_TRACK" -> {
+                val videoId = params["videoId"]?.toString() ?: return
+                val title = params["title"]?.toString().orEmpty()
+                val artist = params["artist"]?.toString().orEmpty()
+                val durationText = params["durationText"]?.toString()
+                val thumbnailUrl = params["thumbnailUrl"]?.toString()
+                val albumName = params["albumName"]?.toString()
+                onPlaySearchTrack?.invoke(
+                    RemoteSearchTrack(
+                        videoId = videoId,
+                        title = title,
+                        artist = artist,
+                        durationText = durationText,
+                        thumbnailUrl = thumbnailUrl,
+                        albumName = albumName,
+                    )
+                )
+            }
+            "QUEUE_TRACK" -> {
+                val videoId = params["videoId"]?.toString() ?: return
+                val title = params["title"]?.toString().orEmpty()
+                val artist = params["artist"]?.toString().orEmpty()
+                val durationText = params["durationText"]?.toString()
+                val thumbnailUrl = params["thumbnailUrl"]?.toString()
+                val albumName = params["albumName"]?.toString()
+                onQueueSearchTrack?.invoke(
+                    RemoteSearchTrack(
+                        videoId = videoId,
+                        title = title,
+                        artist = artist,
+                        durationText = durationText,
+                        thumbnailUrl = thumbnailUrl,
+                        albumName = albumName,
+                    )
+                )
             }
         }
     }

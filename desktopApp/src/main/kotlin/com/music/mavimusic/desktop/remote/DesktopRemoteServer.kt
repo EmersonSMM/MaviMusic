@@ -1,6 +1,9 @@
 package com.music.mavimusic.desktop.remote
 
 import com.music.mavimusic.data.innertube.StreamResolver
+import com.music.mavimusic.data.model.SearchFilter
+import com.music.mavimusic.data.model.SearchResult
+import com.music.mavimusic.desktop.DesktopSearchClient
 import com.music.mavimusic.desktop.DesktopTrackLog
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -222,6 +225,47 @@ internal object DesktopRemoteServer {
                             val items = DesktopRemoteBridge.getCurrentQueue()
                             val res = DesktopRemoteBridge.WsMessage(type = "QUEUE", items = items)
                             call.respondText(json.encodeToString(res), ContentType.Application.Json)
+                        }
+
+                        // Search endpoint for mobile web app
+                        get("/api/search") {
+                            val token = extractToken(call)
+                            if (DesktopRemoteSecurity.validateToken(token) == null) {
+                                call.respond(HttpStatusCode.Unauthorized, "No autorizado")
+                                return@get
+                            }
+
+                            val query = call.request.queryParameters["q"]?.trim().orEmpty()
+                            if (query.isBlank()) {
+                                call.respond(HttpStatusCode.BadRequest, "Término de búsqueda vacío")
+                                return@get
+                            }
+
+                            try {
+                                val results = withContext(Dispatchers.IO) {
+                                    DesktopSearchClient.search(query, SearchFilter.SONGS).getOrNull().orEmpty()
+                                }
+                                val tracks = results.mapNotNull { item ->
+                                    when (item) {
+                                        is SearchResult.TopTrack -> item.song
+                                        is SearchResult.Track -> item.song
+                                        else -> null
+                                    }
+                                }.map { s ->
+                                    DesktopRemoteBridge.RemoteSearchTrack(
+                                        videoId = s.videoId,
+                                        title = s.title,
+                                        artist = s.artist,
+                                        durationText = s.durationText,
+                                        thumbnailUrl = s.thumbnailUrl,
+                                        albumName = s.albumName,
+                                    )
+                                }
+                                call.respondText(json.encodeToString(tracks), ContentType.Application.Json)
+                            } catch (e: Exception) {
+                                DesktopTrackLog.log("Remote search error: ${e.message}")
+                                call.respond(HttpStatusCode.InternalServerError, "Error en la búsqueda")
+                            }
                         }
 
                         // Audio stream proxy endpoint for "En este dispositivo" (Samsung Smart TV, Phone browser, etc.)

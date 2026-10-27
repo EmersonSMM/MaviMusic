@@ -186,6 +186,36 @@ class DesktopRemoteTest {
         DesktopRemoteBridge.onMuteDesktop = { muteCalledWith = it }
         DesktopRemoteBridge.dispatchCommand("MUTE_DESKTOP", mapOf("muted" to true))
         assertEquals(true, muteCalledWith)
+
+        var playedTrack: DesktopRemoteBridge.RemoteSearchTrack? = null
+        var queuedTrack: DesktopRemoteBridge.RemoteSearchTrack? = null
+        DesktopRemoteBridge.onPlaySearchTrack = { playedTrack = it }
+        DesktopRemoteBridge.onQueueSearchTrack = { queuedTrack = it }
+
+        DesktopRemoteBridge.dispatchCommand(
+            "PLAY_TRACK",
+            mapOf(
+                "videoId" to "test_vid_123",
+                "title" to "Midnight City",
+                "artist" to "M83",
+                "durationText" to "4:03",
+            )
+        )
+        assertNotNull(playedTrack)
+        assertEquals("test_vid_123", playedTrack.videoId)
+        assertEquals("Midnight City", playedTrack.title)
+
+        DesktopRemoteBridge.dispatchCommand(
+            "QUEUE_TRACK",
+            mapOf(
+                "videoId" to "test_vid_456",
+                "title" to "Wait",
+                "artist" to "M83",
+            )
+        )
+        assertNotNull(queuedTrack)
+        assertEquals("test_vid_456", queuedTrack.videoId)
+        assertEquals("Wait", queuedTrack.title)
     }
 
     @Test
