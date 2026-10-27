@@ -775,4 +775,33 @@ object MaviMusicIcons {
             }
         }.build()
     }
+
+    /** Phone / Mobile Remote control icon. */
+    val RemotePhone: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_remote_phone",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(7f, 2f)
+                lineTo(17f, 2f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 2f, 2f)
+                lineTo(19f, 20f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -2f, 2f)
+                lineTo(7f, 22f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -2f, -2f)
+                lineTo(5f, 4f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 2f, -2f)
+                close()
+                moveTo(11f, 18.5f)
+                lineTo(13f, 18.5f)
+            }
+        }.build()
+    }
 }

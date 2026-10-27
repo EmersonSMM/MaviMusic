@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.withStyle
+import com.music.mavimusic.desktop.remote.DesktopRemoteSettingsUi
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.mavimusic.ui.components.LocalShelfRowChrome
 import com.music.mavimusic.ui.components.ShelfRowChrome
@@ -350,6 +351,7 @@ import org.jetbrains.compose.resources.painterResource
 internal enum class DesktopSettingsSection {
     ACCOUNT,
     LISTEN_TOGETHER,
+    REMOTE_CONTROL,
     SOURCES,
     AUDIO_QUALITY,
     DOWNLOADS,
@@ -1645,6 +1647,11 @@ internal fun DesktopSettingsScreen(
                         DesktopStrings["listen_together", "Listen together"],
                         DesktopStrings["listen_together_create_subtitle", "Start a party and share the code."],
                     ) { onOpenListenTogether() }
+                }
+            }
+            if (section == DesktopSettingsSection.REMOTE_CONTROL) item {
+                SettingsGroup(DesktopStrings["remote_control", "Control remoto"]) {
+                    DesktopRemoteSettingsUi()
                 }
             }
             if (section == DesktopSettingsSection.AUDIO_OUTPUT) item {

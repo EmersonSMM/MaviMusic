@@ -486,6 +486,35 @@ internal fun DesktopTopBar(
                                 }
                             }
                         }
+                        val remoteConnectedCount by com.music.mavimusic.desktop.remote.DesktopRemoteBridge.connectedClientsCount.collectAsState()
+                        if (remoteConnectedCount > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = DesktopAccent.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, DesktopAccent.copy(alpha = 0.35f)),
+                                modifier = Modifier.height(36.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        MaviMusicIcons.RemotePhone,
+                                        contentDescription = "Control remoto conectado",
+                                        tint = DesktopAccent,
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "$remoteConnectedCount",
+                                        color = DesktopAccent,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 

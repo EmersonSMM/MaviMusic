@@ -1,5 +1,8 @@
 package com.music.mavimusic.desktop
 
+import com.music.mavimusic.desktop.remote.DesktopRemoteBridge
+import com.music.mavimusic.desktop.remote.DesktopRemoteDiscovery
+import com.music.mavimusic.desktop.remote.DesktopRemoteServer
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.mavimusic.ui.components.LocalShelfRowChrome
 import com.music.mavimusic.ui.components.ShelfRowChrome
@@ -1665,6 +1668,7 @@ fun MaviMusicDesktopApp() {
                     withContext(Dispatchers.IO) { runCatching { playbackEngine.shutdown() } }
                     DesktopMacMedia.stop()
                     DesktopMacDockMenu.stop()
+                    DesktopRemoteServer.stop()
                 } catch (failure: Exception) {
                     DesktopTrackLog.log("Could not save update restart checkpoint: ${failure.message}")
                 } finally {
@@ -1675,6 +1679,7 @@ fun MaviMusicDesktopApp() {
         DesktopWindowsUpdater.prepareForInstall = {
             runCatching { checkpointPlayback() }
             runCatching { playbackEngine.shutdown() }
+            DesktopRemoteServer.stop()
         }
         if (DesktopPlatform.isMac && java.awt.Desktop.isDesktopSupported()) {
             val desktop = java.awt.Desktop.getDesktop()
@@ -1685,6 +1690,7 @@ fun MaviMusicDesktopApp() {
                         withContext(Dispatchers.IO) { playbackEngine.shutdown() }
                         DesktopMacMedia.stop()
                         DesktopMacDockMenu.stop()
+                        DesktopRemoteServer.stop()
                         java.awt.EventQueue.invokeLater { response.performQuit() }
                     }
                 }
@@ -2240,6 +2246,148 @@ fun MaviMusicDesktopApp() {
             )
         }
     }
+
+    // MaviMusic Remote: server lifecycle management
+    val remoteServerEnabled by DesktopRemoteDiscovery.enabled.collectAsState()
+    LaunchedEffect(remoteServerEnabled) {
+        if (remoteServerEnabled) {
+            DesktopRemoteServer.start(DesktopRemoteDiscovery.port.value)
+        } else {
+            DesktopRemoteServer.stop()
+        }
+    }
+
+    // MaviMusic Remote: command dispatchers binding
+    LaunchedEffect(playbackEngine, liveQueue, selectedSong, shuffle, repeatMode, likedIds, automixOnSkip) {
+        DesktopRemoteBridge.onPlayPause = {
+            if (playbackEngine.state.value.isPlaying) playbackEngine.pause() else playbackEngine.play()
+        }
+        DesktopRemoteBridge.onPlay = { playbackEngine.play() }
+        DesktopRemoteBridge.onPause = { playbackEngine.pause() }
+        DesktopRemoteBridge.onNext = { playNext() }
+        DesktopRemoteBridge.onPrevious = { playPrevious() }
+        DesktopRemoteBridge.onSeekTo = { pos -> playbackEngine.seekTo(pos) }
+        DesktopRemoteBridge.onSetVolume = { vol ->
+            volume = vol
+            playbackEngine.setVolume(vol)
+            persistence.saveString("volume", vol.toString())
+        }
+        DesktopRemoteBridge.onToggleShuffle = { setShuffle(!shuffle) }
+        DesktopRemoteBridge.onCycleRepeat = {
+            val next = when (repeatMode) {
+                DesktopRepeatMode.OFF -> DesktopRepeatMode.ALL
+                DesktopRepeatMode.ALL -> DesktopRepeatMode.ONE
+                DesktopRepeatMode.ONE -> DesktopRepeatMode.OFF
+            }
+            repeatMode = next
+            persistence.saveString("repeat_mode", next.name)
+        }
+        DesktopRemoteBridge.onToggleLike = {
+            selectedSong?.let { toggleLike(it) }
+        }
+        DesktopRemoteBridge.onPlayQueueIndex = { idx ->
+            if (idx in liveQueue.songs.indices) {
+                liveQueue = liveQueue.jumpTo(idx)
+                playCurrent()
+            }
+        }
+        DesktopRemoteBridge.onRemoveFromQueue = { idx ->
+            if (idx in liveQueue.songs.indices) {
+                val updated = liveQueue.songs.toMutableList()
+                updated.removeAt(idx)
+                val newIndex = if (idx < liveQueue.index) (liveQueue.index - 1).coerceAtLeast(0) else liveQueue.index.coerceAtMost(updated.lastIndex.coerceAtLeast(0))
+                liveQueue = liveQueue.copy(songs = updated, index = newIndex)
+                saveQueue()
+            }
+        }
+    }
+
+    // MaviMusic Remote: push playback state
+    LaunchedEffect(
+        selectedSong,
+        playback.isPlaying,
+        playback.positionMs,
+        playback.durationMs,
+        volume,
+        shuffle,
+        repeatMode,
+        likedIds,
+        audioQuality
+    ) {
+        val song = selectedSong?.let {
+            DesktopRemoteBridge.RemoteTrack(
+                videoId = it.videoId,
+                title = it.title,
+                artist = it.artist.orEmpty(),
+                album = it.albumName.orEmpty(),
+                durationMs = playback.durationMs,
+                artworkUrl = it.artworkAt(512) ?: it.thumbnailUrl.orEmpty(),
+            )
+        }
+        val repStr = when (repeatMode) {
+            DesktopRepeatMode.OFF -> "OFF"
+            DesktopRepeatMode.ALL -> "ALL"
+            DesktopRepeatMode.ONE -> "ONE"
+        }
+        val remoteState = DesktopRemoteBridge.RemotePlaybackState(
+            isPlaying = playback.isPlaying,
+            positionMs = playback.positionMs,
+            durationMs = playback.durationMs,
+            timestamp = System.currentTimeMillis(),
+            volume = volume,
+            shuffle = shuffle,
+            repeatMode = repStr,
+            isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
+            audioQuality = audioQuality.name,
+            song = song,
+        )
+        DesktopRemoteBridge.updatePlaybackState(remoteState)
+    }
+
+    // MaviMusic Remote: push Queue
+    LaunchedEffect(liveQueue.songs, liveQueue.index) {
+        val items = liveQueue.songs.mapIndexed { idx, s ->
+            DesktopRemoteBridge.RemoteQueueItem(
+                index = idx,
+                videoId = s.videoId,
+                title = s.title,
+                artist = s.artist.orEmpty(),
+                durationMs = (s.durationText.durationSeconds() * 1000.0).toLong(),
+                artworkUrl = s.artworkAt(120) ?: s.thumbnailUrl.orEmpty(),
+                isCurrent = idx == liveQueue.index,
+            )
+        }
+        DesktopRemoteBridge.updateQueue(items)
+    }
+
+    // MaviMusic Remote: push Lyrics
+    LaunchedEffect(lyrics) {
+        val lines = lyrics?.lines?.map {
+            DesktopRemoteBridge.RemoteLyricLine(
+                timeMs = it.timeMs,
+                text = it.text,
+            )
+        } ?: emptyList()
+        DesktopRemoteBridge.updateLyrics(lines)
+    }
+
+    // MaviMusic Remote: periodic time anchor for drift correction (every 3 seconds when playing)
+    LaunchedEffect(playback.isPlaying) {
+        if (!playback.isPlaying) return@LaunchedEffect
+        while (currentCoroutineContext().isActive) {
+            delay(3_000L)
+            val currState = DesktopRemoteBridge.getCurrentState()
+            if (currState.isPlaying) {
+                DesktopRemoteBridge.updatePlaybackState(
+                    currState.copy(
+                        positionMs = playbackEngine.state.value.positionMs,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                )
+            }
+        }
+    }
+
     // Refetched on opening the page rather than cached for the session: the
     // point of it is that something played elsewhere shows up here.
     LaunchedEffect(destination, youtubeSignedIn, sessionRevision) {
