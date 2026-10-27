@@ -1,5 +1,24 @@
 # Novedades de MaviMusic
 
+## 1.8.53
+
+- **Control Remoto Web Local (MaviMusic Remote)**:
+  - Servidor HTTP y WebSocket local embebido (Ktor CIO) para controlar la reproducción de MaviMusic desde cualquier navegador móvil (iPhone con Safari u otros) en la misma red Wi-Fi sin instalar ninguna aplicación adicional.
+  - **Cero impacto por defecto**: desactivado por defecto; cuando está apagado, no hay puertos abiertos, ni hilos, ni consumo de CPU/memoria.
+  - **Seguridad Rigurosa**:
+    - Filtrado estricto de direcciones IP privadas (RFC 1918 / 3927): se rechaza y registra cualquier intento de conexión fuera de la red local. Sin apertura de puertos en router ni UPnP.
+    - Emparejamiento por PIN de 4 dígitos o escaneo de Código QR nativo con token OTP de uso único.
+    - Sesiones protegidas por tokens criptográficos almacenados únicamente con hash SHA-256 y comparaciones en tiempo constante.
+    - Mitigación de fuerza bruta con bloqueo progresivo y revocación instantánea de dispositivos en tiempo real.
+  - **Web App Mobile-First para iPhone**:
+    - Estética coherente con el sistema de diseño Liquid Glass de MaviMusic y paleta lila/oscura.
+    - 3 vistas principales: **Reproductor** (carátula, controles, me gusta, scrubber y volumen), **Letras sincronizadas** (resaltado en tiempo real con scroll automático suave) y **Cola de reproducción** (con salto directo y eliminación de pistas).
+    - Interpolación local de posición a 60 FPS con anclas de tiempo periódicas (reducción del 95% del tráfico de red y ahorro de batería en el móvil).
+    - Reconexión y resincronización instantánea de estado al desbloquear la pantalla en iOS.
+  - **Ajustes de Control Remoto en el Escritorio**:
+    - Sección dedicada en Ajustes con interruptor on/off, URL local, visor interactivo del Código QR y PIN en grande.
+    - Indicador visual discreto en la barra de navegación del escritorio con el conteo de dispositivos remotos conectados.
+
 ## 1.8.52
 
 - Actualización Windows por MSI verificado, auxiliar independiente e instalación silenciosa por usuario; recuperación transaccional y registro local.
