@@ -123,6 +123,10 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
     // Listen Together speaks over a WebSocket; the Discord gateway already uses the same engine.
     implementation("io.ktor:ktor-client-websockets:3.0.3")
+    implementation("io.ktor:ktor-server-core:3.0.3")
+    implementation("io.ktor:ktor-server-cio:3.0.3")
+    implementation("io.ktor:ktor-server-websockets:3.0.3")
+    implementation("io.ktor:ktor-server-cors:3.0.3")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
