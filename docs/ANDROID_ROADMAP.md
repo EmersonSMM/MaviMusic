@@ -40,12 +40,10 @@ flowchart TD
 - [x] Declaración del módulo `:androidApp` en `settings.gradle.kts`.
 
 ### Fase 2: Soporte Android en Módulos Compartidos
-- Configurar `androidTarget()` en `:shared/build.gradle.kts`.
-- Configurar `androidTarget()` en `:desktopUi/build.gradle.kts` (o configurar el módulo de UI como módulo común multiplatform).
-- Resolver dependencias multiplataforma para Android:
-  - `ktor-client-okhttp` (ya compatible con Android).
-  - `coil3` (compatible con Android y Compose Multiplatform).
-  - `haze` (compatible con Android).
+- [x] Configurar `androidTarget()` en `:shared/build.gradle.kts`.
+- [x] Configurar `androidTarget()` en `:desktopUi/build.gradle.kts`.
+- [x] Implementación de `actual` para Android (`Haptics.android.kt`, `ContextClick.android.kt`, `StatusBarIcons.android.kt`, `PlayerPlatformUi.android.kt`, `ArtworkPixels.android.kt`).
+- [x] Migración de `PaletteQuantizer.kt` a `jvmSharedMain`.
 
 ### Fase 3: Módulo `:androidApp` y Shell Inicial
 - [x] Estructura estándar de Android:
@@ -69,18 +67,23 @@ En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escrit
 - [x] Soporte para gestos nativos de retroceso con `BackHandler`.
 - [x] Integración de `WindowInsets` de Compose (`statusBarsPadding`, `navigationBarsPadding`).
 
-### Fase 6: Almacenamiento y Permisos
-- Directorio de caché y descarga offline usando `context.filesDir` / `context.getExternalFilesDir()`.
-- Permisos de Android 13+:
+### Fase 6: Almacenamiento, Persistencia y Descargas Offline
+- [x] Persistencia de sesión (`AndroidPreferences`): última canción reproducida, cola activa y posición, historial de búsquedas recientes.
+- [x] Gestor de descargas (`OfflineDownloadManager`): descarga de audio y metadatos JSON a almacenamiento aislado (`getExternalFilesDir`).
+- [x] Reproducción offline transparente: `AndroidPlayerEngine` detecta archivos locales descargados y los reproduce directamente con ExoPlayer sin consumir datos de red.
+- [x] Sección "Descargas Offline" en pestaña Biblioteca con botón de reproducción total y gestión de pistas guardadas.
+- [x] Icono de descarga dinámica en cada fila de canción (`SongRowItem`) para guardar o eliminar con 1 toque.
+- [x] Permisos de Android:
   - `android.permission.POST_NOTIFICATIONS`
   - `android.permission.FOREGROUND_SERVICE`
   - `android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK`
   - `android.permission.INTERNET`
   - `android.permission.ACCESS_NETWORK_STATE`
 
-### Fase 7: Compilación y Pruebas
-- Tarea Gradle `./gradlew :androidApp:assembleDebug` para generar el APK instalable.
-- Verificación de no-regresión: comprobar que las tareas de compilación y pruebas de macOS y Windows (`:desktopApp`) sigan funcionando al 100% sin alteraciones.
+### Fase 7: Compilación, Despliegue USB y Pruebas
+- [x] Script automatizado de compilación y despliegue USB: `scripts/deploy_android.sh`.
+- [x] Verificado y ejecutándose activamente en dispositivo físico (Samsung Galaxy Tab SM-X110 / Android 14/15) vía ADB.
+- [x] Verificación de no-regresión en Desktop (macOS y Windows): suite de 33 tests pasando en <1s.
 
 ---
 
