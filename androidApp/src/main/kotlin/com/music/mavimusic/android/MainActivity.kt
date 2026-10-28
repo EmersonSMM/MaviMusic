@@ -61,6 +61,7 @@ import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.Button
@@ -118,7 +119,14 @@ import com.music.mavimusic.android.service.PlaybackService
 import com.music.mavimusic.android.ui.AddToPlaylistModal
 import com.music.mavimusic.android.ui.CreatePlaylistModal
 import com.music.mavimusic.android.ui.DesktopSyncModal
+import com.music.mavimusic.android.ui.LyricsOffsetModal
+import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
+import com.music.mavimusic.android.ui.TrackActionsModal
+import com.music.mavimusic.ui.screens.MOOD_CARD_ASPECT
+import com.music.mavimusic.ui.screens.MoodGenreSleeve
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import com.music.mavimusic.data.YtMusicRepository
 import com.music.mavimusic.data.model.LikeStatus
 import com.music.mavimusic.data.model.MoodGenre
@@ -130,6 +138,7 @@ import com.music.mavimusic.ui.AppUi
 import com.music.mavimusic.ui.player.NowPlayingScreen
 import com.music.mavimusic.ui.player.PlayerPlatform
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -188,6 +197,10 @@ fun AndroidMusicApp() {
     var showDesktopSyncModal by remember { mutableStateOf(false) }
     var songForPlaylist by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistModal by remember { mutableStateOf(false) }
+    var showTrackActionsModal by remember { mutableStateOf(false) }
+    var showLyricsOffsetModal by remember { mutableStateOf(false) }
+    var showSettingsModal by remember { mutableStateOf(false) }
+    var lyricsOffsetMs by remember { mutableStateOf(0L) }
 
     val currentSong by AndroidPlayerEngine.currentSong.collectAsState()
     val isPlaying by AndroidPlayerEngine.isPlaying.collectAsState()
@@ -211,8 +224,27 @@ fun AndroidMusicApp() {
     if (showSleepTimerModal) {
         SleepTimerModal(onDismiss = { showSleepTimerModal = false })
     }
+    if (showSettingsModal) {
+        SettingsModal(onDismiss = { showSettingsModal = false })
+    }
     if (showDesktopSyncModal) {
         DesktopSyncModal(onDismiss = { showDesktopSyncModal = false })
+    }
+    if (showTrackActionsModal && currentSong != null) {
+        TrackActionsModal(
+            song = currentSong!!,
+            onStartRadio = { AndroidPlayerEngine.startRadio(currentSong!!) },
+            onAddToPlaylist = { songForPlaylist = currentSong },
+            onAdjustLyricsOffset = { showLyricsOffsetModal = true },
+            onDismiss = { showTrackActionsModal = false }
+        )
+    }
+    if (showLyricsOffsetModal) {
+        LyricsOffsetModal(
+            currentOffsetMs = lyricsOffsetMs,
+            onOffsetChange = { lyricsOffsetMs = it },
+            onDismiss = { showLyricsOffsetModal = false }
+        )
     }
     if (songForPlaylist != null) {
         AddToPlaylistModal(
@@ -281,7 +313,7 @@ fun AndroidMusicApp() {
                     onRemoveFromQueue = {},
                     onMoveInQueue = { _, _ -> },
                     onClearQueue = {},
-                    onOpenMenu = {},
+                    onOpenMenu = { showTrackActionsModal = true },
                     onOpenAlbum = {},
                     onOpenArtist = { _, _ -> },
                     onOpenPlaybackSource = {},
@@ -291,8 +323,8 @@ fun AndroidMusicApp() {
                     lyricsProviderStates = emptyMap(),
                     onSelectLyricsProvider = {},
                     lyricsUnavailable = (!lyricsLoading && lyrics == null),
-                    lyricsOffsetOpen = false,
-                    onDismissLyricsOffset = {},
+                    lyricsOffsetOpen = showLyricsOffsetModal,
+                    onDismissLyricsOffset = { showLyricsOffsetModal = false },
                     windowWidth = windowW,
                     windowHeight = windowH
                 )
@@ -365,17 +397,18 @@ fun AndroidMusicApp() {
             // Adaptive Tablet Layout: Side NavigationRail + Main Content + Bottom MiniPlayer
             Row(modifier = Modifier.fillMaxSize()) {
                 NavigationRail(
+                    modifier = Modifier.statusBarsPadding().navigationBarsPadding(),
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = Color.White,
                     header = {
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Icon(
                             imageVector = Icons.Rounded.MusicNote,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(32.dp)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 ) {
                     MobileTab.values().forEach { tab ->
@@ -411,10 +444,23 @@ fun AndroidMusicApp() {
                             tint = Color.Gray
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    IconButton(onClick = { showSettingsModal = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = "Ajustes",
+                            tint = Color.Gray
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .navigationBarsPadding()
+                ) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
                         when (selectedTab) {
                             MobileTab.HOME -> MobileHomeView(
@@ -431,7 +477,8 @@ fun AndroidMusicApp() {
                             )
                             MobileTab.LIBRARY -> MobileLibraryView(
                                 onAddToPlaylist = { songForPlaylist = it },
-                                onStartRadio = { AndroidPlayerEngine.startRadio(it) }
+                                onStartRadio = { AndroidPlayerEngine.startRadio(it) },
+                                onOpenSettings = { showSettingsModal = true }
                             )
                         }
                     }
@@ -509,7 +556,8 @@ fun AndroidMusicApp() {
                         )
                         MobileTab.LIBRARY -> MobileLibraryView(
                             onAddToPlaylist = { songForPlaylist = it },
-                            onStartRadio = { AndroidPlayerEngine.startRadio(it) }
+                            onStartRadio = { AndroidPlayerEngine.startRadio(it) },
+                            onOpenSettings = { showSettingsModal = true }
                         )
                     }
                 }
@@ -894,6 +942,36 @@ fun MobileExploreView(
         isLoading = false
     }
 
+    LaunchedEffect(sections) {
+        if (sections.isEmpty()) return@LaunchedEffect
+        if (sections.all { section -> section.items.all { it.thumbnailUrl != null } }) return@LaunchedEffect
+        val limiter = Semaphore(4)
+        coroutineScope {
+            sections.flatMap(MoodGenreSection::items)
+                .filter { it.thumbnailUrl == null }
+                .forEach { item ->
+                    launch(Dispatchers.IO) {
+                        val artwork = limiter.withPermit {
+                            YtMusicRepository.moodGenreArtwork(item.browseId, item.params).getOrNull()
+                        } ?: return@launch
+                        withContext(Dispatchers.Main) {
+                            sections = sections.map { section ->
+                                section.copy(
+                                    items = section.items.map { entry ->
+                                        if (entry.browseId == item.browseId && entry.params == item.params) {
+                                            entry.copy(thumbnailUrl = artwork)
+                                        } else {
+                                            entry
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -950,19 +1028,19 @@ fun MobileExploreView(
             // Grid of categories
             val allGenres = remember(sections) { sections.flatMap { it.items } }
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Adaptive(minSize = 160.dp),
                 contentPadding = PaddingValues(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(allGenres.size) { gIdx ->
                     val genre = allGenres[gIdx]
-                    val cardBg = Color(genre.stripeColor ?: 0xFF352F44)
-                    Surface(
+                    MoodGenreSleeve(
+                        item = genre,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(1.8f)
-                            .clip(RoundedCornerShape(12.dp))
+                            .aspectRatio(MOOD_CARD_ASPECT)
+                            .clip(RoundedCornerShape(18.dp))
                             .clickable {
                                 selectedGenreTitle = genre.title
                                 scope.launch {
@@ -990,31 +1068,8 @@ fun MobileExploreView(
                                         isLoading = false
                                     }
                                 }
-                            },
-                        color = cardBg,
-                        tonalElevation = 6.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f))
-                                    )
-                                )
-                                .padding(12.dp),
-                            contentAlignment = Alignment.BottomStart
-                        ) {
-                            Text(
-                                text = genre.title,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+                            }
+                    )
                 }
             }
         }
@@ -1024,7 +1079,8 @@ fun MobileExploreView(
 @Composable
 fun MobileLibraryView(
     onAddToPlaylist: (Song) -> Unit,
-    onStartRadio: (Song) -> Unit
+    onStartRadio: (Song) -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { AndroidPreferences(context) }
@@ -1064,9 +1120,14 @@ fun MobileLibraryView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Tu Biblioteca", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            if (libraryTab == 2 && selectedPlaylist == null) {
-                IconButton(onClick = { showCreateModal = true }) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Nueva Playlist", tint = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (libraryTab == 2 && selectedPlaylist == null) {
+                    IconButton(onClick = { showCreateModal = true }) {
+                        Icon(Icons.Rounded.Add, contentDescription = "Nueva Playlist", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Ajustes", tint = Color.LightGray)
                 }
             }
         }

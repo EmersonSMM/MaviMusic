@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -315,7 +316,6 @@ fun DesktopSyncModal(
             Button(
                 onClick = {
                     statusMessage = "Conectando a $hostIp:8080..."
-                    // Connection handshake
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
@@ -325,6 +325,302 @@ fun DesktopSyncModal(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancelar", color = Color.Gray)
+            }
+        },
+        containerColor = Color(0xFF17171F),
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Composable
+fun SettingsModal(
+    onDismiss: () -> Unit
+) {
+    var checkUpdateStatus by remember { mutableStateOf<String?>(null) }
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var selectedQuality by remember { mutableStateOf("Alta (256 kbps)") }
+    val downloadsSize = remember { com.music.mavimusic.android.data.OfflineDownloadManager.getDownloadsSizeBytes() }
+    val downloadsMb = remember(downloadsSize) { downloadsSize / (1024 * 1024) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ajustes", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+        },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                item {
+                    Text("Calidad de reproducción", color = Color.LightGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Normal", "Alta (256 kbps)", "Lossless").forEach { q ->
+                            androidx.compose.material3.FilterChip(
+                                selected = selectedQuality.startsWith(q.take(4)),
+                                onClick = { selectedQuality = q },
+                                label = { Text(q, fontSize = 11.sp) },
+                                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color(0xFF22222E),
+                                    labelColor = Color.LightGray
+                                )
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Text("Almacenamiento y Caché", color = Color.LightGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF22222E),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Descargas offline", color = Color.White, fontSize = 14.sp)
+                                Text("$downloadsMb MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    com.music.mavimusic.android.data.OfflineDownloadManager.clearAllDownloads()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Limpiar todas las descargas", color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Text("Actualizaciones", color = Color.LightGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF22222E),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Versión instalada", color = Color.White, fontSize = 14.sp)
+                                Text("v1.8.53", color = Color.Gray, fontSize = 14.sp)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    checkingUpdate = true
+                                    checkUpdateStatus = "Comprobando..."
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(800)
+                                        checkingUpdate = false
+                                        checkUpdateStatus = "¡Estás al día! MaviMusic v1.8.53 es la versión más reciente."
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                if (checkingUpdate) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("Comprobar actualizaciones", color = Color.White, fontSize = 13.sp)
+                                }
+                            }
+                            if (checkUpdateStatus != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    checkUpdateStatus!!,
+                                    color = if (checkUpdateStatus!!.contains("al día")) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Text("Acerca de", color = Color.LightGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("MaviMusic Android KMP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Reproductor nativo multiplataforma desarrollado con Kotlin Multiplatform y Compose Multiplatform.", color = Color.Gray, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", color = MaterialTheme.colorScheme.primary)
+            }
+        },
+        containerColor = Color(0xFF17171F),
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Composable
+fun TrackActionsModal(
+    song: Song,
+    onStartRadio: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAdjustLyricsOffset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isDownloaded = remember(song.videoId) {
+        com.music.mavimusic.android.data.OfflineDownloadManager.isDownloaded(song.videoId)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(song.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1)
+                Text(song.artist, color = Color.Gray, fontSize = 13.sp, maxLines = 1)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable {
+                        onAdjustLyricsOffset()
+                        onDismiss()
+                    },
+                    color = Color(0xFF22222E)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Ajustar sincronización de letra", color = Color.White, fontSize = 14.sp)
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable {
+                        onStartRadio()
+                        onDismiss()
+                    },
+                    color = Color(0xFF22222E)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Radio, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Iniciar Radio a partir de esta canción", color = Color.White, fontSize = 14.sp)
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable {
+                        onAddToPlaylist()
+                        onDismiss()
+                    },
+                    color = Color(0xFF22222E)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.PlaylistAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Añadir a playlist", color = Color.White, fontSize = 14.sp)
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable {
+                        if (isDownloaded) {
+                            com.music.mavimusic.android.data.OfflineDownloadManager.deleteDownload(song.videoId)
+                        } else {
+                            com.music.mavimusic.android.data.OfflineDownloadManager.downloadSong(song)
+                        }
+                        onDismiss()
+                    },
+                    color = Color(0xFF22222E)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (isDownloaded) Icons.Rounded.Delete else Icons.Rounded.Download,
+                            contentDescription = null,
+                            tint = if (isDownloaded) Color.Gray else MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(if (isDownloaded) "Eliminar descarga offline" else "Descargar pista offline", color = Color.White, fontSize = 14.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = Color.Gray)
+            }
+        },
+        containerColor = Color(0xFF17171F),
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Composable
+fun LyricsOffsetModal(
+    currentOffsetMs: Long,
+    onOffsetChange: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var offset by remember { mutableStateOf(currentOffsetMs) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Desfase de la letra", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "${if (offset > 0) "+" else ""}${offset} ms (${offset / 1000f}s)",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { offset -= 500; onOffsetChange(offset) }) {
+                        Text("-0.5s", color = Color.White)
+                    }
+                    Button(onClick = { offset = 0; onOffsetChange(0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22222E))) {
+                        Text("Reset", color = Color.White)
+                    }
+                    OutlinedButton(onClick = { offset += 500; onOffsetChange(offset) }) {
+                        Text("+0.5s", color = Color.White)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Listo", color = Color.White)
             }
         },
         containerColor = Color(0xFF17171F),
