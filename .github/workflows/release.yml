@@ -98,7 +98,7 @@ jobs:
 
       - name: Build MSI installer
         run: |
-          .\gradlew.bat :desktopApp:packageMsi "-Pmavimusic.version=${{ steps.version.outputs.value }}"
+          .\gradlew.bat :desktopApp:packageMsi :desktopApp:createDistributable "-Pmavimusic.version=${{ steps.version.outputs.value }}"
 
       - name: Build installer for legacy Windows update clients
         if: ${{ inputs.publish == true }}
