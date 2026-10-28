@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,21 +25,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -58,6 +66,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,6 +74,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -80,6 +90,8 @@ import com.music.mavimusic.android.host.AndroidPlayerHost
 import com.music.mavimusic.android.service.PlaybackService
 import com.music.mavimusic.data.YtMusicRepository
 import com.music.mavimusic.data.model.LikeStatus
+import com.music.mavimusic.data.model.MoodGenre
+import com.music.mavimusic.data.model.MoodGenreSection
 import com.music.mavimusic.data.model.SearchFilter
 import com.music.mavimusic.data.model.SearchResult
 import com.music.mavimusic.data.model.Song
@@ -146,6 +158,7 @@ fun AndroidMusicApp() {
     val repeatMode by AndroidPlayerEngine.repeatMode.collectAsState()
     val shuffleEnabled by AndroidPlayerEngine.shuffleEnabled.collectAsState()
     val lyrics by AndroidPlayerEngine.lyrics.collectAsState()
+    val lyricsLoading by AndroidPlayerEngine.lyricsLoading.collectAsState()
     val lyricsSource by AndroidPlayerEngine.lyricsSource.collectAsState()
 
     BackHandler(enabled = showFullPlayer) {
@@ -158,55 +171,73 @@ fun AndroidMusicApp() {
 
         if (showFullPlayer && currentSong != null) {
             val song = currentSong!!
-            NowPlayingScreen(
-                song = song,
-                isPlaying = isPlaying,
-                isLoading = isLoading,
-                position = AndroidPlayerEngine.position,
-                durationMs = durationMs,
-                audioVersionSwitching = false,
-                qualityUpgraded = false,
-                queue = queue,
-                queueIndex = queueIndex,
-                hasPrevious = queueIndex > 0,
-                hasNext = queueIndex + 1 < queue.size,
-                repeatMode = repeatMode,
-                shuffleEnabled = shuffleEnabled,
-                autoplayEnabled = true,
-                signedIn = false,
-                accountName = null,
-                likeStatus = LikeStatus.INDIFFERENT,
-                onToggleLike = {},
-                onPlayPause = { AndroidPlayerEngine.togglePlayPause() },
-                onNext = { AndroidPlayerEngine.skipNext() },
-                onPrevious = { AndroidPlayerEngine.skipPrevious() },
-                onBlockedControl = {},
-                onSeek = { AndroidPlayerEngine.seekTo(it) },
-                onSeekFraction = { AndroidPlayerEngine.seekFraction(it) },
-                onToggleShuffle = { AndroidPlayerEngine.toggleShuffle() },
-                onCycleRepeat = { AndroidPlayerEngine.cycleRepeatMode() },
-                onToggleAutoplay = {},
-                onJumpTo = { idx ->
-                    if (idx in queue.indices) AndroidPlayerEngine.playQueue(queue, idx)
-                },
-                onRemoveFromQueue = {},
-                onMoveInQueue = { _, _ -> },
-                onClearQueue = {},
-                onOpenMenu = {},
-                onOpenAlbum = {},
-                onOpenArtist = { _, _ -> },
-                onOpenPlaybackSource = {},
-                onListenTogether = {},
-                lyrics = lyrics,
-                lyricsSource = lyricsSource,
-                lyricsProviderStates = emptyMap(),
-                onSelectLyricsProvider = {},
-                lyricsUnavailable = (lyrics == null && !isLoading),
-                lyricsOffsetOpen = false,
-                onDismissLyricsOffset = {},
-                windowWidth = windowW,
-                windowHeight = windowH
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                NowPlayingScreen(
+                    song = song,
+                    isPlaying = isPlaying,
+                    isLoading = isLoading,
+                    position = AndroidPlayerEngine.position,
+                    durationMs = durationMs,
+                    audioVersionSwitching = false,
+                    qualityUpgraded = false,
+                    queue = queue,
+                    queueIndex = queueIndex,
+                    hasPrevious = queueIndex > 0,
+                    hasNext = queueIndex + 1 < queue.size,
+                    repeatMode = repeatMode,
+                    shuffleEnabled = shuffleEnabled,
+                    autoplayEnabled = true,
+                    signedIn = false,
+                    accountName = null,
+                    likeStatus = LikeStatus.INDIFFERENT,
+                    onToggleLike = {},
+                    onPlayPause = { AndroidPlayerEngine.togglePlayPause() },
+                    onNext = { AndroidPlayerEngine.skipNext() },
+                    onPrevious = { AndroidPlayerEngine.skipPrevious() },
+                    onBlockedControl = {},
+                    onSeek = { AndroidPlayerEngine.seekTo(it) },
+                    onSeekFraction = { AndroidPlayerEngine.seekFraction(it) },
+                    onToggleShuffle = { AndroidPlayerEngine.toggleShuffle() },
+                    onCycleRepeat = { AndroidPlayerEngine.cycleRepeatMode() },
+                    onToggleAutoplay = {},
+                    onJumpTo = { idx ->
+                        if (idx in queue.indices) AndroidPlayerEngine.playQueue(queue, idx)
+                    },
+                    onRemoveFromQueue = {},
+                    onMoveInQueue = { _, _ -> },
+                    onClearQueue = {},
+                    onOpenMenu = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = { _, _ -> },
+                    onOpenPlaybackSource = {},
+                    onListenTogether = {},
+                    lyrics = lyrics,
+                    lyricsSource = lyricsSource,
+                    lyricsProviderStates = emptyMap(),
+                    onSelectLyricsProvider = {},
+                    lyricsUnavailable = (!lyricsLoading && lyrics == null),
+                    lyricsOffsetOpen = false,
+                    onDismissLyricsOffset = {},
+                    windowWidth = windowW,
+                    windowHeight = windowH
+                )
+
+                // Mobile top minimize chevron
+                IconButton(
+                    onClick = { showFullPlayer = false },
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(start = 12.dp, top = 8.dp)
+                        .size(40.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = "Minimizar",
+                        tint = Color.White
+                    )
+                }
+            }
         } else {
             Scaffold(
                 bottomBar = {
@@ -330,6 +361,7 @@ fun MobileSearchView() {
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
+    val searchHistory = remember { mutableStateListOf("Dua Lipa", "Coldplay", "Bad Bunny", "Queen", "The Weeknd") }
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -338,6 +370,10 @@ fun MobileSearchView() {
         query = searchQuery
         suggestions = emptyList()
         keyboardController?.hide()
+        if (!searchHistory.contains(searchQuery.trim())) {
+            searchHistory.add(0, searchQuery.trim())
+            if (searchHistory.size > 8) searchHistory.removeLast()
+        }
         scope.launch {
             isSearching = true
             try {
@@ -466,6 +502,37 @@ fun MobileSearchView() {
                     }
                 }
             }
+        } else if (query.isEmpty() && results.isEmpty()) {
+            // Recent searches history
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(
+                    text = "Búsquedas recientes",
+                    color = Color.LightGray,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(searchHistory.size) { idx ->
+                        val hist = searchHistory[idx]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { executeSearch(hist) }
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.History, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(text = hist, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { searchHistory.remove(hist) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Rounded.Clear, contentDescription = "Eliminar", tint = Color.DarkGray, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
         } else if (results.isEmpty() && query.isNotBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No se encontraron resultados", color = Color.Gray)
@@ -546,7 +613,7 @@ fun MobileHomeView() {
 
 @Composable
 fun MobileExploreView() {
-    var sections by remember { mutableStateOf<List<com.music.mavimusic.data.model.MoodGenreSection>>(emptyList()) }
+    var sections by remember { mutableStateOf<List<MoodGenreSection>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedGenreSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var selectedGenreTitle by remember { mutableStateOf<String?>(null) }
@@ -567,7 +634,7 @@ fun MobileExploreView() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selectedGenreTitle != null) {
                 IconButton(onClick = { selectedGenreTitle = null; selectedGenreSongs = emptyList() }) {
-                    Icon(Icons.Rounded.Clear, contentDescription = "Volver", tint = Color.White)
+                    Icon(Icons.Rounded.ArrowBack, contentDescription = "Volver", tint = Color.White)
                 }
             }
             Text(
@@ -585,70 +652,97 @@ fun MobileExploreView() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
-        } else if (selectedGenreTitle != null && selectedGenreSongs.isNotEmpty()) {
-            LazyColumn(
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                itemsIndexed(selectedGenreSongs, key = { _, s -> s.videoId }) { index, song ->
-                    SongRowItem(song = song, onClick = { AndroidPlayerEngine.playQueue(selectedGenreSongs, index) })
+        } else if (selectedGenreTitle != null) {
+            // Genre tracks header and play all
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (selectedGenreSongs.isNotEmpty()) {
+                    Button(
+                        onClick = { AndroidPlayerEngine.playQueue(selectedGenreSongs, 0) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reproducir todo (${selectedGenreSongs.size} canciones)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+                LazyColumn(
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    itemsIndexed(selectedGenreSongs, key = { _, s -> s.videoId }) { index, song ->
+                        SongRowItem(song = song, onClick = { AndroidPlayerEngine.playQueue(selectedGenreSongs, index) })
+                    }
                 }
             }
         } else {
-            LazyColumn(
+            // Grid of categories
+            val allGenres = remember(sections) { sections.flatMap { it.items } }
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(sections.size) { sIdx ->
-                    val section = sections[sIdx]
-                    Column {
-                        Text(text = section.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(section.items.size) { gIdx ->
-                                val genre = section.items[gIdx]
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            selectedGenreTitle = genre.title
-                                            scope.launch {
-                                                isLoading = true
-                                                try {
-                                                    val res = withContext(Dispatchers.IO) {
-                                                        YtMusicRepository.moodGenreShelves(genre.browseId, genre.params)
-                                                    }
-                                                    res.onSuccess { shelves ->
-                                                        val songs = shelves.flatMap { sh ->
-                                                            sh.items.mapNotNull { item ->
-                                                                if (item.videoId != null) {
-                                                                    Song(
-                                                                        videoId = item.videoId!!,
-                                                                        title = item.title,
-                                                                        artist = item.subtitle,
-                                                                        thumbnailUrl = item.thumbnailUrl
-                                                                    )
-                                                                } else null
-                                                            }
-                                                        }
-                                                        selectedGenreSongs = songs
-                                                    }
-                                                } finally {
-                                                    isLoading = false
+                items(allGenres.size) { gIdx ->
+                    val genre = allGenres[gIdx]
+                    val cardBg = Color(genre.stripeColor ?: 0xFF352F44)
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1.8f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                selectedGenreTitle = genre.title
+                                scope.launch {
+                                    isLoading = true
+                                    try {
+                                        val res = withContext(Dispatchers.IO) {
+                                            YtMusicRepository.moodGenreShelves(genre.browseId, genre.params)
+                                        }
+                                        res.onSuccess { shelves ->
+                                            val songs = shelves.flatMap { sh ->
+                                                sh.items.mapNotNull { item ->
+                                                    if (item.videoId != null) {
+                                                        Song(
+                                                            videoId = item.videoId!!,
+                                                            title = item.title,
+                                                            artist = item.subtitle,
+                                                            thumbnailUrl = item.thumbnailUrl
+                                                        )
+                                                    } else null
                                                 }
                                             }
-                                        },
-                                    color = Color(genre.stripeColor ?: 0xFF2A2A38).copy(alpha = 0.85f),
-                                    tonalElevation = 4.dp
-                                ) {
-                                    Box(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(text = genre.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                            selectedGenreSongs = songs
+                                        }
+                                    } finally {
+                                        isLoading = false
                                     }
                                 }
-                            }
+                            },
+                        color = cardBg,
+                        tonalElevation = 6.dp
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f))
+                                    )
+                                )
+                                .padding(12.dp),
+                            contentAlignment = Alignment.BottomStart
+                        ) {
+                            Text(
+                                text = genre.title,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }

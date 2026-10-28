@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.music.mavimusic.data.innertube.StreamResolver
 import com.music.mavimusic.data.model.Song
+import com.music.mavimusic.data.model.durationMillis
 import com.music.mavimusic.playback.PlaybackPosition
 import com.music.mavimusic.ui.player.RepeatModes
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +65,9 @@ object AndroidPlayerEngine {
 
     private val _lyrics = MutableStateFlow<List<com.music.mavimusic.data.lyrics.LyricLine>?>(null)
     val lyrics = _lyrics.asStateFlow()
+
+    private val _lyricsLoading = MutableStateFlow(false)
+    val lyricsLoading = _lyricsLoading.asStateFlow()
 
     private val _lyricsSource = MutableStateFlow<com.music.mavimusic.data.lyrics.LyricsSource?>(null)
     val lyricsSource = _lyricsSource.asStateFlow()
@@ -226,24 +230,38 @@ object AndroidPlayerEngine {
         _isLoading.value = true
         _lyrics.value = null
         _lyricsSource.value = null
+        _lyricsLoading.value = true
         position.seeks++
         position.report(0L)
 
-        // Asynchronously fetch synchronized lyrics from LRCLIB / Genius / Musixmatch
+        // Asynchronously fetch synchronized lyrics with song duration
         scope.launch(Dispatchers.IO) {
             try {
-                val found = com.music.mavimusic.data.lyrics.LyricsRepository.lyrics(
+                val dur = song.durationText.durationMillis()
+                var found = com.music.mavimusic.data.lyrics.LyricsRepository.lyrics(
                     videoId = song.videoId,
                     title = song.title,
                     artist = song.artist,
-                    durationMs = 0L,
+                    durationMs = dur,
                     album = song.albumName
                 )
+                if (found == null && dur > 0L) {
+                    found = com.music.mavimusic.data.lyrics.LyricsRepository.lyrics(
+                        videoId = song.videoId,
+                        title = song.title,
+                        artist = song.artist,
+                        durationMs = 0L,
+                        album = song.albumName
+                    )
+                }
                 if (found != null && _currentSong.value?.videoId == song.videoId) {
                     _lyrics.value = found.lines
                     _lyricsSource.value = found.source
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                _lyricsLoading.value = false
+            }
         }
 
         resolutionJob?.cancel()
