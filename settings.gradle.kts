@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MaviMusic"
-include(":shared", ":desktopUi", ":desktopApp")
+include(":shared", ":desktopUi", ":desktopApp", ":androidApp")

@@ -23,10 +23,16 @@ plugins {
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.android.library")
 }
 
 kotlin {
     jvm {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+    androidTarget {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
@@ -39,11 +45,16 @@ kotlin {
     }
 
     sourceSets {
-        // Shared implementation sources for the JVM desktop target.
+        // Shared implementation sources for the JVM desktop and Android targets.
         val jvmSharedMain by creating {
             dependsOn(commonMain.get())
         }
         jvmMain.get().dependsOn(jvmSharedMain)
+        androidMain.get().dependsOn(jvmSharedMain)
+
+        androidMain.dependencies {
+            implementation("androidx.activity:activity-compose:1.9.2")
+        }
 
         commonMain.dependencies {
             api(project(":shared"))
@@ -77,4 +88,16 @@ compose.resources {
     // Stable resource namespace used by existing desktop UI imports.
     packageOfResClass = "com.music.mavimusic.desktopui.resources"
     generateResClass = always
+}
+
+android {
+    namespace = "com.music.mavimusic.desktopui"
+    compileSdk = 36
+    defaultConfig {
+        minSdk = 26
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 }

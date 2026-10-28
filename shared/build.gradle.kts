@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.android.library")
 }
 
 kotlin {
@@ -11,8 +12,13 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
 
-    // JVM implementations depend on the platform-neutral models in commonMain.
+    // JVM and Android implementations depend on the platform-neutral models in commonMain.
     applyDefaultHierarchyTemplate()
 
     sourceSets {
@@ -30,12 +36,13 @@ kotlin {
                 api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
                 api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
                 api("org.jsoup:jsoup:1.22.2")
-                // YouTube client catalog and cipher tiers, with NewPipe supplied by desktopApp.
+                // YouTube client catalog and cipher tiers, with NewPipe supplied by consumer app.
                 api("com.github.MetrolistGroup.innertubex:innertubex:v0.7.0")
                 compileOnly("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
             }
         }
         jvmMain.get().dependsOn(jvmSharedMain)
+        androidMain.get().dependsOn(jvmSharedMain)
 
         commonMain.dependencies {
             // Platform-neutral models have no UI dependency.
@@ -47,5 +54,17 @@ kotlin {
         jvmTest.dependencies {
             implementation("com.squareup.okhttp3:mockwebserver:5.3.2")
         }
+    }
+}
+
+android {
+    namespace = "com.music.mavimusic.shared"
+    compileSdk = 36
+    defaultConfig {
+        minSdk = 26
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
