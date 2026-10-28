@@ -3,7 +3,7 @@
 
 # MaviMusic
 
-**Reproductor de música de alta fidelidad para macOS y Windows. Distribución Linux temporalmente pausada.**
+**Reproductor de música de alta fidelidad para macOS, Windows y Android. Distribución Linux temporalmente pausada.**
 
 [![Última versión](https://img.shields.io/github/v/release/EmersonSMM/MaviMusic?style=for-the-badge&labelColor=0d1117&color=6366f1)](https://github.com/EmersonSMM/MaviMusic/releases)
 [![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-blue?style=for-the-badge&labelColor=0d1117)](LICENSE)
