@@ -85,6 +85,15 @@ En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escrit
 - [x] Verificado y ejecutándose activamente en dispositivo físico (Samsung Galaxy Tab SM-X110 / Android 14/15) vía ADB.
 - [x] Verificación de no-regresión en Desktop (macOS y Windows): suite de 33 tests pasando en <1s.
 
+### Fase 8: Funcionalidades Avanzadas Móviles
+- [x] **Favoritos ("Me Gusta"):** Marcado desde el reproductor a pantalla completa (`LikeStatus.LIKE`) y pestaña dedicada en Biblioteca.
+- [x] **Playlists personalizadas:** Creación de listas locales, añadir pistas desde cualquier vista (`SongRowItem`), gestión y eliminación.
+- [x] **Modo Radio y Automix continuo:** Generación instantánea de radio infinita basada en un tema y recarga automática de canciones similares al agotar la cola.
+- [x] **Diseño Adaptativo para Tablet:** En pantallas anchas (`>= 720dp`), activación automática de `NavigationRail` lateral izquierdo dejando libre la pantalla para cuadrículas y mini-player estilizado.
+- [x] **Temporizador de apagado (Sleep Timer):** Modal con tiempos (15, 30, 45, 60 min o al terminar canción) con cuenta regresiva en vivo y pausa suave de ExoPlayer.
+- [x] **Escáner de archivos locales (`MediaStore`):** Detección y reproducción de archivos MP3/FLAC del almacenamiento de la tablet.
+- [x] **Sincronización con Escritorio:** Modal de enlace por IP y PIN con `DesktopRemoteServer`.
+
 ---
 
 ## 3. Compatibilidad con Políticas de Lanzamiento (AGENTS.md)
