@@ -6,6 +6,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -217,6 +226,27 @@ fun AndroidMusicApp() {
     val lyricsSource by AndroidPlayerEngine.lyricsSource.collectAsState()
     val sleepTimerMinutes by SleepTimer.minutesLeft.collectAsState()
 
+    val ambientTargetColor = remember(currentSong?.title) {
+        if (currentSong != null) {
+            val hash = (currentSong?.title.hashCode() xor currentSong?.artist.hashCode()).toLong()
+            val hues = listOf(
+                Color(0xFF5A1E48), // Deep Berry Magenta
+                Color(0xFF1B3B6F), // Midnight Ocean
+                Color(0xFF6B1D2F), // Crimson Velvet
+                Color(0xFF184E3F), // Emerald Night
+                Color(0xFF4B2378), // Royal Indigo
+                Color(0xFF66361C)  // Dark Amber
+            )
+            hues[(Math.abs(hash) % hues.size).toInt()]
+        } else {
+            Color(0xFF1E1428)
+        }
+    }
+    val animatedAmbientColor by animateColorAsState(
+        targetValue = ambientTargetColor,
+        animationSpec = tween(durationMillis = 1000)
+    )
+
     BackHandler(enabled = showFullPlayer) {
         showFullPlayer = false
     }
@@ -271,10 +301,45 @@ fun AndroidMusicApp() {
         )
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0C0C12))
+    ) {
         val windowW = maxWidth
         val windowH = maxHeight
         val isTablet = windowW >= 720.dp
+
+        // Atmospheric Ambient Glow Layers
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            animatedAmbientColor.copy(alpha = 0.35f),
+                            animatedAmbientColor.copy(alpha = 0.10f),
+                            Color.Transparent
+                        ),
+                        center = Offset(Float.POSITIVE_INFINITY, 0f),
+                        radius = 1300f
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            animatedAmbientColor.copy(alpha = 0.18f),
+                            Color.Transparent
+                        ),
+                        center = Offset(0f, Float.POSITIVE_INFINITY),
+                        radius = 1100f
+                    )
+                )
+        )
 
         if (showFullPlayer && currentSong != null) {
             val song = currentSong!!
@@ -398,62 +463,136 @@ fun AndroidMusicApp() {
             Row(modifier = Modifier.fillMaxSize()) {
                 NavigationRail(
                     modifier = Modifier.statusBarsPadding().navigationBarsPadding(),
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = Color(0xFF101017),
                     contentColor = Color.White,
                     header = {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Icon(
-                            imageVector = Icons.Rounded.MusicNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 10.dp, bottom = 16.dp)
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(
+                                            Color(0xFFFF2B66),
+                                            Color(0xFF9E1FBF)
+                                        )
+                                    )
+                                )
+                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MusicNote,
+                                contentDescription = "MaviMusic",
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
                     }
                 ) {
                     MobileTab.values().forEach { tab ->
                         NavigationRailItem(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label, fontSize = 11.sp) },
+                            icon = {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.label,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = tab.label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
                             colors = NavigationRailItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = Color.White.copy(alpha = 0.6f),
-                                unselectedTextColor = Color.White.copy(alpha = 0.6f),
-                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                selectedIconColor = Color.White,
+                                selectedTextColor = Color.White,
+                                unselectedIconColor = Color(0xFF8E8E9F),
+                                unselectedTextColor = Color(0xFF8E8E9F),
+                                indicatorColor = MaterialTheme.colorScheme.primary
                             )
                         )
                     }
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    IconButton(onClick = { showSleepTimerModal = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Bedtime,
-                            contentDescription = "Temporizador",
-                            tint = if (sleepTimerMinutes != null) MaterialTheme.colorScheme.primary else Color.Gray
-                        )
-                    }
+                    // Island Dock for Utilities
+                    Surface(
+                        modifier = Modifier
+                            .padding(bottom = 12.dp)
+                            .clip(RoundedCornerShape(20.dp)),
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = { showSleepTimerModal = true },
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Bedtime,
+                                    contentDescription = "Temporizador",
+                                    tint = if (sleepTimerMinutes != null) MaterialTheme.colorScheme.primary else Color(0xFFA0A0B2),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
-                    IconButton(onClick = { showDesktopSyncModal = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Computer,
-                            contentDescription = "Sincronizar PC/Mac",
-                            tint = Color.Gray
-                        )
-                    }
+                            Box(
+                                modifier = Modifier
+                                    .width(20.dp)
+                                    .height(1.dp)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                            )
 
-                    IconButton(onClick = { showSettingsModal = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Settings,
-                            contentDescription = "Ajustes",
-                            tint = Color.Gray
-                        )
+                            IconButton(
+                                onClick = { showDesktopSyncModal = true },
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Computer,
+                                    contentDescription = "Sincronizar PC/Mac",
+                                    tint = Color(0xFFA0A0B2),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(20.dp)
+                                    .height(1.dp)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                            )
+
+                            IconButton(
+                                onClick = { showSettingsModal = true },
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings,
+                                    contentDescription = "Ajustes",
+                                    tint = Color(0xFFA0A0B2),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
+
+                // Vertical Divider between NavigationRail and Content
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(Color.White.copy(alpha = 0.06f))
+                )
 
                 Column(
                     modifier = Modifier
@@ -488,6 +627,7 @@ fun AndroidMusicApp() {
                             song = currentSong!!,
                             isPlaying = isPlaying,
                             isLoading = isLoading,
+                            durationMs = durationMs,
                             onClick = { showFullPlayer = true },
                             onPlayPause = { AndroidPlayerEngine.togglePlayPause() },
                             onNext = { AndroidPlayerEngine.skipNext() }
@@ -505,6 +645,7 @@ fun AndroidMusicApp() {
                                 song = currentSong!!,
                                 isPlaying = isPlaying,
                                 isLoading = isLoading,
+                                durationMs = durationMs,
                                 onClick = { showFullPlayer = true },
                                 onPlayPause = { AndroidPlayerEngine.togglePlayPause() },
                                 onNext = { AndroidPlayerEngine.skipNext() }
@@ -571,70 +712,163 @@ fun MiniPlayerBar(
     song: Song,
     isPlaying: Boolean,
     isLoading: Boolean,
+    durationMs: Long = 0L,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit
 ) {
-    Surface(
+    val positionMs = AndroidPlayerEngine.position.positionMs
+    val progress = remember(positionMs, durationMs) {
+        if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+    }
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 6.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = song.thumbnailUrl,
-                contentDescription = song.title,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .shadow(
+                elevation = 20.dp,
+                shape = RoundedCornerShape(20.dp),
+                spotColor = Color.Black.copy(alpha = 0.7f)
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = song.title,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xE620202E),
+                        Color(0xF214141E)
+                    )
                 )
-                Text(
-                    text = song.artist,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                IconButton(onClick = onPlayPause) {
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.18f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF282836))
+                ) {
+                    AsyncImage(
+                        model = song.thumbnailUrl,
+                        contentDescription = song.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = song.title,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            modifier = Modifier.padding(end = 6.dp)
+                        ) {
+                            Text(
+                                text = "HI-RES",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                        Text(
+                            text = song.artist,
+                            color = Color(0xFFB0B0C4),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .size(24.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(
+                        onClick = onPlayPause,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = if (isPlaying) "Pausa" else "Reproducir",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                IconButton(
+                    onClick = onNext,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                ) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (isPlaying) "Pausa" else "Reproducir",
-                        tint = Color.White
+                        imageVector = Icons.Rounded.SkipNext,
+                        contentDescription = "Siguiente",
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
-            IconButton(onClick = onNext) {
-                Icon(
-                    imageVector = Icons.Rounded.SkipNext,
-                    contentDescription = "Siguiente",
-                    tint = Color.White
+
+            // Integrated Glowing Progress Line at the very bottom
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.5.dp)
+                    .background(Color.White.copy(alpha = 0.06f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    Color(0xFFFF5277)
+                                )
+                            )
+                        )
                 )
             }
         }
@@ -867,6 +1101,16 @@ fun MobileHomeView(
 ) {
     var quickPicks by remember { mutableStateOf<List<Song>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    val currentPlayingSong by AndroidPlayerEngine.currentSong.collectAsState()
+
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val greeting = remember(hour) {
+        when (hour) {
+            in 5..11 -> "Buenos días"
+            in 12..19 -> "Buenas tardes"
+            else -> "Buenas noches"
+        }
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -878,44 +1122,281 @@ fun MobileHomeView(
         isLoading = false
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "MaviMusic",
-            color = Color.White,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "Recomendaciones rápidas para ti",
-            color = Color.Gray,
-            fontSize = 14.sp
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        }
+    } else if (quickPicks.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Usa la pestaña Buscar para encontrar canciones", color = Color.Gray)
+        }
+    } else {
+        val heroSong = quickPicks.firstOrNull()
+        val horizontalRecommendations = remember(quickPicks) { quickPicks.drop(1).take(10) }
+        val restOfTracks = remember(quickPicks) { quickPicks.drop(6) }
 
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
-        } else if (quickPicks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Usa la pestaña Buscar para encontrar canciones", color = Color.Gray)
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                itemsIndexed(quickPicks, key = { _, s -> s.videoId }) { index, song ->
-                    SongRowItem(
-                        song = song,
-                        onClick = {
-                            AndroidPlayerEngine.playQueue(quickPicks, index)
-                        },
-                        onAddToPlaylist = { onAddToPlaylist(song) },
-                        onStartRadio = { onStartRadio(song) }
-                    )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Header: Greeting + Brand
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = greeting,
+                            color = Color(0xFFA0A0B2),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "MaviMusic",
+                            color = Color.White,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.06f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00E676))
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "ONLINE",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
+            }
+
+            // Hero Banner: Panoramic featured mix card
+            if (heroSong != null) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(2.8f)
+                            .shadow(16.dp, RoundedCornerShape(18.dp), spotColor = Color.Black.copy(alpha = 0.6f))
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFF38122B),
+                                        Color(0xFF151833)
+                                    )
+                                )
+                            )
+                            .clickable {
+                                AndroidPlayerEngine.playQueue(quickPicks, 0)
+                            }
+                    ) {
+                        // Background Artwork faded
+                        AsyncImage(
+                            model = heroSong.thumbnailUrl,
+                            contentDescription = heroSong.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(0.35f)
+                        )
+                        // Gradient Overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xF012121A),
+                                            Color(0x9912121A),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+                        // Content
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "★ DESTACADO DE HOY",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                                Text(
+                                    text = heroSong.title,
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = heroSong.artist,
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Button(
+                                onClick = { AndroidPlayerEngine.playQueue(quickPicks, 0) },
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+                            ) {
+                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Reproducir", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Horizontal Carousel: Éxitos y Recomendados
+            if (horizontalRecommendations.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Para descubrir",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Deslizar ▸",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(end = 16.dp)
+                        ) {
+                            itemsIndexed(horizontalRecommendations) { rIdx, song ->
+                                val actualIdx = rIdx + 1
+                                Column(
+                                    modifier = Modifier
+                                        .width(132.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable {
+                                            AndroidPlayerEngine.playQueue(quickPicks, actualIdx)
+                                        }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(132.dp)
+                                            .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.5f))
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(Color(0xFF222230))
+                                    ) {
+                                        AsyncImage(
+                                            model = song.thumbnailUrl,
+                                            contentDescription = song.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                        // Floating Play Pill in corner
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .padding(8.dp)
+                                                .size(34.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.Black.copy(alpha = 0.65f))
+                                                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.PlayArrow,
+                                                contentDescription = "Reproducir",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = song.title,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = song.artist,
+                                        color = Color(0xFFA0A0B2),
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section: Tracks List
+            item {
+                Text(
+                    text = "Recomendaciones rápidas",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            itemsIndexed(restOfTracks, key = { _, s -> s.videoId }) { index, song ->
+                val queueIdx = index + 6
+                SongRowItem(
+                    song = song,
+                    isCurrent = currentPlayingSong?.videoId == song.videoId,
+                    onClick = {
+                        AndroidPlayerEngine.playQueue(quickPicks, queueIdx)
+                    },
+                    onAddToPlaylist = { onAddToPlaylist(song) },
+                    onStartRadio = { onStartRadio(song) }
+                )
             }
         }
     }
@@ -1498,8 +1979,12 @@ fun SongRowItem(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .then(
+                if (isCurrent) Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                else Modifier
+            ),
         color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
     ) {
         Row(
@@ -1508,24 +1993,30 @@ fun SongRowItem(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp))) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF222230))
+            ) {
                 AsyncImage(
                     model = song.thumbnailUrl,
                     contentDescription = song.title,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
                 if (isCurrent) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.4f)),
+                            .background(Color.Black.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.MusicNote,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
