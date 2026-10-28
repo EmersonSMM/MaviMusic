@@ -3,16 +3,25 @@
 ## 1.8.53
 
 - **Control Remoto Web Local (MaviMusic Remote)**:
-  - Servidor HTTP y WebSocket local embebido (Ktor CIO) para controlar la reproducción de MaviMusic desde cualquier navegador móvil (iPhone con Safari u otros) en la misma red Wi-Fi sin instalar ninguna aplicación adicional.
+  - Servidor HTTP y WebSocket local embebido (Ktor CIO) para controlar la reproducción de MaviMusic desde cualquier navegador móvil (iPhone con Safari u otros) o Smart TV en la misma red Wi-Fi sin instalar ninguna aplicación adicional.
   - **Cero impacto por defecto**: desactivado por defecto; cuando está apagado, no hay puertos abiertos, ni hilos, ni consumo de CPU/memoria.
-  - **Seguridad Rigurosa**:
+  - **Búsqueda Integrada en la Web App**:
+    - Pestaña de Búsqueda en la barra inferior con consulta debounced en tiempo real al catálogo de YouTube Music.
+    - Reproducción directa de resultados al tocarlos o adición rápida a la cola con botón `+` y notificaciones discretas.
+  - **Modo "En este dispositivo" (Smart TVs y Navegadores Móviles)**:
+    - Transmisión de audio directa por altavoces de la Smart TV o navegador del móvil mediante proxy HTTP Range con caché en memoria ultrarrápida (< 5 ms).
+    - Barra de reproducción y sincronización de letras a 60 FPS conducidas en tiempo real por el audio local.
+  - **Selector de Salida de Audio y AirPlay**:
+    - Descubrimiento de barras de sonido, HomePods y Smart TVs vía mDNS/Bonjour en macOS.
+    - Conmutación automática de la salida del sistema mediante automatización nativa de macOS para enrutar el audio de Java Sound a cualquier receptor AirPlay.
+  - **Seguridad Rigurosa y Auto-Trust**:
     - Filtrado estricto de direcciones IP privadas (RFC 1918 / 3927): se rechaza y registra cualquier intento de conexión fuera de la red local. Sin apertura de puertos en router ni UPnP.
-    - Emparejamiento por PIN de 4 dígitos o escaneo de Código QR nativo con token OTP de uso único.
+    - Emparejamiento por PIN de 4 dígitos, escaneo de Código QR nativo con token OTP de uso único, o auto-trust en red local privada para agregar a pantalla de inicio sin escanear repetidamente.
     - Sesiones protegidas por tokens criptográficos almacenados únicamente con hash SHA-256 y comparaciones en tiempo constante.
     - Mitigación de fuerza bruta con bloqueo progresivo y revocación instantánea de dispositivos en tiempo real.
   - **Web App Mobile-First para iPhone**:
     - Estética coherente con el sistema de diseño Liquid Glass de MaviMusic y paleta lila/oscura.
-    - 3 vistas principales: **Reproductor** (carátula, controles, me gusta, scrubber y volumen), **Letras sincronizadas** (resaltado en tiempo real con scroll automático suave) y **Cola de reproducción** (con salto directo y eliminación de pistas).
+    - 4 vistas principales: **Reproductor**, **Letras sincronizadas**, **Cola de reproducción** y **Búsqueda**.
     - Interpolación local de posición a 60 FPS con anclas de tiempo periódicas (reducción del 95% del tráfico de red y ahorro de batería en el móvil).
     - Reconexión y resincronización instantánea de estado al desbloquear la pantalla en iOS.
   - **Ajustes de Control Remoto en el Escritorio**:
