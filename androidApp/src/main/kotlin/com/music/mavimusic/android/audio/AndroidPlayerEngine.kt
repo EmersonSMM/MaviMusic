@@ -62,6 +62,12 @@ object AndroidPlayerEngine {
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled = _shuffleEnabled.asStateFlow()
 
+    private val _lyrics = MutableStateFlow<List<com.music.mavimusic.data.lyrics.LyricLine>?>(null)
+    val lyrics = _lyrics.asStateFlow()
+
+    private val _lyricsSource = MutableStateFlow<com.music.mavimusic.data.lyrics.LyricsSource?>(null)
+    val lyricsSource = _lyricsSource.asStateFlow()
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
@@ -218,8 +224,27 @@ object AndroidPlayerEngine {
     private fun loadAndPlaySong(song: Song) {
         _currentSong.value = song
         _isLoading.value = true
+        _lyrics.value = null
+        _lyricsSource.value = null
         position.seeks++
         position.report(0L)
+
+        // Asynchronously fetch synchronized lyrics from LRCLIB / Genius / Musixmatch
+        scope.launch(Dispatchers.IO) {
+            try {
+                val found = com.music.mavimusic.data.lyrics.LyricsRepository.lyrics(
+                    videoId = song.videoId,
+                    title = song.title,
+                    artist = song.artist,
+                    durationMs = 0L,
+                    album = song.albumName
+                )
+                if (found != null && _currentSong.value?.videoId == song.videoId) {
+                    _lyrics.value = found.lines
+                    _lyricsSource.value = found.source
+                }
+            } catch (_: Exception) {}
+        }
 
         resolutionJob?.cancel()
         resolutionJob = scope.launch {

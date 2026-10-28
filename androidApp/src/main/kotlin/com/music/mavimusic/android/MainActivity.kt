@@ -145,6 +145,8 @@ fun AndroidMusicApp() {
     val queueIndex by AndroidPlayerEngine.queueIndex.collectAsState()
     val repeatMode by AndroidPlayerEngine.repeatMode.collectAsState()
     val shuffleEnabled by AndroidPlayerEngine.shuffleEnabled.collectAsState()
+    val lyrics by AndroidPlayerEngine.lyrics.collectAsState()
+    val lyricsSource by AndroidPlayerEngine.lyricsSource.collectAsState()
 
     BackHandler(enabled = showFullPlayer) {
         showFullPlayer = false
@@ -195,11 +197,11 @@ fun AndroidMusicApp() {
                 onOpenArtist = { _, _ -> },
                 onOpenPlaybackSource = {},
                 onListenTogether = {},
-                lyrics = null,
-                lyricsSource = null,
+                lyrics = lyrics,
+                lyricsSource = lyricsSource,
                 lyricsProviderStates = emptyMap(),
                 onSelectLyricsProvider = {},
-                lyricsUnavailable = true,
+                lyricsUnavailable = (lyrics == null && !isLoading),
                 lyricsOffsetOpen = false,
                 onDismissLyricsOffset = {},
                 windowWidth = windowW,
@@ -326,18 +328,21 @@ fun MobileSearchView() {
     var query by remember { mutableStateOf("") }
     var searchFilter by remember { mutableStateOf(SearchFilter.SONGS) }
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    fun executeSearch() {
-        if (query.isBlank()) return
+    fun executeSearch(searchQuery: String = query) {
+        if (searchQuery.isBlank()) return
+        query = searchQuery
+        suggestions = emptyList()
         keyboardController?.hide()
         scope.launch {
             isSearching = true
             try {
                 val res = withContext(Dispatchers.IO) {
-                    YtMusicRepository.search(query.trim(), searchFilter)
+                    YtMusicRepository.search(searchQuery.trim(), searchFilter)
                 }
                 res.onSuccess { items ->
                     results = items.mapNotNull { item ->
@@ -354,6 +359,19 @@ fun MobileSearchView() {
         }
     }
 
+    // Live search suggestions as the user types
+    LaunchedEffect(query) {
+        if (query.trim().length >= 2 && results.isEmpty()) {
+            withContext(Dispatchers.IO) {
+                YtMusicRepository.searchSuggestions(query.trim()).onSuccess { list ->
+                    suggestions = list
+                }
+            }
+        } else if (query.isEmpty()) {
+            suggestions = emptyList()
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(12.dp))
         Text(
@@ -366,12 +384,15 @@ fun MobileSearchView() {
 
         OutlinedTextField(
             value = query,
-            onValueChange = { query = it },
+            onValueChange = { 
+                query = it
+                if (results.isNotEmpty()) results = emptyList()
+            },
             placeholder = { Text("Canciones, artistas, álbumes...", color = Color.Gray) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.Gray) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = ""; results = emptyList() }) {
+                    IconButton(onClick = { query = ""; results = emptyList(); suggestions = emptyList() }) {
                         Icon(Icons.Rounded.Clear, contentDescription = "Limpiar", tint = Color.Gray)
                     }
                 }
@@ -423,6 +444,27 @@ fun MobileSearchView() {
         if (isSearching) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (suggestions.isNotEmpty() && results.isEmpty()) {
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                items(suggestions.size) { idx ->
+                    val item = suggestions[idx]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { executeSearch(item) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = item, color = Color.White, fontSize = 14.sp)
+                    }
+                }
             }
         } else if (results.isEmpty() && query.isNotBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -504,12 +546,113 @@ fun MobileHomeView() {
 
 @Composable
 fun MobileExploreView() {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    var sections by remember { mutableStateOf<List<com.music.mavimusic.data.model.MoodGenreSection>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var selectedGenreSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var selectedGenreTitle by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val res = YtMusicRepository.moodAndGenres()
+            res.onSuccess { list ->
+                sections = list
+            }
+        }
+        isLoading = false
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Explorar tendencias", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Listas de éxitos y estados de ánimo", color = Color.Gray)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (selectedGenreTitle != null) {
+                IconButton(onClick = { selectedGenreTitle = null; selectedGenreSongs = emptyList() }) {
+                    Icon(Icons.Rounded.Clear, contentDescription = "Volver", tint = Color.White)
+                }
+            }
+            Text(
+                text = selectedGenreTitle ?: "Explorar estados de ánimo y géneros",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (selectedGenreTitle != null && selectedGenreSongs.isNotEmpty()) {
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                itemsIndexed(selectedGenreSongs, key = { _, s -> s.videoId }) { index, song ->
+                    SongRowItem(song = song, onClick = { AndroidPlayerEngine.playQueue(selectedGenreSongs, index) })
+                }
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(sections.size) { sIdx ->
+                    val section = sections[sIdx]
+                    Column {
+                        Text(text = section.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(section.items.size) { gIdx ->
+                                val genre = section.items[gIdx]
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            selectedGenreTitle = genre.title
+                                            scope.launch {
+                                                isLoading = true
+                                                try {
+                                                    val res = withContext(Dispatchers.IO) {
+                                                        YtMusicRepository.moodGenreShelves(genre.browseId, genre.params)
+                                                    }
+                                                    res.onSuccess { shelves ->
+                                                        val songs = shelves.flatMap { sh ->
+                                                            sh.items.mapNotNull { item ->
+                                                                if (item.videoId != null) {
+                                                                    Song(
+                                                                        videoId = item.videoId!!,
+                                                                        title = item.title,
+                                                                        artist = item.subtitle,
+                                                                        thumbnailUrl = item.thumbnailUrl
+                                                                    )
+                                                                } else null
+                                                            }
+                                                        }
+                                                        selectedGenreSongs = songs
+                                                    }
+                                                } finally {
+                                                    isLoading = false
+                                                }
+                                            }
+                                        },
+                                    color = Color(genre.stripeColor ?: 0xFF2A2A38).copy(alpha = 0.85f),
+                                    tonalElevation = 4.dp
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = genre.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
