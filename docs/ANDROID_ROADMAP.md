@@ -48,24 +48,26 @@ flowchart TD
   - `haze` (compatible con Android).
 
 ### Fase 3: Módulo `:androidApp` y Shell Inicial
-- Estructura estándar de Android:
-  - `AndroidManifest.xml` con declaración de permisos y componentes.
-  - `MainActivity.kt` como punto de entrada utilizando `ComponentActivity` y `setContent { AppUi(...) }`.
-  - Iconos y recursos para Android (`res/values`, `res/mipmap`, etc.).
+- [x] Estructura estándar de Android:
+  - [x] `AndroidManifest.xml` con declaración de permisos y componentes.
+  - [x] `MainActivity.kt` como punto de entrada utilizando `ComponentActivity` y `setContent { ... }`.
+  - [x] Iconos y recursos para Android (`res/values`, `res/mipmap`, etc.).
 
 ### Fase 4: Motor de Audio Nativo (`Media3` / `ExoPlayer`)
 En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escritorio porque el sistema operativo detendría el proceso al suspender la pantalla o pasar a segundo plano.
-- Implementación de `MediaSessionService` con `AndroidX Media3`:
-  - `PlaybackService.kt` para reproducción continua en segundo plano.
-  - Notificación enriquecida persistente con carátula, botones de play/pause, anterior/siguiente y seekbar.
-  - Soporte de pantalla de bloqueo y controles Bluetooth / Android Auto.
-  - `AudioFocusRequest` para pausar la música en llamadas entrantes o reducir volumen con notificaciones.
+- [x] Implementación de `MediaSessionService` con `AndroidX Media3`:
+  - [x] `PlaybackService.kt` para reproducción continua en segundo plano.
+  - [x] `AndroidPlayerEngine.kt` para orquestar la reproducción con `ExoPlayer`, manejo de colas, seek y estados.
+  - [x] Resolución de stream directa mediante `StreamResolver` de `:shared` con cabeceras de cliente YouTube.
+  - [x] Notificación persistente con metadatos multimedia (`MediaMetadata`).
+  - [x] `AudioAttributes` y manejo nativo de `AudioFocus` y desconexión de auriculares (`ACTION_AUDIO_BECOMING_NOISY`).
 
 ### Fase 5: Adaptación Móvil de UI y Navegación
-- Soporte para orientación vertical típica de smartphone con opción a pantalla completa en apaisado.
-- Barra de navegación inferior móvil (`NavigationBar` / `NavigationBarItem`) para Inicio, Explorar, Biblioteca y Buscar.
-- Mini-reproductor persistente flotante en la parte inferior con gesto deslizante hacia arriba para abrir `NowPlayingScreen`.
-- Integración de `WindowInsets` de Compose para respetar barras de estado, navegación por gestos y orificios de cámara (notch/isla).
+- [x] Barra de navegación inferior móvil (`NavigationBar` / `NavigationBarItem`) para Inicio, Explorar, Biblioteca y Buscar.
+- [x] Mini-reproductor persistente flotante en la parte inferior con control de Play/Pausa y carátula.
+- [x] Integración de `NowPlayingScreen` completa conectada al playhead y controles.
+- [x] Soporte para gestos nativos de retroceso con `BackHandler`.
+- [x] Integración de `WindowInsets` de Compose (`statusBarsPadding`, `navigationBarsPadding`).
 
 ### Fase 6: Almacenamiento y Permisos
 - Directorio de caché y descarga offline usando `context.filesDir` / `context.getExternalFilesDir()`.
