@@ -64,6 +64,12 @@ object AndroidPlayerEngine {
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled = _shuffleEnabled.asStateFlow()
 
+    private val _autoplayEnabled = MutableStateFlow(true)
+    val autoplayEnabled = _autoplayEnabled.asStateFlow()
+
+    private val _isFavorite = MutableStateFlow(false)
+    val isFavorite = _isFavorite.asStateFlow()
+
     private val _lyrics = MutableStateFlow<List<com.music.mavimusic.data.lyrics.LyricLine>?>(null)
     val lyrics = _lyrics.asStateFlow()
 
@@ -200,6 +206,9 @@ object AndroidPlayerEngine {
         } else if (_repeatMode.value == RepeatModes.ALL) {
             _queueIndex.value = 0
             loadAndPlaySong(q[0])
+        } else if (_autoplayEnabled.value) {
+            val lastSong = q[current]
+            fetchRadioAndAppend(lastSong)
         }
     }
 
@@ -233,18 +242,78 @@ object AndroidPlayerEngine {
         _shuffleEnabled.value = !_shuffleEnabled.value
     }
 
-    private fun handleTrackEnded() {
-        when (_repeatMode.value) {
-            RepeatModes.ONE -> {
-                seekTo(0L)
-                play()
+    fun toggleAutoplay() {
+        _autoplayEnabled.value = !_autoplayEnabled.value
+    }
+
+    fun toggleCurrentFavorite(): Boolean {
+        val s = _currentSong.value ?: return false
+        val prefs = preferences ?: return false
+        val nowFav = prefs.toggleFavorite(s)
+        _isFavorite.value = nowFav
+        return nowFav
+    }
+
+    fun startRadio(song: Song) {
+        scope.launch {
+            _isLoading.value = true
+            try {
+                val res = withContext(Dispatchers.IO) {
+                    com.music.mavimusic.data.YtMusicRepository.radio(song.videoId)
+                }
+                res.onSuccess { radioTracks ->
+                    val newQueue = listOf(song) + radioTracks.filter { it.videoId != song.videoId }
+                    playQueue(newQueue, 0)
+                }.onFailure {
+                    playSong(song)
+                }
+            } catch (_: Exception) {
+                playSong(song)
+            } finally {
+                _isLoading.value = false
             }
-            else -> skipNext()
+        }
+    }
+
+    private fun fetchRadioAndAppend(song: Song) {
+        scope.launch {
+            try {
+                val res = withContext(Dispatchers.IO) {
+                    com.music.mavimusic.data.YtMusicRepository.radio(song.videoId)
+                }
+                res.onSuccess { radioTracks ->
+                    val existingIds = _queue.value.map { it.videoId }.toSet()
+                    val toAdd = radioTracks.filter { it.videoId !in existingIds }
+                    if (toAdd.isNotEmpty()) {
+                        val newQueue = _queue.value + toAdd
+                        _queue.value = newQueue
+                        val nextIndex = _queueIndex.value + 1
+                        if (nextIndex < newQueue.size) {
+                            _queueIndex.value = nextIndex
+                            loadAndPlaySong(newQueue[nextIndex])
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun handleTrackEnded() {
+        SleepTimer.onTrackEnded()
+        if (!SleepTimer.isRunning()) {
+            when (_repeatMode.value) {
+                RepeatModes.ONE -> {
+                    seekTo(0L)
+                    play()
+                }
+                else -> skipNext()
+            }
         }
     }
 
     private fun loadAndPlaySong(song: Song) {
         _currentSong.value = song
+        _isFavorite.value = preferences?.isFavorite(song.videoId) ?: false
         _isLoading.value = true
         _lyrics.value = null
         _lyricsSource.value = null
@@ -291,6 +360,29 @@ object AndroidPlayerEngine {
                     .setAlbumTitle(song.albumName)
                     .setArtworkUri(song.thumbnailUrl?.let { Uri.parse(it) })
                     .build()
+
+                // Check if song has direct local path (e.g. MediaStore or offline file)
+                if (!song.localPath.isNullOrBlank()) {
+                    val localUri = if (song.localPath!!.startsWith("content://") || song.localPath!!.startsWith("file://")) {
+                        Uri.parse(song.localPath)
+                    } else {
+                        Uri.fromFile(java.io.File(song.localPath!!))
+                    }
+                    val mediaItem = MediaItem.Builder()
+                        .setMediaId(song.videoId)
+                        .setUri(localUri)
+                        .setMediaMetadata(metadata)
+                        .build()
+
+                    val p = player ?: return@launch
+                    p.setMediaItem(mediaItem)
+                    p.prepare()
+                    p.play()
+
+                    preferences?.saveLastSong(song)
+                    preferences?.saveQueue(_queue.value, _queueIndex.value)
+                    return@launch
+                }
 
                 // Check if the song was downloaded offline
                 val localFile = com.music.mavimusic.android.data.OfflineDownloadManager.getLocalAudioFile(song.videoId)
