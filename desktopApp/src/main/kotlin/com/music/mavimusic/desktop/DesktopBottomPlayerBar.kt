@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -118,6 +119,7 @@ internal fun DesktopBottomPlayerBar(
     isLiked: Boolean,
     onToggleLike: () -> Unit,
     onToggleVideoMode: () -> Unit = {},
+    isSwitchingVideoMode: Boolean = false,
     onToggleMiniPlayer: () -> Unit = {},
     onOpenSongMenu: ((Song) -> Unit)? = null,
     playbackSpeed: Float = 1.0f,
@@ -200,6 +202,7 @@ internal fun DesktopBottomPlayerBar(
 
                         DesktopSongVideoTogglePill(
                             isVideo = song.isVideo,
+                            isSwitching = isSwitchingVideoMode,
                             onToggle = onToggleVideoMode,
                         )
 
@@ -681,15 +684,18 @@ private fun formatTimestamp(ms: Long): String {
 @Composable
 private fun DesktopSongVideoTogglePill(
     isVideo: Boolean,
+    isSwitching: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        onClick = onToggle,
+        onClick = { if (!isSwitching) onToggle() },
         shape = RoundedCornerShape(12.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-        modifier = modifier.height(24.dp),
+        color = Color.White.copy(alpha = if (isSwitching) 0.04f else 0.08f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = if (isSwitching) 0.06f else 0.12f)),
+        modifier = modifier
+            .height(24.dp)
+            .then(if (isSwitching) Modifier.alpha(0.6f) else Modifier),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

@@ -763,37 +763,50 @@ fun MaviMusicDesktopApp() {
         }
     }
 
+    var isSwitchingAudioVideoMode by remember { mutableStateOf(false) }
+
     fun toggleAudioVideoMode(song: Song) {
+        if (isSwitchingAudioVideoMode) return
         val targetIsVideo = !song.isVideo
-        preferAudioTracks = !targetIsVideo
-        persistence.savePreferAudioTracks(!targetIsVideo)
+        isSwitchingAudioVideoMode = true
         scope.launch {
-            if (targetIsVideo) {
-                DesktopTrackLog.log("video switch: user requested music video for '${song.title}'")
-                val videoCut = YtMusicRepository.resolveVideo(song)
-                if (videoCut != null) {
-                    selectedSong = videoCut
-                    liveQueue = liveQueue.copy(
-                        songs = liveQueue.songs.map { if (it.videoId == song.videoId) videoCut else it },
-                    )
-                    playbackEngine.load(videoCut, playbackEngine.state.value.isPlaying)
-                    DesktopPlayerHost.showMessage("Modo Video Musical activado")
+            try {
+                if (targetIsVideo) {
+                    DesktopTrackLog.log("video switch: user requested music video for '${song.title}'")
+                    val videoCut = YtMusicRepository.resolveVideo(song)
+                    if (videoCut != null) {
+                        preferAudioTracks = false
+                        persistence.savePreferAudioTracks(false)
+                        selectedSong = videoCut
+                        liveQueue = liveQueue.copy(
+                            songs = liveQueue.songs.map { if (it.videoId == song.videoId) videoCut else it },
+                        )
+                        playbackEngine.load(videoCut, playbackEngine.state.value.isPlaying)
+                        DesktopPlayerHost.showMessage("Modo Video Musical activado")
+                    } else {
+                        DesktopPlayerHost.showMessage("No se encontró versión videoclip para esta canción")
+                    }
                 } else {
-                    DesktopPlayerHost.showMessage("No se encontró versión videoclip para esta canción")
+                    DesktopTrackLog.log("audio switch: user requested official song for '${song.title}'")
+                    val audioCut = YtMusicRepository.resolveAudio(song)
+                    if (audioCut.videoId != song.videoId) {
+                        preferAudioTracks = true
+                        persistence.savePreferAudioTracks(true)
+                        selectedSong = audioCut
+                        liveQueue = liveQueue.copy(
+                            songs = liveQueue.songs.map { if (it.videoId == song.videoId) audioCut else it },
+                        ).withoutDuplicates()
+                        playbackEngine.load(audioCut, playbackEngine.state.value.isPlaying)
+                        DesktopPlayerHost.showMessage("Modo Canción Oficial (álbum) activado")
+                    } else {
+                        DesktopPlayerHost.showMessage("Ya estás reproduciendo la versión oficial de estudio")
+                    }
                 }
-            } else {
-                DesktopTrackLog.log("audio switch: user requested official song for '${song.title}'")
-                val audioCut = YtMusicRepository.resolveAudio(song)
-                if (audioCut.videoId != song.videoId) {
-                    selectedSong = audioCut
-                    liveQueue = liveQueue.copy(
-                        songs = liveQueue.songs.map { if (it.videoId == song.videoId) audioCut else it },
-                    ).withoutDuplicates()
-                    playbackEngine.load(audioCut, playbackEngine.state.value.isPlaying)
-                    DesktopPlayerHost.showMessage("Modo Canción Oficial (álbum) activado")
-                } else {
-                    DesktopPlayerHost.showMessage("Ya estás reproduciendo la versión oficial de estudio")
-                }
+            } catch (e: Exception) {
+                DesktopTrackLog.log("video switch error: ${e.message}")
+                DesktopPlayerHost.showMessage("No se pudo cambiar el modo de video")
+            } finally {
+                isSwitchingAudioVideoMode = false
             }
         }
     }
@@ -4067,6 +4080,7 @@ fun MaviMusicDesktopApp() {
                                 isLiked = selectedSong?.let { it.videoId in likedIds } ?: false,
                                 onToggleLike = { selectedSong?.let { toggleLike(it) } },
                                 onToggleVideoMode = { selectedSong?.let(::toggleAudioVideoMode) },
+                                isSwitchingVideoMode = isSwitchingAudioVideoMode,
                                 onToggleMiniPlayer = { overlays.miniPlayer = !overlays.miniPlayer },
                                 onOpenSongMenu = ::openMenu,
                                 playbackSpeed = playbackSpeed,

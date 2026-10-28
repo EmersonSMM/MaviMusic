@@ -31,6 +31,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -44,8 +45,9 @@ object YtMusicRepository {
     // answer makes the eventual player switch use the exact rendition whose
     // bytes were warmed, without repeating a 10–30 second catalogue search.
     private val audioVersionCache = ConcurrentHashMap<String, Song>()
-    // Cache for video version lookups from audio tracks (null means no video found).
-    private val videoVersionCache = ConcurrentHashMap<String, Song?>()
+    // Cache for video version lookups from audio tracks (null/empty means no video found).
+    private val videoVersionCache = ConcurrentHashMap<String, Song>()
+    private val noVideoCache = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     fun cachedAudioVersion(videoId: String): Song? = audioVersionCache[videoId]
     fun cachedVideoVersion(videoId: String): Song? = videoVersionCache[videoId]
@@ -425,6 +427,7 @@ object YtMusicRepository {
      */
     suspend fun resolveVideo(song: Song): Song? {
         if (song.isVideo) return null
+        if (noVideoCache.contains(song.videoId)) return null
         videoVersionCache[song.videoId]?.let { return it }
         val target = TrackMatcher.targetOf(song)
         for (query in TrackMatcher.queries(target)) {
@@ -440,7 +443,7 @@ object YtMusicRepository {
             }
         }
         Log.w(TAG, "video switch: no video match for '${song.title}' by '${song.artist}'")
-        videoVersionCache[song.videoId] = null
+        noVideoCache.add(song.videoId)
         return null
     }
 

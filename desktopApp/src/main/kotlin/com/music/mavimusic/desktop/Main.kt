@@ -33,6 +33,12 @@ import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
 fun main(args: Array<String>) {
+    // Global uncaught exception handler to prevent native OS modal popups on background errors
+    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+        DesktopTrackLog.log("Uncaught exception on thread ${thread.name}: ${throwable.message}")
+        throwable.printStackTrace()
+    }
+
     // Enable Metal hardware-accelerated rendering on macOS for maximum animation fluidity and ProMotion support
     if (System.getProperty("os.name").contains("Mac", ignoreCase = true)) {
         System.setProperty("apple.awt.application.name", "MaviMusic")
