@@ -32,6 +32,7 @@ import kotlinx.coroutines.withContext
  */
 object AndroidPlayerEngine {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var preferences: com.music.mavimusic.android.data.AndroidPreferences? = null
 
     private var player: ExoPlayer? = null
     private var tickerJob: Job? = null
@@ -98,6 +99,23 @@ object AndroidPlayerEngine {
                 Player.STATE_IDLE -> {
                     _isLoading.value = false
                 }
+            }
+        }
+    }
+
+    fun init(context: Context) {
+        val prefs = com.music.mavimusic.android.data.AndroidPreferences(context)
+        preferences = prefs
+        com.music.mavimusic.android.data.OfflineDownloadManager.init(context)
+
+        // Restore last session if available
+        if (_currentSong.value == null) {
+            prefs.getLastSong()?.let { last ->
+                _currentSong.value = last
+            }
+            prefs.getQueue()?.let { (q, idx) ->
+                _queue.value = q
+                _queueIndex.value = idx
             }
         }
     }
@@ -267,16 +285,35 @@ object AndroidPlayerEngine {
         resolutionJob?.cancel()
         resolutionJob = scope.launch {
             try {
-                val streamUrl = withContext(Dispatchers.IO) {
-                    StreamResolver.resolve(song.videoId)
-                }
-
                 val metadata = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
                     .setAlbumTitle(song.albumName)
                     .setArtworkUri(song.thumbnailUrl?.let { Uri.parse(it) })
                     .build()
+
+                // Check if the song was downloaded offline
+                val localFile = com.music.mavimusic.android.data.OfflineDownloadManager.getLocalAudioFile(song.videoId)
+                if (localFile != null && localFile.exists()) {
+                    val mediaItem = MediaItem.Builder()
+                        .setMediaId(song.videoId)
+                        .setUri(Uri.fromFile(localFile))
+                        .setMediaMetadata(metadata)
+                        .build()
+
+                    val p = player ?: return@launch
+                    p.setMediaItem(mediaItem)
+                    p.prepare()
+                    p.play()
+
+                    preferences?.saveLastSong(song)
+                    preferences?.saveQueue(_queue.value, _queueIndex.value)
+                    return@launch
+                }
+
+                val streamUrl = withContext(Dispatchers.IO) {
+                    StreamResolver.resolve(song.videoId)
+                }
 
                 val mediaItem = MediaItem.Builder()
                     .setMediaId(song.videoId)
@@ -299,6 +336,9 @@ object AndroidPlayerEngine {
                 p.setMediaSource(mediaSource)
                 p.prepare()
                 p.play()
+
+                preferences?.saveLastSong(song)
+                preferences?.saveQueue(_queue.value, _queueIndex.value)
             } catch (e: Exception) {
                 _isLoading.value = false
             }

@@ -35,6 +35,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
@@ -77,6 +80,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -85,6 +89,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.music.mavimusic.android.audio.AndroidPlayerEngine
+import com.music.mavimusic.android.data.AndroidPreferences
+import com.music.mavimusic.android.data.OfflineDownloadManager
 import com.music.mavimusic.android.host.AndroidAppHost
 import com.music.mavimusic.android.host.AndroidPlayerHost
 import com.music.mavimusic.android.service.PlaybackService
@@ -117,6 +123,9 @@ class MainActivity : ComponentActivity() {
         // Start native background audio playback service
         val serviceIntent = Intent(this, PlaybackService::class.java)
         startService(serviceIntent)
+
+        // Initialize audio engine & persistent storage
+        AndroidPlayerEngine.init(applicationContext)
 
         // Install shared UI & Player hosts
         PlayerPlatform.install(AndroidPlayerHost(applicationContext))
@@ -356,12 +365,18 @@ fun AndroidMusicApp() {
 
 @Composable
 fun MobileSearchView() {
+    val context = LocalContext.current
+    val prefs = remember { AndroidPreferences(context) }
     var query by remember { mutableStateOf("") }
     var searchFilter by remember { mutableStateOf(SearchFilter.SONGS) }
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
-    val searchHistory = remember { mutableStateListOf("Dua Lipa", "Coldplay", "Bad Bunny", "Queen", "The Weeknd") }
+    val searchHistory = remember {
+        mutableStateListOf<String>().apply {
+            addAll(prefs.getSearchHistory())
+        }
+    }
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -372,7 +387,8 @@ fun MobileSearchView() {
         keyboardController?.hide()
         if (!searchHistory.contains(searchQuery.trim())) {
             searchHistory.add(0, searchQuery.trim())
-            if (searchHistory.size > 8) searchHistory.removeLast()
+            if (searchHistory.size > 12) searchHistory.removeLast()
+            prefs.saveSearchHistory(searchHistory.toList())
         }
         scope.launch {
             isSearching = true
@@ -526,7 +542,13 @@ fun MobileSearchView() {
                             Icon(Icons.Rounded.History, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(text = hist, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { searchHistory.remove(hist) }, modifier = Modifier.size(24.dp)) {
+                            IconButton(
+                                onClick = {
+                                    searchHistory.remove(hist)
+                                    prefs.saveSearchHistory(searchHistory.toList())
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
                                 Icon(Icons.Rounded.Clear, contentDescription = "Eliminar", tint = Color.DarkGray, modifier = Modifier.size(16.dp))
                             }
                         }
@@ -753,32 +775,125 @@ fun MobileExploreView() {
 
 @Composable
 fun MobileLibraryView() {
+    var libraryTab by remember { mutableStateOf(0) } // 0 = Descargas Offline, 1 = Cola actual
     val queue by AndroidPlayerEngine.queue.collectAsState()
     val queueIndex by AndroidPlayerEngine.queueIndex.collectAsState()
+    val downloadedSongs by OfflineDownloadManager.downloadedSongs.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Cola actual", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("Tu Biblioteca", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (queue.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No hay canciones en la cola", color = Color.Gray)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = libraryTab == 0,
+                onClick = { libraryTab = 0 },
+                label = { Text("Descargas (${downloadedSongs.size})", fontSize = 13.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White,
+                    containerColor = Color(0xFF22222E),
+                    labelColor = Color.LightGray
+                )
+            )
+            FilterChip(
+                selected = libraryTab == 1,
+                onClick = { libraryTab = 1 },
+                label = { Text("Cola actual (${queue.size})", fontSize = 13.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White,
+                    containerColor = Color(0xFF22222E),
+                    labelColor = Color.LightGray
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (libraryTab == 0) {
+            if (downloadedSongs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Rounded.Download,
+                            contentDescription = null,
+                            tint = Color.DarkGray,
+                            modifier = Modifier.size(52.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "No tienes canciones descargadas",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Pulsa el icono de descarga en cualquier canción para escucharla sin conexión",
+                            color = Color.Gray,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 32.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { AndroidPlayerEngine.playQueue(downloadedSongs, 0) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Reproducir todo sin conexión (${downloadedSongs.size})",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                LazyColumn(
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    itemsIndexed(downloadedSongs, key = { _, s -> s.videoId }) { index, song ->
+                        val isCurrent = song.videoId == AndroidPlayerEngine.currentSong.value?.videoId
+                        SongRowItem(
+                            song = song,
+                            isCurrent = isCurrent,
+                            onClick = {
+                                AndroidPlayerEngine.playQueue(downloadedSongs, index)
+                            },
+                            onDelete = {
+                                OfflineDownloadManager.deleteDownload(song.videoId)
+                            }
+                        )
+                    }
+                }
             }
         } else {
-            LazyColumn(
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                itemsIndexed(queue) { index, song ->
-                    val isCurrent = index == queueIndex
-                    SongRowItem(
-                        song = song,
-                        isCurrent = isCurrent,
-                        onClick = {
-                            AndroidPlayerEngine.playQueue(queue, index)
-                        }
-                    )
+            if (queue.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No hay canciones en la cola", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    itemsIndexed(queue) { index, song ->
+                        val isCurrent = index == queueIndex
+                        SongRowItem(
+                            song = song,
+                            isCurrent = isCurrent,
+                            onClick = {
+                                AndroidPlayerEngine.playQueue(queue, index)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -789,8 +904,18 @@ fun MobileLibraryView() {
 fun SongRowItem(
     song: Song,
     isCurrent: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
+    val downloadedSongs by OfflineDownloadManager.downloadedSongs.collectAsState()
+    val downloadingIds by OfflineDownloadManager.downloadingIds.collectAsState()
+    val isDownloaded = remember(downloadedSongs, song.videoId) {
+        downloadedSongs.any { it.videoId == song.videoId }
+    }
+    val isDownloading = remember(downloadingIds, song.videoId) {
+        downloadingIds.contains(song.videoId)
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -851,8 +976,52 @@ fun SongRowItem(
                 Text(
                     text = song.durationText!!,
                     color = Color.Gray,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
+            }
+
+            if (onDelete != null) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = "Eliminar descarga",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            } else if (isDownloading) {
+                Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
+                }
+            } else if (isDownloaded) {
+                IconButton(
+                    onClick = { OfflineDownloadManager.deleteDownload(song.videoId) },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DownloadDone,
+                        contentDescription = "Descargada",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = { OfflineDownloadManager.downloadSong(song) },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = "Descargar",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

@@ -40,6 +40,7 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(sessionActivityPendingIntent)
             .build()
 
+        AndroidPlayerEngine.init(applicationContext)
         AndroidPlayerEngine.attachPlayer(player)
     }
 
