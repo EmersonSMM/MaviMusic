@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -38,9 +40,15 @@ object AndroidPlayerEngine {
     private var player: ExoPlayer? = null
     private var tickerJob: Job? = null
     private var resolutionJob: Job? = null
+    private var lyricsJob: Job? = null
+    @Volatile private var loadGeneration = 0L
     private val queueOrder = AndroidQueueOrder()
     private var playWhenAttached = false
     private var shouldPlayWhenReady = false
+    private var lastCheckpointNs = 0L
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong = _currentSong.asStateFlow()
@@ -84,6 +92,15 @@ object AndroidPlayerEngine {
     val lyricsSource = _lyricsSource.asStateFlow()
 
     private val playerListener = object : Player.Listener {
+        override fun onPlayerError(error: PlaybackException) {
+            generateSequence<Throwable>(error) { it.cause }
+                .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.let { refused ->
+                    StreamResolver.onPlaybackRefused(refused.dataSpec.uri.toString(), refused.responseCode)
+                }
+            _isLoading.value = false
+            _error.value = "No se pudo reproducir la canción. Comprueba la conexión o el archivo local."
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
             if (isPlaying) {
@@ -116,17 +133,36 @@ object AndroidPlayerEngine {
     fun init(context: Context) {
         val prefs = com.music.mavimusic.android.data.AndroidPreferences(context)
         preferences = prefs
+        StreamResolver.maxKbps = { if (prefs.getDataSaver()) 128 else Int.MAX_VALUE }
         com.music.mavimusic.android.data.OfflineDownloadManager.init(context)
 
         // Restore last session if available
         if (_currentSong.value == null) {
+            _shuffleEnabled.value = prefs.getShuffle()
+            _repeatMode.value = prefs.getRepeatMode()
+            _autoplayEnabled.value = prefs.getAutoplay()
             prefs.getLastSong()?.let { last ->
                 _currentSong.value = last
+                _isFavorite.value = prefs.isFavorite(last.videoId)
+                position.report(prefs.getPlaybackPosition(last.videoId))
+                _durationMs.value = last.durationText.durationMillis()
             }
             prefs.getQueue()?.let { (q, idx) ->
                 _queue.value = q
                 _queueIndex.value = idx
                 queueOrder.reset(q.size, idx, _shuffleEnabled.value)
+            }
+            if (_queue.value.isEmpty()) {
+                _currentSong.value?.let { _queue.value = listOf(it); queueOrder.reset(1, 0, _shuffleEnabled.value) }
+            }
+            _currentSong.value?.let { restored ->
+                val index = _queue.value.indexOfFirst { it.videoId == restored.videoId }
+                if (index >= 0) _queueIndex.value = index
+                else {
+                    _queue.value = _queue.value + restored
+                    _queueIndex.value = _queue.value.lastIndex
+                }
+                queueOrder.reset(_queue.value.size, _queueIndex.value, _shuffleEnabled.value)
             }
         }
     }
@@ -145,9 +181,16 @@ object AndroidPlayerEngine {
     }
 
     fun detachPlayer() {
+        checkpointPosition()
+        resolutionJob?.cancel()
+        resolutionJob = null
+        lyricsJob?.cancel()
+        loadGeneration++
         tickerJob?.cancel()
         player?.removeListener(playerListener)
         player = null
+        _isPlaying.value = false
+        _isLoading.value = false
     }
 
     private fun startTicker() {
@@ -156,6 +199,7 @@ object AndroidPlayerEngine {
             while (isActive && _isPlaying.value) {
                 val currentP = player?.currentPosition ?: 0L
                 position.report(currentP, System.nanoTime())
+                if (System.nanoTime() - lastCheckpointNs >= 5_000_000_000L) checkpointPosition()
                 delay(200)
             }
         }
@@ -191,7 +235,7 @@ object AndroidPlayerEngine {
         }
         if (p.currentMediaItem == null || p.playbackState == Player.STATE_IDLE) {
             if (resolutionJob?.isActive == true) return
-            _currentSong.value?.let { loadAndPlaySong(it) }
+            _currentSong.value?.let { loadAndPlaySong(it, position.positionMs) }
         } else {
             if (p.playbackState == Player.STATE_ENDED) seekTo(0L)
             p.play()
@@ -202,12 +246,22 @@ object AndroidPlayerEngine {
         playWhenAttached = false
         shouldPlayWhenReady = false
         player?.pause()
+        checkpointPosition()
     }
 
     fun seekTo(positionMs: Long) {
         position.seeks++
         position.report(positionMs)
         player?.seekTo(positionMs)
+        _currentSong.value?.let { preferences?.savePlaybackPosition(it.videoId, positionMs) }
+    }
+
+    private fun checkpointPosition() {
+        val song = _currentSong.value ?: return
+        val p = player
+        val at = if (p?.currentMediaItem?.mediaId == song.videoId) p.currentPosition else position.positionMs
+        preferences?.savePlaybackPosition(song.videoId, at)
+        lastCheckpointNs = System.nanoTime()
     }
 
     fun seekFraction(fraction: Float) {
@@ -255,15 +309,22 @@ object AndroidPlayerEngine {
             RepeatModes.ALL -> RepeatModes.ONE
             else -> RepeatModes.OFF
         }
+        persistPlaybackModes()
     }
 
     fun toggleShuffle() {
         _shuffleEnabled.value = !_shuffleEnabled.value
         queueOrder.reset(_queue.value.size, _queueIndex.value, _shuffleEnabled.value)
+        persistPlaybackModes()
     }
 
     fun toggleAutoplay() {
         _autoplayEnabled.value = !_autoplayEnabled.value
+        persistPlaybackModes()
+    }
+
+    private fun persistPlaybackModes() {
+        preferences?.savePlaybackModes(_shuffleEnabled.value, _repeatMode.value, _autoplayEnabled.value)
     }
 
     fun toggleCurrentFavorite(): Boolean {
@@ -282,7 +343,7 @@ object AndroidPlayerEngine {
                     com.music.mavimusic.data.YtMusicRepository.radio(song.videoId)
                 }
                 res.onSuccess { radioTracks ->
-                    val newQueue = listOf(song) + radioTracks.filter { it.videoId != song.videoId }
+                    val newQueue = listOf(song) + radioTracks.filter { it.videoId != song.videoId }.distinctBy { it.videoId }
                     playQueue(newQueue, 0)
                 }.onFailure {
                     playSong(song)
@@ -296,14 +357,16 @@ object AndroidPlayerEngine {
     }
 
     private fun fetchRadioAndAppend(song: Song) {
+        val requestedQueue = _queue.value
         scope.launch {
             try {
                 val res = withContext(Dispatchers.IO) {
                     com.music.mavimusic.data.YtMusicRepository.radio(song.videoId)
                 }
                 res.onSuccess { radioTracks ->
+                    if (_queue.value !== requestedQueue || _currentSong.value?.videoId != song.videoId) return@onSuccess
                     val existingIds = _queue.value.map { it.videoId }.toSet()
-                    val toAdd = radioTracks.filter { it.videoId !in existingIds }
+                    val toAdd = radioTracks.filter { it.videoId !in existingIds }.distinctBy { it.videoId }
                     if (toAdd.isNotEmpty()) {
                         val newQueue = _queue.value + toAdd
                         _queue.value = newQueue
@@ -331,20 +394,27 @@ object AndroidPlayerEngine {
         }
     }
 
-    private fun loadAndPlaySong(song: Song) {
+    private fun loadAndPlaySong(song: Song, startPositionMs: Long = 0L) {
+        val generation = ++loadGeneration
+        lyricsJob?.cancel()
+        checkpointPosition()
+        player?.pause()
         playWhenAttached = player == null
         shouldPlayWhenReady = true
         _currentSong.value = song
         _isFavorite.value = preferences?.isFavorite(song.videoId) ?: false
         _isLoading.value = true
+        _error.value = null
+        _durationMs.value = song.durationText.durationMillis()
         _lyrics.value = null
         _lyricsSource.value = null
         _lyricsLoading.value = true
         position.seeks++
-        position.report(0L)
+        position.report(startPositionMs)
+        preferences?.savePlaybackPosition(song.videoId, startPositionMs)
 
         // Asynchronously fetch synchronized lyrics with song duration
-        scope.launch(Dispatchers.IO) {
+        lyricsJob = scope.launch(Dispatchers.IO) {
             try {
                 val dur = song.durationText.durationMillis()
                 var found = com.music.mavimusic.data.lyrics.LyricsRepository.lyrics(
@@ -363,13 +433,15 @@ object AndroidPlayerEngine {
                         album = song.albumName
                     )
                 }
-                if (found != null && _currentSong.value?.videoId == song.videoId) {
+                if (found != null && generation == loadGeneration) {
                     _lyrics.value = found.lines
                     _lyricsSource.value = found.source
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
             } finally {
-                _lyricsLoading.value = false
+                if (generation == loadGeneration) _lyricsLoading.value = false
             }
         }
 
@@ -397,7 +469,7 @@ object AndroidPlayerEngine {
                         .build()
 
                     val p = player ?: return@launch
-                    p.setMediaItem(mediaItem)
+                    p.setMediaItem(mediaItem, startPositionMs)
                     p.prepare()
                     p.playWhenReady = shouldPlayWhenReady
 
@@ -416,7 +488,7 @@ object AndroidPlayerEngine {
                         .build()
 
                     val p = player ?: return@launch
-                    p.setMediaItem(mediaItem)
+                    p.setMediaItem(mediaItem, startPositionMs)
                     p.prepare()
                     p.playWhenReady = shouldPlayWhenReady
 
@@ -447,7 +519,7 @@ object AndroidPlayerEngine {
                     .createMediaSource(mediaItem)
 
                 val p = player ?: return@launch
-                p.setMediaSource(mediaSource)
+                p.setMediaSource(mediaSource, startPositionMs)
                 p.prepare()
                 p.playWhenReady = shouldPlayWhenReady
 
@@ -457,6 +529,7 @@ object AndroidPlayerEngine {
                 throw cancelled
             } catch (e: Exception) {
                 _isLoading.value = false
+                _error.value = "No se pudo cargar la canción. Comprueba la conexión o el archivo local."
             }
         }
     }

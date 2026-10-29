@@ -41,12 +41,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -336,12 +336,14 @@ fun DesktopSyncModal(
 fun SettingsModal(
     onDismiss: () -> Unit
 ) {
-    var checkUpdateStatus by remember { mutableStateOf<String?>(null) }
-    var checkingUpdate by remember { mutableStateOf(false) }
-    var selectedQuality by remember { mutableStateOf("Alta (256 kbps)") }
-    val downloadsSize = remember { com.music.mavimusic.android.data.OfflineDownloadManager.getDownloadsSizeBytes() }
+    val context = LocalContext.current
+    val preferences = remember { AndroidPreferences(context) }
+    var dataSaver by remember { mutableStateOf(preferences.getDataSaver()) }
+    val downloads by com.music.mavimusic.android.data.OfflineDownloadManager.downloadedSongs.collectAsState()
+    val activeDownloads by com.music.mavimusic.android.data.OfflineDownloadManager.downloadingIds.collectAsState()
+    val downloadsSize = remember(downloads, activeDownloads) { com.music.mavimusic.android.data.OfflineDownloadManager.getDownloadsSizeBytes() }
     val downloadsMb = remember(downloadsSize) { downloadsSize / (1024 * 1024) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val installedVersion = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "—" }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -358,11 +360,15 @@ fun SettingsModal(
                     Text("Calidad de reproducción", color = Color.LightGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Normal", "Alta (256 kbps)", "Lossless").forEach { q ->
+                        listOf(false to "Automática", true to "Ahorro de datos").forEach { (saveData, label) ->
                             androidx.compose.material3.FilterChip(
-                                selected = selectedQuality.startsWith(q.take(4)),
-                                onClick = { selectedQuality = q },
-                                label = { Text(q, fontSize = 11.sp) },
+                                selected = dataSaver == saveData,
+                                onClick = {
+                                    dataSaver = saveData
+                                    preferences.setDataSaver(saveData)
+                                    com.music.mavimusic.data.innertube.StreamResolver.invalidateResolvedStreams()
+                                },
+                                label = { Text(label, fontSize = 11.sp) },
                                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
@@ -372,6 +378,11 @@ fun SettingsModal(
                             )
                         }
                     }
+                }
+
+                item {
+                    Text("La calidad depende de la fuente. Ahorro de datos prioriza audio de hasta 128 kbps cuando está disponible. Se aplica a las próximas reproducciones.",
+                        color = Color.Gray, fontSize = 12.sp)
                 }
 
                 item {
@@ -422,41 +433,10 @@ fun SettingsModal(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("Versión instalada", color = Color.White, fontSize = 14.sp)
-                                Text("v1.8.53", color = Color.Gray, fontSize = 14.sp)
+                                Text(installedVersion, color = Color.Gray, fontSize = 14.sp)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = {
-                                    checkingUpdate = true
-                                    checkUpdateStatus = "Comprobando..."
-                                    scope.launch {
-                                        kotlinx.coroutines.delay(800)
-                                        checkingUpdate = false
-                                        checkUpdateStatus = "¡Estás al día! MaviMusic v1.8.53 es la versión más reciente."
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                if (checkingUpdate) {
-                                    androidx.compose.material3.CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text("Comprobar actualizaciones", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp)
-                                }
-                            }
-                            if (checkUpdateStatus != null) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    checkUpdateStatus!!,
-                                    color = if (checkUpdateStatus!!.contains("al día")) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
-                                    fontSize = 12.sp
-                                )
-                            }
+                            Text("Canal de pruebas · actualización manual mediante APK", color = Color.Gray, fontSize = 12.sp)
                         }
                     }
                 }

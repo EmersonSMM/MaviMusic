@@ -8,7 +8,7 @@ Fecha: 29 de octubre de 2026.
 - Rama: `codex/android-stability-stage-1`.
 - Al comenzar, `main` estaba 12 commits por delante y 2 por detrás de la referencia local `origin/main`. No se hizo fetch, integración ni push.
 - El usuario autorizó avanzar por etapas hacia una experiencia coherente con escritorio, visualizadores básicos y una base interna más fiable.
-- Esta primera etapa se limita a reproducción/navegación y correcciones de presentación verificables. No incluye el rediseño ni visualizadores.
+- La etapa 1 se limitó a reproducción/navegación; las etapas siguientes, registradas al final, amplían el diseño, visualizadores y base interna.
 
 ## Cambios
 
@@ -49,12 +49,12 @@ Samsung Galaxy Tab SM-X110, horizontal 1340 × 800, mediante ADB. Se instaló ú
 
 ## Pendientes y siguientes etapas
 
-1. Persistencia de posición y preferencias de reproducción; coherencia de colas largas (actualmente se guardan como máximo 50 canciones).
-2. Permisos de archivos locales y mensajes de denegación; completar la integración de la cola de Media3 con la cola de la app.
-3. Descargas verificadas, cancelables y sin duplicados; errores de reproducción visibles y recuperación de streams.
-4. Diseño compartido con PC: colores/tipografía/superficies, Inicio más compacto y paneles adaptativos. Verificar también teléfono, vertical y teclado.
-5. Visualizadores básicos alimentados por datos reales de audio: espectro, onda y ambiente; medir fluidez, temperatura y consumo. No presentar animaciones decorativas como análisis de audio.
-6. Conexión real con escritorio; calidad de audio conectada al resolver; CI Android. La opción «Lossless» continúa sin efecto real y requiere corrección en su etapa.
+1. Integrar la cola nativa de Media3 con la cola completa de la app; actualmente MediaSession publica un solo elemento.
+2. Validar archivos locales con permiso concedido y biblioteca de prueba; revisar teléfonos pequeños, teclado y escalado de fuentes.
+3. Persistir/reanudar descargas mediante un servicio o WorkManager si Android destruye el proceso. Las tareas actuales viven en el proceso; las descargas antiguas sin tamaño registrado conservan compatibilidad, pero no se certifica su integridad retroactivamente.
+4. Medir fluidez, temperatura, batería y sincronía acústica de los visualizadores. Portar shaders más complejos solo después de medir.
+5. Sincronización nativa de favoritos/playlists entre equipos y descubrimiento LAN. El acceso al control remoto existente debe distinguirse de esa sincronización.
+6. Ejecutar el nuevo trabajo Android de CI al integrar la rama y resolver la compatibilidad AGP/SDK sin suprimir las comprobaciones AAR.
 
 No se crearon tags ni publicaciones. Antes de continuar, comprobar rama, commit y cambios de otros agentes. La app habitual y la variante review son paquetes distintos; usar review para las verificaciones automáticas futuras.
 
@@ -81,3 +81,17 @@ Continúa sobre `23fc89fa`.
 - 21 pruebas Android aprobadas: las 14 anteriores, 5 de FFT/amplitud/silencio y 2 del observador PCM (buffer intacto, estéreo en contrafase, suspensión al estar oculto). `assembleReview` aprobado.
 - Validación visual real en SM-X110: espectro y onda muestran señal durante reproducción; Ambiente cambia de modo y muestra su composición; controles accesibles en horizontal y vertical. La captura vertical restauró los ajustes de rotación originales. Pausa accesible desde el visualizador.
 - Capturas temporales en `/tmp/mavimusic-stage3/`. No se midieron FPS, consumo, temperatura ni sincronía de la visualización con la salida acústica; no se garantiza 30 FPS por limitar el análisis a 30 Hz. Falta un teléfono de anchura pequeña.
+
+## Etapa 4: descargas, permisos y sesión
+
+Continúa sobre `5502546e`.
+
+- `data/VerifiedAudioDownloader.kt`: valida HTTP 206, coordenadas/total de Content-Range y longitud de cada bloque; si la sonda devuelve HTTP 200, usa ese cuerpo completo una sola vez. Rechaza respuestas HTML/JSON/XML, archivos vacíos y bloques cortos o excedidos. Cierra recursos y propaga cancelación al socket HTTP. Mantiene tres bloques simultáneos por canción.
+- `data/OfflineDownloadManager.kt`: evita duplicados en curso, limita a dos canciones simultáneas, añade progreso/error/cancelación y limpieza de temporales. Solo publica audio después de verificarlo y promover metadatos; guarda tamaño esperado y lo comprueba al abrir. Borrado/limpieza cancelan y esperan trabajos antes de retirar archivos.
+- `MainActivity.kt`, `data/LocalAudioScanner.kt`: permiso solicitado bajo acción del usuario; denegación y fallo de lectura diferenciados de biblioteca vacía. Usa content URI de MediaStore en lugar de rutas DATA. Progreso y error de descarga visibles; cancelación disponible en la fila.
+- `audio/AndroidPlayerEngine.kt`, `data/AndroidPreferences.kt`: posición guardada cada cinco segundos y al pausar/buscar; restaura posición, modos y cola completa sin el límite anterior de 50. Reconcilia la canción restaurada con la cola, cancela letras obsoletas y evita añadir una respuesta de radio a una cola sustituida. Errores de reproducción permiten reintentar desde un snackbar.
+- `ui/AppModals.kt`, `host/AndroidPlayerHost.kt`: elimina etiquetas de calidad/formato fijas y la comprobación de actualización que simulaba éxito tras un delay. Ajustes muestra la versión real del paquete y el canal manual de pruebas. Ahorro de datos persiste y conecta un techo preferido de 128 kbps al resolver; no garantiza disponibilidad de ese bitrate ni convierte descargas existentes.
+- Único cambio compartido: `StreamResolver.invalidateResolvedStreams()`, invocado desde Android al cambiar calidad. No cambia las llamadas del escritorio.
+- 28 pruebas Android aprobadas: añade 7 casos HTTP locales para rangos correctos/incorrectos, servidor sin rangos, bloque corto, contenido HTML y cancelación. Suite de escritorio/compartidos ejecutada: 103 + 42 + 504 = 649 casos, 647 aprobados y 2 omitidos; sin acceso opt-in al llavero ni Windows nativo.
+- SM-X110 con Android 16: solicitud de permiso y denegación verificadas sin conceder acceso a la biblioteca real. Descarga de prueba guardada en review (3.999.755 bytes) y reproducida desde archivo. Tras pausar, detener únicamente el paquete review y abrirlo de nuevo, la posición guardada se restaura y Play avanza desde aproximadamente 2:06.
+- Capturas temporales en `/tmp/mavimusic-stage4/`. La reproducción local se verificó con WiFi activo; no se cortó la conectividad global de la tablet para probar modo avión.

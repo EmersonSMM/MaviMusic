@@ -13,6 +13,21 @@ class AndroidPreferences(context: Context) {
     fun setVisualizerStyle(value: String) { prefs.edit().putString("visualizer_style", value).apply() }
     fun getReduceVisualizerMotion(): Boolean = prefs.getBoolean("visualizer_reduce_motion", false)
     fun setReduceVisualizerMotion(value: Boolean) { prefs.edit().putBoolean("visualizer_reduce_motion", value).apply() }
+    fun getDataSaver(): Boolean = prefs.getBoolean("audio_data_saver", false)
+    fun setDataSaver(value: Boolean) { prefs.edit().putBoolean("audio_data_saver", value).apply() }
+    fun getShuffle(): Boolean = prefs.getBoolean("shuffle", false)
+    fun getRepeatMode(): Int = prefs.getInt("repeat_mode", 0).coerceIn(0, 2)
+    fun getAutoplay(): Boolean = prefs.getBoolean("autoplay", true)
+    fun savePlaybackModes(shuffle: Boolean, repeat: Int, autoplay: Boolean) {
+        prefs.edit().putBoolean("shuffle", shuffle).putInt("repeat_mode", repeat).putBoolean("autoplay", autoplay).apply()
+    }
+
+    fun savePlaybackPosition(videoId: String, positionMs: Long) {
+        prefs.edit().putString("position_song", videoId).putLong("position_ms", positionMs.coerceAtLeast(0L)).apply()
+    }
+
+    fun getPlaybackPosition(videoId: String): Long =
+        if (prefs.getString("position_song", null) == videoId) prefs.getLong("position_ms", 0L).coerceAtLeast(0L) else 0L
 
     fun saveLastSong(song: Song) {
         val json = songToJson(song)
@@ -30,7 +45,7 @@ class AndroidPreferences(context: Context) {
 
     fun saveQueue(queue: List<Song>, index: Int) {
         val array = JSONArray()
-        queue.take(50).forEach { song ->
+        queue.forEach { song ->
             array.put(songToJson(song))
         }
         prefs.edit()

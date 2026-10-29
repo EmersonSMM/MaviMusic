@@ -1,5 +1,16 @@
 package com.music.mavimusic.android
 
+import android.Manifest
+import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import kotlinx.coroutines.CancellationException
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -49,6 +60,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Delete
@@ -91,6 +103,10 @@ import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -220,6 +236,13 @@ fun AndroidMusicApp() {
 
     if (!showFullPlayer) StatusBarIcons(dark = false)
 
+    val playbackError by AndroidPlayerEngine.error.collectAsState()
+    val playbackSnackbar = remember { SnackbarHostState() }
+    LaunchedEffect(playbackError) {
+        if (playbackError == null) playbackSnackbar.currentSnackbarData?.dismiss()
+        else if (playbackSnackbar.showSnackbar(playbackError!!, actionLabel = "Reintentar", withDismissAction = true,
+                duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) AndroidPlayerEngine.play()
+    }
     val currentSong by AndroidPlayerEngine.currentSong.collectAsState()
     val isPlaying by AndroidPlayerEngine.isPlaying.collectAsState()
     val isLoading by AndroidPlayerEngine.isLoading.collectAsState()
@@ -598,6 +621,8 @@ fun AndroidMusicApp() {
                 }
             }
         }
+        SnackbarHost(playbackSnackbar, modifier = Modifier.align(Alignment.BottomCenter)
+            .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp))
     }
 }
 
@@ -1097,15 +1122,36 @@ fun MobileLibraryView(
     var favorites by remember { mutableStateOf(prefs.getFavorites()) }
     var playlists by remember { mutableStateOf(prefs.getPlaylists()) }
     var localTracks by remember { mutableStateOf<List<Song>>(emptyList()) }
+    val audioPermission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
+    var hasAudioPermission by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, audioPermission) == PackageManager.PERMISSION_GRANTED) }
+    var permissionRequested by remember { mutableStateOf(false) }
+    var localLoading by remember { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasAudioPermission = granted
+        permissionRequested = true
+    }
+    LifecycleResumeEffect(Unit) {
+        hasAudioPermission = ContextCompat.checkSelfPermission(context, audioPermission) == PackageManager.PERMISSION_GRANTED
+        onPauseOrDispose { }
+    }
+    LaunchedEffect(hasAudioPermission) {
+        localTracks = emptyList()
+        localError = null
+        if (hasAudioPermission) {
+            localLoading = true
+            try { localTracks = LocalAudioScanner.scanLocalTracks(context) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { localError = "No se pudo leer la biblioteca. Revisa el permiso de audio en Ajustes." }
+            finally { localLoading = false }
+        }
+    }
     var selectedPlaylist by remember { mutableStateOf<UserPlaylist?>(null) }
     var showCreateModal by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         favorites = prefs.getFavorites()
         playlists = prefs.getPlaylists()
-        withContext(Dispatchers.IO) {
-            localTracks = LocalAudioScanner.scanLocalTracks(context)
-        }
     }
 
     if (showCreateModal) {
@@ -1417,7 +1463,23 @@ fun MobileLibraryView(
             }
             3 -> {
                 // Archivos locales
-                if (localTracks.isEmpty()) {
+                if (!hasAudioPermission) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Rounded.Folder, null, tint = Color.Gray, modifier = Modifier.size(48.dp))
+                        Text("Tu música del dispositivo", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Permite el acceso al audio para ver y reproducir tus archivos locales.", color = Color.Gray)
+                        val needsSettings = permissionRequested && (context as? Activity)?.shouldShowRequestPermissionRationale(audioPermission) == false
+                        Button(onClick = {
+                            if (needsSettings) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+                            else permissionLauncher.launch(audioPermission)
+                        }) { Text(if (needsSettings) "Abrir permisos" else "Permitir acceso al audio") }
+                    }
+                } else if (localLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                } else if (localError != null) {
+                    Text(localError!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(20.dp))
+                } else if (localTracks.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.Folder, contentDescription = null, tint = Color.DarkGray, modifier = Modifier.size(52.dp))
@@ -1494,6 +1556,8 @@ fun SongRowItem(
 ) {
     val downloadedSongs by OfflineDownloadManager.downloadedSongs.collectAsState()
     val downloadingIds by OfflineDownloadManager.downloadingIds.collectAsState()
+    val downloadProgress by OfflineDownloadManager.progress.collectAsState()
+    val downloadErrors by OfflineDownloadManager.errors.collectAsState()
     val isDownloaded = remember(downloadedSongs, song.videoId) {
         downloadedSongs.any { it.videoId == song.videoId }
     }
@@ -1565,6 +1629,14 @@ fun SongRowItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                downloadErrors[song.videoId]?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                if (isDownloading) {
+                    val fraction = downloadProgress[song.videoId] ?: 0f
+                    Text(if (fraction >= 0) "Descargando ${(fraction * 100).toInt()} %" else "Descargando…",
+                        color = Color.Gray, fontSize = 11.sp)
+                }
             }
 
             if (!song.durationText.isNullOrBlank()) {
@@ -1608,12 +1680,8 @@ fun SongRowItem(
                     )
                 }
             } else if (isDownloading) {
-                Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 2.dp
-                    )
+                IconButton(onClick = { OfflineDownloadManager.cancelDownload(song.videoId) }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Rounded.Close, "Cancelar descarga", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
             } else if (isDownloaded) {
                 IconButton(

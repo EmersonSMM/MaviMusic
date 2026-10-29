@@ -16,14 +16,13 @@ object LocalAudioScanner {
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATA
+            MediaStore.Audio.Media.DURATION
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
-        try {
+        run {
             val cursor = context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
@@ -38,7 +37,6 @@ object LocalAudioScanner {
                 val artistCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                 val albumCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                 val durationCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                val dataCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
                 while (it.moveToNext()) {
                     val id = it.getLong(idCol)
@@ -46,7 +44,6 @@ object LocalAudioScanner {
                     val artist = it.getString(artistCol)?.takeIf { a -> a != "<unknown>" } ?: "Archivo local"
                     val album = it.getString(albumCol)?.takeIf { al -> al != "<unknown>" }
                     val durationMs = it.getLong(durationCol)
-                    val path = it.getString(dataCol)
 
                     val minutes = (durationMs / 1000) / 60
                     val seconds = (durationMs / 1000) % 60
@@ -65,12 +62,12 @@ object LocalAudioScanner {
                             thumbnailUrl = null,
                             durationText = durText,
                             albumName = album,
-                            localPath = path ?: contentUri.toString()
+                            localPath = contentUri.toString()
                         )
                     )
                 }
             }
-        } catch (_: Exception) {}
+        }
 
         list
     }

@@ -279,6 +279,11 @@ object StreamResolver {
         return stream.url
     }
 
+    /** Call when the user's quality ceiling changes; active playback keeps its current URL. */
+    fun invalidateResolvedStreams() {
+        recent.clear()
+    }
+
     /** Per-track loudness, read once and kept for as long as the process runs. */
     private val loudness = ConcurrentHashMap<String, Double>()
 

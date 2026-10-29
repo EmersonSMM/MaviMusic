@@ -126,7 +126,7 @@ class AndroidPlayerHost(private val context: Context) : PlayerHost {
     override fun selectAudioOutput(id: Int?) = Unit
 
     override val outputFormat: StateFlow<OutputFormatUi> =
-        MutableStateFlow(OutputFormatUi(summary = "Opus / AAC · 48 kHz", carriesHiRes = false))
+        MutableStateFlow(OutputFormatUi(summary = "Formato según la fuente", carriesHiRes = false))
 
     override val party: StateFlow<PartyUi> = MutableStateFlow(PartyUi())
 

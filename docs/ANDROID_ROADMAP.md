@@ -72,7 +72,7 @@ En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escrit
 - [x] Integración de `WindowInsets` de Compose (`statusBarsPadding`, `navigationBarsPadding`).
 
 ### Fase 6: Almacenamiento, Persistencia y Descargas Offline
-- [x] Persistencia parcial de sesión (`AndroidPreferences`): última canción reproducida, cola activa e índice, historial de búsquedas recientes. La posición de reproducción aún no se persiste.
+- [x] Persistencia de sesión (`AndroidPreferences`): canción, cola e índice, posición de reproducción, aleatorio/repetición/autoplay e historial de búsquedas recientes. Ver pruebas y límites en `ANDROID_HANDOFF.md`.
 - [x] Gestor de descargas (`OfflineDownloadManager`): descarga de audio y metadatos JSON a almacenamiento aislado (`getExternalFilesDir`).
 - [x] Reproducción offline transparente: `AndroidPlayerEngine` detecta archivos locales descargados y los reproduce directamente con ExoPlayer sin consumir datos de red.
 - [x] Sección "Descargas Offline" en pestaña Biblioteca con botón de reproducción total y gestión de pistas guardadas.
@@ -94,7 +94,7 @@ En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escrit
 - [x] **Playlists personalizadas:** Creación de listas locales, añadir pistas desde cualquier vista (`SongRowItem`), gestión y eliminación.
 - [x] **Modo Radio continuo:** Generación de radio basada en un tema y recarga automática de canciones similares al agotar la cola. No integra el motor DSP de Automix del escritorio.
 - [x] **Diseño Adaptativo para Tablet:** En pantallas anchas (`>= 720dp`), activación automática de `NavigationRail` lateral izquierdo dejando libre la pantalla para cuadrículas y mini-player estilizado.
-- [x] **Temporizador de apagado (Sleep Timer):** Modal con tiempos (15, 30, 45, 60 min o al terminar canción) con cuenta regresiva en vivo y pausa suave de ExoPlayer.
+- [x] **Temporizador de apagado (Sleep Timer):** Modal con tiempos (15, 30, 45, 60 min o al terminar canción), cuenta regresiva y pausa del reproductor.
 - [x] **Escáner de archivos locales (`MediaStore`):** Detección y reproducción de archivos MP3/FLAC del almacenamiento de la tablet.
 - [ ] **Sincronización con Escritorio:** Existe el modal de IP y PIN, pero faltan conexión, autenticación y sincronización real con `DesktopRemoteServer`.
 

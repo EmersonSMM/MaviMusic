@@ -6,17 +6,21 @@ import com.music.mavimusic.data.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
-import java.io.RandomAccessFile
 import java.util.concurrent.TimeUnit
 
 object OfflineDownloadManager {
@@ -29,7 +33,16 @@ object OfflineDownloadManager {
         .followRedirects(true)
         .build()
 
-    private const val CHUNK_SIZE = 2 * 1024 * 1024L // 2MB parallel blocks to bypass YouTube rate-limiting
+    private val lock = Any()
+    private val jobs = mutableMapOf<String, Job>()
+    private val downloadSlots = Semaphore(2)
+    private var clearing = false
+    private val deleting = mutableSetOf<String>()
+    private val downloader = VerifiedAudioDownloader(okHttpClient)
+    private val _progress = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val progress = _progress.asStateFlow()
+    private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
+    val errors = _errors.asStateFlow()
 
     private val _downloadedSongs = MutableStateFlow<List<Song>>(emptyList())
     val downloadedSongs = _downloadedSongs.asStateFlow()
@@ -41,20 +54,25 @@ object OfflineDownloadManager {
         val root = context.getExternalFilesDir(null) ?: context.filesDir
         val dir = File(root, "downloads")
         if (!dir.exists()) dir.mkdirs()
-        downloadDir = dir
+        synchronized(lock) {
+            if (downloadDir == dir) return
+            downloadDir = dir
+            dir.listFiles { file -> file.name.endsWith(".tmp") }?.forEach { it.delete() }
+        }
         refreshDownloadedSongs()
     }
 
-    fun isDownloaded(videoId: String): Boolean {
-        val dir = downloadDir ?: return false
-        val audioFile = File(dir, "$videoId.audio")
-        return audioFile.exists() && audioFile.length() > 0L
-    }
+    fun isDownloaded(videoId: String): Boolean = getLocalAudioFile(videoId) != null
 
     fun getLocalAudioFile(videoId: String): File? {
         val dir = downloadDir ?: return null
-        val audioFile = File(dir, "$videoId.audio")
-        return if (audioFile.exists() && audioFile.length() > 0L) audioFile else null
+        val audio = File(dir, "$videoId.audio")
+        val metadata = File(dir, "$videoId.json")
+        if (!audio.isFile || audio.length() == 0L || !metadata.isFile) return null
+        return try {
+            val expected = JSONObject(metadata.readText()).optLong("sizeBytes", -1L)
+            audio.takeIf { expected < 0 || it.length() == expected }
+        } catch (_: Exception) { null }
     }
 
     fun getDownloadsSizeBytes(): Long {
@@ -63,9 +81,19 @@ object OfflineDownloadManager {
     }
 
     fun clearAllDownloads() {
-        val dir = downloadDir ?: return
-        dir.listFiles()?.forEach { it.delete() }
-        refreshDownloadedSongs()
+        val active = synchronized(lock) {
+            if (clearing) return
+            clearing = true
+            jobs.values.toList().also { list -> list.forEach { it.cancel() } }
+        }
+        scope.launch {
+            try {
+                active.joinAll()
+                downloadDir?.listFiles()?.forEach { it.delete() }
+                _errors.value = emptyMap()
+                refreshDownloadedSongs()
+            } finally { synchronized(lock) { clearing = false } }
+        }
     }
 
     fun refreshDownloadedSongs() {
@@ -76,8 +104,8 @@ object OfflineDownloadManager {
             try {
                 val json = JSONObject(f.readText())
                 val videoId = json.getString("videoId")
-                val audioFile = File(dir, "$videoId.audio")
-                if (audioFile.exists() && audioFile.length() > 0L) {
+                val audioFile = getLocalAudioFile(videoId)
+                if (audioFile != null) {
                     list.add(
                         Song(
                             videoId = videoId,
@@ -97,133 +125,82 @@ object OfflineDownloadManager {
 
     fun downloadSong(song: Song) {
         val dir = downloadDir ?: return
-        if (isDownloaded(song.videoId)) return
-
-        _downloadingIds.value = _downloadingIds.value + song.videoId
-
-        scope.launch {
-            try {
-                val streamUrl = withContext(Dispatchers.IO) {
-                    StreamResolver.resolve(song.videoId)
-                }
-                val headers = withContext(Dispatchers.IO) {
-                    StreamResolver.mediaHeadersFor(streamUrl)
-                }
-
-                val tempFile = File(dir, "${song.videoId}.tmp")
-                val finalAudioFile = File(dir, "${song.videoId}.audio")
-                val metaFile = File(dir, "${song.videoId}.json")
-
-                if (tempFile.exists()) tempFile.delete()
-
-                // 1. Probe total content length using a probe range request (0-1)
-                val probeReq = Request.Builder()
-                    .url(streamUrl)
-                    .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-                    .addHeader("Range", "bytes=0-1")
-                    .build()
-
-                var totalBytes = -1L
-                okHttpClient.newCall(probeReq).execute().use { response ->
-                    val cr = response.header("Content-Range")
-                    if (cr != null && cr.contains("/")) {
-                        totalBytes = cr.substringAfterLast("/").toLongOrNull() ?: -1L
-                    }
-                    if (totalBytes <= 0L) {
-                        totalBytes = response.header("Content-Length")?.toLongOrNull() ?: -1L
-                    }
-                }
-
-                if (totalBytes > 0L) {
-                    // 2. High-speed multi-chunk download with 2MB blocks
-                    val raf = RandomAccessFile(tempFile, "rw")
-                    raf.setLength(totalBytes)
-
-                    val chunks = mutableListOf<Pair<Long, Long>>()
-                    var offset = 0L
-                    while (offset < totalBytes) {
-                        val end = minOf(offset + CHUNK_SIZE - 1, totalBytes - 1)
-                        chunks.add(Pair(offset, end))
-                        offset = end + 1
-                    }
-
-                    // Process up to 3 chunks in parallel
-                    val chunkBatches = chunks.chunked(3)
-                    for (batch in chunkBatches) {
-                        val downloadedBlocks = withContext(Dispatchers.IO) {
-                            batch.map { (start, end) ->
-                                async {
-                                    val req = Request.Builder()
-                                        .url(streamUrl)
-                                        .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-                                        .addHeader("Range", "bytes=$start-$end")
-                                        .build()
-
-                                    okHttpClient.newCall(req).execute().use { resp ->
-                                        if (resp.isSuccessful) {
-                                            Pair(start, resp.body?.bytes() ?: ByteArray(0))
-                                        } else {
-                                            throw Exception("Chunk HTTP ${resp.code}")
-                                        }
-                                    }
-                                }
-                            }.awaitAll()
+        if (!song.localPath.isNullOrBlank()) return
+        synchronized(lock) {
+            if (clearing || song.videoId in deleting || jobs.containsKey(song.videoId) || isDownloaded(song.videoId)) return
+            _errors.update { it - song.videoId }
+            _progress.update { it + (song.videoId to 0f) }
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                val temp = File(dir, "${song.videoId}.audio.tmp")
+                val metadataTemp = File(dir, "${song.videoId}.json.tmp")
+                val audio = File(dir, "${song.videoId}.audio")
+                var promoted = false
+                try {
+                    downloadSlots.withPermit {
+                        val url = StreamResolver.resolve(song.videoId)
+                        val headers = StreamResolver.mediaHeadersFor(url)
+                        downloader.download(url, headers, temp) { fraction ->
+                            _progress.update { it + (song.videoId to fraction) }
                         }
-
-                        synchronized(raf) {
-                            for ((start, bytes) in downloadedBlocks) {
-                                raf.seek(start)
-                                raf.write(bytes)
-                            }
+                        coroutineContext.ensureActive()
+                        val metadata = JSONObject().apply {
+                            put("videoId", song.videoId)
+                            put("title", song.title)
+                            put("artist", song.artist)
+                            put("thumbnailUrl", song.thumbnailUrl ?: "")
+                            put("durationText", song.durationText ?: "")
+                            put("albumName", song.albumName ?: "")
+                            put("sizeBytes", temp.length())
                         }
+                        metadataTemp.writeText(metadata.toString())
+                        synchronized(lock) {
+                            coroutineContext.ensureActive()
+                            check(temp.renameTo(audio)) { "No se pudo guardar el audio" }
+                            promoted = true
+                            check(metadataTemp.renameTo(File(dir, "${song.videoId}.json"))) { "No se pudieron guardar los metadatos" }
+                        }
+                        refreshDownloadedSongs()
                     }
-                    raf.close()
-                } else {
-                    // Fallback to streaming if server didn't specify total range
-                    val fallbackReq = Request.Builder()
-                        .url(streamUrl)
-                        .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-                        .build()
-
-                    okHttpClient.newCall(fallbackReq).execute().use { response ->
-                        if (response.isSuccessful) {
-                            response.body?.byteStream()?.use { input ->
-                                tempFile.outputStream().use { output ->
-                                    input.copyTo(output, bufferSize = 64 * 1024)
-                                }
-                            }
-                        }
+                } catch (cancelled: CancellationException) {
+                    if (promoted) audio.delete()
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (promoted) audio.delete()
+                    _errors.update { it + (song.videoId to "No se pudo completar la descarga. Toca descargar para reintentar.") }
+                } finally {
+                    temp.delete()
+                    metadataTemp.delete()
+                    synchronized(lock) {
+                        jobs.remove(song.videoId)
+                        _downloadingIds.value = jobs.keys.toSet()
+                        _progress.update { it - song.videoId }
                     }
                 }
-
-                if (tempFile.exists() && tempFile.length() > 0L) {
-                    tempFile.renameTo(finalAudioFile)
-
-                    // Save metadata
-                    val metaJson = JSONObject().apply {
-                        put("videoId", song.videoId)
-                        put("title", song.title)
-                        put("artist", song.artist)
-                        put("thumbnailUrl", song.thumbnailUrl ?: "")
-                        put("durationText", song.durationText ?: "")
-                        put("albumName", song.albumName ?: "")
-                    }
-                    metaFile.writeText(metaJson.toString())
-                    refreshDownloadedSongs()
-                }
-            } catch (_: Exception) {
-            } finally {
-                _downloadingIds.value = _downloadingIds.value - song.videoId
             }
+            jobs[song.videoId] = job
+            _downloadingIds.value = jobs.keys.toSet()
+            job.start()
         }
+    }
+
+    fun cancelDownload(videoId: String) {
+        synchronized(lock) { jobs[videoId]?.cancel() }
     }
 
     fun deleteDownload(videoId: String) {
         val dir = downloadDir ?: return
-        val audioFile = File(dir, "$videoId.audio")
-        val metaFile = File(dir, "$videoId.json")
-        if (audioFile.exists()) audioFile.delete()
-        if (metaFile.exists()) metaFile.delete()
-        refreshDownloadedSongs()
+        val active = synchronized(lock) {
+            if (!deleting.add(videoId)) return
+            jobs[videoId]?.also { it.cancel() }
+        }
+        scope.launch {
+            try {
+                active?.join()
+                File(dir, "$videoId.audio").delete()
+                File(dir, "$videoId.json").delete()
+                _errors.update { it - videoId }
+                refreshDownloadedSongs()
+            } finally { synchronized(lock) { deleting.remove(videoId) } }
+        }
     }
 }
