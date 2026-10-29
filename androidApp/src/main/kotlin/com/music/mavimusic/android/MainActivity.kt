@@ -155,6 +155,10 @@ import com.music.mavimusic.android.ui.MobileHomeView
 import com.music.mavimusic.android.ui.MobileHomeState
 import com.music.mavimusic.android.ui.mobileChipColors
 import com.music.mavimusic.ui.icons.MaviMusicIcons
+import com.music.mavimusic.android.ui.CollectionRow
+import com.music.mavimusic.android.ui.CollectionSheet
+import com.music.mavimusic.data.model.BrowseItem
+import com.music.mavimusic.data.model.BrowseType
 import com.music.mavimusic.android.ui.MobileSearchState
 import com.music.mavimusic.ui.theme.StatusBarIcons
 import com.music.mavimusic.android.ui.TrackActionsModal
@@ -219,9 +223,9 @@ fun AndroidMusicApp() {
     val prefs = remember { AndroidPreferences(context) }
     val searchScope = rememberCoroutineScope()
     val searchState = remember {
-        MobileSearchState(searchScope, prefs.getSearchHistory(), prefs::saveSearchHistory)
+        MobileSearchState(searchScope, prefs.getSearchHistory(), prefs::saveSearchHistory, onSearchSubmitted = prefs::recordSearch)
     }
-    val homeState = remember { MobileHomeState(searchScope) }
+    val homeState = remember { MobileHomeState(searchScope, prefs::getRecentSearches) }
     var selectedTab by remember { mutableStateOf(MobileTab.HOME) }
     var showFullPlayer by remember { mutableStateOf(false) }
     var showVisualizer by remember { mutableStateOf(false) }
@@ -436,7 +440,7 @@ fun AndroidMusicApp() {
                         )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         IconButton(
                             onClick = { showVisualizer = true },
                             modifier = Modifier.size(48.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
@@ -790,6 +794,10 @@ fun MobileSearchView(
     val query = state.query
     val searchFilter = state.filter
     val results = state.results
+    val collections = state.collections
+    state.selectedCollection?.let { item ->
+        CollectionSheet(item, { state.selectedCollection = null }, onAddToPlaylist, onStartRadio)
+    }
     val suggestions = state.suggestions
     val isSearching = state.isSearching
     val searchHistory = state.history
@@ -813,7 +821,7 @@ fun MobileSearchView(
         OutlinedTextField(
             value = query,
             onValueChange = state::updateQuery,
-            placeholder = { Text("Canciones, artistas, álbumes...", color = Color.Gray) },
+            placeholder = { Text("Canciones, álbumes, playlists...", color = Color.Gray) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.Gray) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
@@ -839,11 +847,12 @@ fun MobileSearchView(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
                 SearchFilter.SONGS to "Canciones",
                 SearchFilter.VIDEOS to "Vídeos",
-                SearchFilter.ALBUMS to "Álbumes"
+                SearchFilter.ALBUMS to "Álbumes",
+                SearchFilter.PLAYLISTS to "Playlists"
             ).forEach { pair ->
                 val filter = pair.first
                 val label = pair.second
@@ -870,7 +879,7 @@ fun MobileSearchView(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
-        } else if (suggestions.isNotEmpty() && results.isEmpty()) {
+        } else if (suggestions.isNotEmpty() && (results.isEmpty() && collections.isEmpty())) {
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -891,7 +900,7 @@ fun MobileSearchView(
                     }
                 }
             }
-        } else if (query.isEmpty() && results.isEmpty()) {
+        } else if (query.isEmpty() && (results.isEmpty() && collections.isEmpty())) {
             // Recent searches history
             Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 Text(
@@ -927,7 +936,7 @@ fun MobileSearchView(
                     }
                 }
             }
-        } else if (results.isEmpty() && query.isNotBlank()) {
+        } else if ((results.isEmpty() && collections.isEmpty()) && query.isNotBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.error ?: "No se encontraron resultados", color = Color.Gray)
             }
@@ -937,6 +946,10 @@ fun MobileSearchView(
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                items(collections.size) { index ->
+                    val item = collections[index]
+                    CollectionRow(item) { state.selectedCollection = item }
+                }
                 itemsIndexed(results, key = { _, s -> s.videoId }) { index, song ->
                     SongRowItem(
                         song = song,
@@ -961,6 +974,9 @@ fun MobileExploreView(
     var isLoading by remember { mutableStateOf(true) }
     var selectedGenreSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var selectedGenreTitle by remember { mutableStateOf<String?>(null) }
+    var genreCollections by remember { mutableStateOf<List<BrowseItem>>(emptyList()) }
+    var openedCollection by remember { mutableStateOf<BrowseItem?>(null) }
+    openedCollection?.let { CollectionSheet(it, { openedCollection = null }, onAddToPlaylist, onStartRadio) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -973,7 +989,7 @@ fun MobileExploreView(
         isLoading = false
     }
 
-    LaunchedEffect(sections) {
+    LaunchedEffect(sections.flatMap { it.items }.map { it.browseId to it.params }) {
         if (sections.isEmpty()) return@LaunchedEffect
         if (sections.all { section -> section.items.all { it.thumbnailUrl != null } }) return@LaunchedEffect
         val limiter = Semaphore(4)
@@ -1007,7 +1023,7 @@ fun MobileExploreView(
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selectedGenreTitle != null) {
-                IconButton(onClick = { selectedGenreTitle = null; selectedGenreSongs = emptyList() }) {
+                IconButton(onClick = { selectedGenreTitle = null; selectedGenreSongs = emptyList(); genreCollections = emptyList() }) {
                     Icon(Icons.Rounded.ArrowBack, contentDescription = "Volver", tint = Color.White)
                 }
             }
@@ -1045,6 +1061,13 @@ fun MobileExploreView(
                     contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    items(genreCollections.size) { index ->
+                        val item = genreCollections[index]
+                        CollectionRow(item) { openedCollection = item }
+                    }
+                    if (genreCollections.isEmpty() && selectedGenreSongs.isEmpty()) {
+                        item { Text("No hay contenido disponible", color = Color.Gray) }
+                    }
                     itemsIndexed(selectedGenreSongs, key = { _, s -> s.videoId }) { index, song ->
                         SongRowItem(
                             song = song,
@@ -1081,6 +1104,10 @@ fun MobileExploreView(
                                             YtMusicRepository.moodGenreShelves(genre.browseId, genre.params)
                                         }
                                         res.onSuccess { shelves ->
+                                            genreCollections = shelves.flatMap { it.items }.filter { it.browseId != null && it.videoId == null }
+                                                .distinctBy { it.browseId }.map {
+                                                    BrowseItem(it.browseId!!, it.title, it.subtitle, it.thumbnailUrl, BrowseType.PLAYLIST)
+                                                }
                                             val songs = shelves.flatMap { sh ->
                                                 sh.items.mapNotNull { item ->
                                                     if (item.videoId != null) {

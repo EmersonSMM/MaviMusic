@@ -14,6 +14,19 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobileSearchStateTest {
+    @Test fun `playlist search retains collection results instead of filtering them as songs`() = runTest {
+        val playlist = com.music.mavimusic.data.model.BrowseItem("VLtest", "Rock", "Playlist", null,
+            com.music.mavimusic.data.model.BrowseType.PLAYLIST)
+        val state = MobileSearchState(this, emptyList(), {}, searchCollections = { _, filter ->
+            assertEquals(SearchFilter.PLAYLISTS, filter)
+            Result.success(listOf(playlist))
+        })
+        state.selectFilter(SearchFilter.PLAYLISTS)
+        state.submit("rock")
+        advanceUntilIdle()
+        assertEquals(listOf(playlist), state.collections)
+        assertTrue(state.results.isEmpty())
+    }
     private fun song(id: String) = Song(id, id, "Test artist", null)
 
     @Test fun `late result from an old search cannot overwrite a newer query`() = runTest {

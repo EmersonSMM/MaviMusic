@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.music.mavimusic.data.YtMusicRepository
+import com.music.mavimusic.data.model.BrowseItem
 import com.music.mavimusic.data.model.SearchFilter
 import com.music.mavimusic.data.model.SearchResult
 import com.music.mavimusic.data.model.Song
@@ -31,7 +32,11 @@ class MobileSearchState(
             }
         }
     },
+    private val searchCollections: suspend (String, SearchFilter) -> Result<List<BrowseItem>> = { term, filter ->
+        YtMusicRepository.search(term, filter).map { rows -> rows.filterIsInstance<SearchResult.Browse>().map { it.item } }
+    },
     private val suggest: suspend (String) -> Result<List<String>> = YtMusicRepository::searchSuggestions,
+    private val onSearchSubmitted: (String) -> Unit = {},
 ) {
     var query by mutableStateOf("")
         private set
@@ -39,6 +44,9 @@ class MobileSearchState(
         private set
     var results by mutableStateOf<List<Song>>(emptyList())
         private set
+    var collections by mutableStateOf<List<BrowseItem>>(emptyList())
+        private set
+    var selectedCollection by mutableStateOf<BrowseItem?>(null)
     var suggestions by mutableStateOf<List<String>>(emptyList())
         private set
     var isSearching by mutableStateOf(false)
@@ -55,6 +63,7 @@ class MobileSearchState(
         val token = ++generation
         query = value
         results = emptyList()
+        collections = emptyList()
         suggestions = emptyList()
         error = null
         isSearching = false
@@ -91,10 +100,22 @@ class MobileSearchState(
         history.add(0, term)
         while (history.size > 12) history.removeLast()
         saveHistory(history.toList())
+        onSearchSubmitted(term)
         request = scope.launch {
             try {
+                if (requestedFilter == SearchFilter.PLAYLISTS || requestedFilter == SearchFilter.ALBUMS) {
+                    val response = searchCollections(term, requestedFilter)
+                    if (token == generation) {
+                        collections = response.getOrDefault(emptyList())
+                        results = emptyList()
+                        if (response.isFailure) error = "No se pudieron cargar las playlists o álbumes. Inténtalo de nuevo."
+                        resultsScroll.requestScrollToItem(0)
+                    }
+                    return@launch
+                }
                 val response = search(term, requestedFilter)
                 if (token == generation) {
+                    collections = emptyList()
                     results = response.getOrDefault(emptyList())
                     if (response.isFailure) error = "No se pudo buscar. Comprueba la conexión e inténtalo de nuevo."
                     resultsScroll.requestScrollToItem(0)
@@ -104,6 +125,7 @@ class MobileSearchState(
             } catch (_: Exception) {
                 if (token == generation) {
                     results = emptyList()
+                    collections = emptyList()
                     error = "No se pudo buscar. Comprueba la conexión e inténtalo de nuevo."
                 }
             } finally {

@@ -138,10 +138,12 @@ fun MobileVisualizerScreen(song: Song, onClose: () -> Unit) {
                 Text(song.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = AndroidPlayerEngine::skipPrevious) { Icon(Icons.Rounded.SkipPrevious, "Anterior", tint = Color.White) }
+            Spacer(Modifier.width(12.dp))
             FilledIconButton(onClick = AndroidPlayerEngine::togglePlayPause,
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
                 Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pausar" else "Reproducir")
             }
+            Spacer(Modifier.width(12.dp))
             IconButton(onClick = AndroidPlayerEngine::skipNext) { Icon(Icons.Rounded.SkipNext, "Siguiente", tint = Color.White) }
         }
         Slider(value = seek ?: if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,

@@ -108,3 +108,13 @@ Continúa sobre `59b3a594`.
 - 32 pruebas Android aprobadas: añade 4 casos de direcciones (IP/nombre local, puerto, IPv6 y entradas inválidas). `assembleReview` aprobado. Suite JVM de escritorio/compartidos del bloque anterior: 647 aprobadas, 2 omitidas.
 - Validación en SM-X110: modal remoto y rechazo de dirección vacía sin abrir el navegador. No se conectó a la sesión real del PC ni se verificó emparejamiento extremo a extremo. Ajustes conserva Ahorro de datos al cerrar/abrir; se dejó Automática al terminar.
 - La última compilación quedó instalada únicamente como «MaviMusic · pruebas». La aplicación habitual no se reinstaló. No hubo push, tags ni publicaciones; no se modificó `.github/workflows/release.yml`.
+
+## Ajustes puntuales: playlists y experiencia
+
+Sobre `01ecb59d`: búsqueda añade Playlists y conserva resultados de álbum/playlist; `MobileCollections.kt` los abre por páginas con reproducción y carga manual de más canciones. Explorar conserva los elementos browse de cada género y muestra sus playlists. Se evita reiniciar las peticiones de carátulas cada vez que llega una imagen.
+
+Inicio usa las dos búsquedas recientes guardadas (máximo 12 temas por consulta), sin quick picks ni radio de respaldo. Se distingue el historial realmente consultado de los ejemplos iniciales y se invalida la selección al cambiar de búsquedas.
+
+Controles superiores y del visualizador más separados; el icono de personas se oculta en Android mediante una capacidad del host que permanece habilitada por defecto en escritorio. Sin nuevas dependencias.
+
+Validación: 35 pruebas Android y 42 de desktopUi aprobadas; compilación desktopApp comprobada. En la tablet se verificaron resultados de playlists para Bad Bunny, apertura de una lista con canciones y playlists de la sección Calma. Se actualiza únicamente review.

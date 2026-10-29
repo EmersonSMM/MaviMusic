@@ -70,6 +70,7 @@ class AndroidPlayerSettings : PlayerSettingsSource {
 }
 
 class AndroidPlayerHost(private val context: Context) : PlayerHost {
+    override val supportsListenTogether = false
     override val settings = AndroidPlayerSettings()
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager

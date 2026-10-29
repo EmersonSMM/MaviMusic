@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
  * [PlayerPlatform.install] before the player is first drawn.
  */
 interface PlayerHost {
+    val supportsListenTogether: Boolean get() = true
     val settings: PlayerSettingsSource
 
     /** A Canvas already settled for [song], without a lookup. */

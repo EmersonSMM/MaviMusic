@@ -75,7 +75,22 @@ class AndroidPreferences(context: Context) {
         val array = JSONArray()
         history.take(15).forEach { array.put(it) }
         prefs.edit().putString(KEY_SEARCH_HISTORY, array.toString()).apply()
+        if (prefs.contains("actual_searches")) {
+            val retained = getRecentSearches().filter { it in history }
+            prefs.edit().putString("actual_searches", JSONArray(retained).toString()).apply()
+        }
     }
+
+    fun recordSearch(term: String) {
+        val prior = if (prefs.contains("actual_searches")) getRecentSearches() else emptyList()
+        prefs.edit().putString("actual_searches", JSONArray((listOf(term) + prior).distinct().take(12)).toString()).apply()
+    }
+
+    fun getRecentSearches(): List<String> = try {
+        val key = if (prefs.contains("actual_searches")) "actual_searches" else KEY_SEARCH_HISTORY
+        val array = JSONArray(prefs.getString(key, "[]") ?: "[]")
+        (0 until array.length()).map { array.getString(it) }.filter { it.isNotBlank() }
+    } catch (_: Exception) { emptyList() }
 
     fun getSearchHistory(): List<String> {
         val str = prefs.getString(KEY_SEARCH_HISTORY, null) ?: return defaultSearchHistory
