@@ -15,7 +15,7 @@ actual fun StatusBarIcons(dark: Boolean) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !dark
+            controller.isAppearanceLightStatusBars = dark
         }
     }
 }

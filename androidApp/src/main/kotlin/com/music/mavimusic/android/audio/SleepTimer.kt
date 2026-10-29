@@ -10,8 +10,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-object SleepTimer {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+internal class SleepTimerController(
+    private val scope: CoroutineScope,
+    private val pausePlayback: () -> Unit,
+) {
     private var timerJob: Job? = null
 
     private val _minutesLeft = MutableStateFlow<Int?>(null)
@@ -21,6 +23,7 @@ object SleepTimer {
     val stopAtEndOfSong = _stopAtEndOfSong.asStateFlow()
 
     fun start(minutes: Int) {
+        require(minutes > 0)
         cancel()
         _stopAtEndOfSong.value = false
         _minutesLeft.value = minutes
@@ -33,7 +36,7 @@ object SleepTimer {
                 _minutesLeft.value = remaining
             }
             if (isActive) {
-                AndroidPlayerEngine.pause()
+                pausePlayback()
                 cancel()
             }
         }
@@ -45,11 +48,14 @@ object SleepTimer {
         _minutesLeft.value = 1
     }
 
-    fun onTrackEnded() {
+    /** True consumes the end event, so neither repeat nor autoplay can resume it. */
+    fun onTrackEnded(): Boolean {
         if (_stopAtEndOfSong.value) {
-            AndroidPlayerEngine.pause()
+            pausePlayback()
             cancel()
+            return true
         }
+        return false
     }
 
     fun cancel() {
@@ -60,4 +66,18 @@ object SleepTimer {
     }
 
     fun isRunning(): Boolean = _minutesLeft.value != null || _stopAtEndOfSong.value
+}
+
+object SleepTimer {
+    private val controller = SleepTimerController(
+        CoroutineScope(SupervisorJob() + Dispatchers.Main),
+        pausePlayback = { AndroidPlayerEngine.pause() },
+    )
+    val minutesLeft = controller.minutesLeft
+    val stopAtEndOfSong = controller.stopAtEndOfSong
+    fun start(minutes: Int) = controller.start(minutes)
+    fun startEndOfSong() = controller.startEndOfSong()
+    fun onTrackEnded(): Boolean = controller.onTrackEnded()
+    fun cancel() = controller.cancel()
+    fun isRunning(): Boolean = controller.isRunning()
 }

@@ -14,6 +14,7 @@ import com.music.mavimusic.data.model.durationMillis
 import com.music.mavimusic.playback.PlaybackPosition
 import com.music.mavimusic.ui.player.RepeatModes
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +38,9 @@ object AndroidPlayerEngine {
     private var player: ExoPlayer? = null
     private var tickerJob: Job? = null
     private var resolutionJob: Job? = null
+    private val queueOrder = AndroidQueueOrder()
+    private var playWhenAttached = false
+    private var shouldPlayWhenReady = false
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong = _currentSong.asStateFlow()
@@ -122,6 +126,7 @@ object AndroidPlayerEngine {
             prefs.getQueue()?.let { (q, idx) ->
                 _queue.value = q
                 _queueIndex.value = idx
+                queueOrder.reset(q.size, idx, _shuffleEnabled.value)
             }
         }
     }
@@ -132,6 +137,10 @@ object AndroidPlayerEngine {
         _isPlaying.value = exoPlayer.isPlaying
         if (exoPlayer.isPlaying) {
             startTicker()
+        }
+        if (playWhenAttached) {
+            playWhenAttached = false
+            play()
         }
     }
 
@@ -157,6 +166,7 @@ object AndroidPlayerEngine {
         _queue.value = songs
         val targetIndex = startIndex.coerceIn(0, songs.size - 1)
         _queueIndex.value = targetIndex
+        queueOrder.reset(songs.size, targetIndex, _shuffleEnabled.value)
         loadAndPlaySong(songs[targetIndex])
     }
 
@@ -165,19 +175,32 @@ object AndroidPlayerEngine {
     }
 
     fun togglePlayPause() {
-        val p = player ?: return
-        if (p.isPlaying) {
-            p.pause()
+        if (player?.isPlaying == true || (_isLoading.value && shouldPlayWhenReady)) {
+            pause()
         } else {
-            p.play()
+            play()
         }
     }
 
     fun play() {
-        player?.play()
+        shouldPlayWhenReady = true
+        val p = player
+        if (p == null) {
+            playWhenAttached = true
+            return
+        }
+        if (p.currentMediaItem == null || p.playbackState == Player.STATE_IDLE) {
+            if (resolutionJob?.isActive == true) return
+            _currentSong.value?.let { loadAndPlaySong(it) }
+        } else {
+            if (p.playbackState == Player.STATE_ENDED) seekTo(0L)
+            p.play()
+        }
     }
 
     fun pause() {
+        playWhenAttached = false
+        shouldPlayWhenReady = false
         player?.pause()
     }
 
@@ -199,13 +222,10 @@ object AndroidPlayerEngine {
         val q = _queue.value
         if (q.isEmpty()) return
         val current = _queueIndex.value
-        if (current + 1 < q.size) {
-            val nextIndex = current + 1
+        val nextIndex = queueOrder.next(_repeatMode.value == RepeatModes.ALL)
+        if (nextIndex != null) {
             _queueIndex.value = nextIndex
             loadAndPlaySong(q[nextIndex])
-        } else if (_repeatMode.value == RepeatModes.ALL) {
-            _queueIndex.value = 0
-            loadAndPlaySong(q[0])
         } else if (_autoplayEnabled.value) {
             val lastSong = q[current]
             fetchRadioAndAppend(lastSong)
@@ -220,9 +240,8 @@ object AndroidPlayerEngine {
             seekTo(0L)
             return
         }
-        val current = _queueIndex.value
-        if (current - 1 >= 0) {
-            val prevIndex = current - 1
+        val prevIndex = queueOrder.previous()
+        if (prevIndex != null) {
             _queueIndex.value = prevIndex
             loadAndPlaySong(q[prevIndex])
         } else {
@@ -240,6 +259,7 @@ object AndroidPlayerEngine {
 
     fun toggleShuffle() {
         _shuffleEnabled.value = !_shuffleEnabled.value
+        queueOrder.reset(_queue.value.size, _queueIndex.value, _shuffleEnabled.value)
     }
 
     fun toggleAutoplay() {
@@ -287,8 +307,9 @@ object AndroidPlayerEngine {
                     if (toAdd.isNotEmpty()) {
                         val newQueue = _queue.value + toAdd
                         _queue.value = newQueue
-                        val nextIndex = _queueIndex.value + 1
-                        if (nextIndex < newQueue.size) {
+                        queueOrder.append(newQueue.size)
+                        val nextIndex = queueOrder.next(repeatAll = false)
+                        if (nextIndex != null) {
                             _queueIndex.value = nextIndex
                             loadAndPlaySong(newQueue[nextIndex])
                         }
@@ -299,8 +320,7 @@ object AndroidPlayerEngine {
     }
 
     private fun handleTrackEnded() {
-        SleepTimer.onTrackEnded()
-        if (!SleepTimer.isRunning()) {
+        if (!SleepTimer.onTrackEnded()) {
             when (_repeatMode.value) {
                 RepeatModes.ONE -> {
                     seekTo(0L)
@@ -312,6 +332,8 @@ object AndroidPlayerEngine {
     }
 
     private fun loadAndPlaySong(song: Song) {
+        playWhenAttached = player == null
+        shouldPlayWhenReady = true
         _currentSong.value = song
         _isFavorite.value = preferences?.isFavorite(song.videoId) ?: false
         _isLoading.value = true
@@ -377,7 +399,7 @@ object AndroidPlayerEngine {
                     val p = player ?: return@launch
                     p.setMediaItem(mediaItem)
                     p.prepare()
-                    p.play()
+                    p.playWhenReady = shouldPlayWhenReady
 
                     preferences?.saveLastSong(song)
                     preferences?.saveQueue(_queue.value, _queueIndex.value)
@@ -396,7 +418,7 @@ object AndroidPlayerEngine {
                     val p = player ?: return@launch
                     p.setMediaItem(mediaItem)
                     p.prepare()
-                    p.play()
+                    p.playWhenReady = shouldPlayWhenReady
 
                     preferences?.saveLastSong(song)
                     preferences?.saveQueue(_queue.value, _queueIndex.value)
@@ -427,10 +449,12 @@ object AndroidPlayerEngine {
                 val p = player ?: return@launch
                 p.setMediaSource(mediaSource)
                 p.prepare()
-                p.play()
+                p.playWhenReady = shouldPlayWhenReady
 
                 preferences?.saveLastSong(song)
                 preferences?.saveQueue(_queue.value, _queueIndex.value)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 _isLoading.value = false
             }

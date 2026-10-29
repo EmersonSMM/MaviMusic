@@ -16,10 +16,18 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.8.53"
+        manifestPlaceholders["appLabel"] = "@string/app_name"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        create("review") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".review"
+            versionNameSuffix = "-review"
+            matchingFallbacks += "debug"
+            manifestPlaceholders["appLabel"] = "MaviMusic · pruebas"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -79,6 +87,9 @@ dependencies {
 
     // NewPipeExtractor for YouTube stream extraction
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
 
 tasks.matching { it.name.contains("AarMetadata", ignoreCase = true) }.configureEach {

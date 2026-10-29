@@ -131,6 +131,8 @@ import com.music.mavimusic.android.ui.DesktopSyncModal
 import com.music.mavimusic.android.ui.LyricsOffsetModal
 import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
+import com.music.mavimusic.android.ui.MobileSearchState
+import com.music.mavimusic.ui.theme.StatusBarIcons
 import com.music.mavimusic.android.ui.TrackActionsModal
 import com.music.mavimusic.ui.screens.MOOD_CARD_ASPECT
 import com.music.mavimusic.ui.screens.MoodGenreSleeve
@@ -200,6 +202,10 @@ class MainActivity : ComponentActivity() {
 fun AndroidMusicApp() {
     val context = LocalContext.current
     val prefs = remember { AndroidPreferences(context) }
+    val searchScope = rememberCoroutineScope()
+    val searchState = remember {
+        MobileSearchState(searchScope, prefs.getSearchHistory(), prefs::saveSearchHistory)
+    }
     var selectedTab by remember { mutableStateOf(MobileTab.HOME) }
     var showFullPlayer by remember { mutableStateOf(false) }
     var showSleepTimerModal by remember { mutableStateOf(false) }
@@ -210,6 +216,8 @@ fun AndroidMusicApp() {
     var showLyricsOffsetModal by remember { mutableStateOf(false) }
     var showSettingsModal by remember { mutableStateOf(false) }
     var lyricsOffsetMs by remember { mutableStateOf(0L) }
+
+    if (!showFullPlayer) StatusBarIcons(dark = false)
 
     val currentSong by AndroidPlayerEngine.currentSong.collectAsState()
     val isPlaying by AndroidPlayerEngine.isPlaying.collectAsState()
@@ -354,8 +362,9 @@ fun AndroidMusicApp() {
                     qualityUpgraded = false,
                     queue = queue,
                     queueIndex = queueIndex,
-                    hasPrevious = queueIndex > 0,
-                    hasNext = queueIndex + 1 < queue.size,
+                    hasPrevious = shuffleEnabled || queueIndex > 0,
+                    hasNext = (shuffleEnabled && queue.size > 1) || queueIndex + 1 < queue.size ||
+                        repeatMode == com.music.mavimusic.ui.player.RepeatModes.ALL || autoplayEnabled,
                     repeatMode = repeatMode,
                     shuffleEnabled = shuffleEnabled,
                     autoplayEnabled = autoplayEnabled,
@@ -611,6 +620,7 @@ fun AndroidMusicApp() {
                                 onStartRadio = { AndroidPlayerEngine.startRadio(it) }
                             )
                             MobileTab.SEARCH -> MobileSearchView(
+                                state = searchState,
                                 onAddToPlaylist = { songForPlaylist = it },
                                 onStartRadio = { AndroidPlayerEngine.startRadio(it) }
                             )
@@ -692,6 +702,7 @@ fun AndroidMusicApp() {
                             onStartRadio = { AndroidPlayerEngine.startRadio(it) }
                         )
                         MobileTab.SEARCH -> MobileSearchView(
+                            state = searchState,
                             onAddToPlaylist = { songForPlaylist = it },
                             onStartRadio = { AndroidPlayerEngine.startRadio(it) }
                         )
@@ -785,19 +796,6 @@ fun MiniPlayerBar(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                            modifier = Modifier.padding(end = 6.dp)
-                        ) {
-                            Text(
-                                text = "HI-RES",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
                         Text(
                             text = song.artist,
                             color = Color(0xFFB0B0C4),
@@ -877,66 +875,21 @@ fun MiniPlayerBar(
 
 @Composable
 fun MobileSearchView(
+    state: MobileSearchState,
     onAddToPlaylist: (Song) -> Unit,
     onStartRadio: (Song) -> Unit
 ) {
-    val context = LocalContext.current
-    val prefs = remember { AndroidPreferences(context) }
-    var query by remember { mutableStateOf("") }
-    var searchFilter by remember { mutableStateOf(SearchFilter.SONGS) }
-    var results by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
-    val searchHistory = remember {
-        mutableStateListOf<String>().apply {
-            addAll(prefs.getSearchHistory())
-        }
-    }
-    val scope = rememberCoroutineScope()
+    val query = state.query
+    val searchFilter = state.filter
+    val results = state.results
+    val suggestions = state.suggestions
+    val isSearching = state.isSearching
+    val searchHistory = state.history
     val keyboardController = LocalSoftwareKeyboardController.current
 
     fun executeSearch(searchQuery: String = query) {
-        if (searchQuery.isBlank()) return
-        query = searchQuery
-        suggestions = emptyList()
         keyboardController?.hide()
-        if (!searchHistory.contains(searchQuery.trim())) {
-            searchHistory.add(0, searchQuery.trim())
-            if (searchHistory.size > 12) searchHistory.removeLast()
-            prefs.saveSearchHistory(searchHistory.toList())
-        }
-        scope.launch {
-            isSearching = true
-            try {
-                val res = withContext(Dispatchers.IO) {
-                    YtMusicRepository.search(searchQuery.trim(), searchFilter)
-                }
-                res.onSuccess { items ->
-                    results = items.mapNotNull { item ->
-                        when (item) {
-                            is SearchResult.Track -> item.song
-                            is SearchResult.TopTrack -> item.song
-                            else -> null
-                        }
-                    }
-                }
-            } finally {
-                isSearching = false
-            }
-        }
-    }
-
-    // Live search suggestions as the user types
-    LaunchedEffect(query) {
-        if (query.trim().length >= 2 && results.isEmpty()) {
-            withContext(Dispatchers.IO) {
-                YtMusicRepository.searchSuggestions(query.trim()).onSuccess { list ->
-                    suggestions = list
-                }
-            }
-        } else if (query.isEmpty()) {
-            suggestions = emptyList()
-        }
+        state.submit(searchQuery)
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -951,15 +904,12 @@ fun MobileSearchView(
 
         OutlinedTextField(
             value = query,
-            onValueChange = { 
-                query = it
-                if (results.isNotEmpty()) results = emptyList()
-            },
+            onValueChange = state::updateQuery,
             placeholder = { Text("Canciones, artistas, álbumes...", color = Color.Gray) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.Gray) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = ""; results = emptyList(); suggestions = emptyList() }) {
+                    IconButton(onClick = { state.updateQuery("") }) {
                         Icon(Icons.Rounded.Clear, contentDescription = "Limpiar", tint = Color.Gray)
                     }
                 }
@@ -992,8 +942,8 @@ fun MobileSearchView(
                 FilterChip(
                     selected = searchFilter == filter,
                     onClick = {
-                        searchFilter = filter
-                        if (query.isNotBlank()) executeSearch()
+                        keyboardController?.hide()
+                        state.selectFilter(filter)
                     },
                     label = { Text(label, fontSize = 12.sp) },
                     colors = FilterChipDefaults.filterChipColors(
@@ -1059,8 +1009,7 @@ fun MobileSearchView(
                             Text(text = hist, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             IconButton(
                                 onClick = {
-                                    searchHistory.remove(hist)
-                                    prefs.saveSearchHistory(searchHistory.toList())
+                                    state.removeHistory(hist)
                                 },
                                 modifier = Modifier.size(24.dp)
                             ) {
@@ -1072,10 +1021,11 @@ fun MobileSearchView(
             }
         } else if (results.isEmpty() && query.isNotBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No se encontraron resultados", color = Color.Gray)
+                Text(state.error ?: "No se encontraron resultados", color = Color.Gray)
             }
         } else {
             LazyColumn(
+                state = state.resultsScroll,
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
