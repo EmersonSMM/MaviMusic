@@ -9,6 +9,11 @@ import java.util.UUID
 class AndroidPreferences(context: Context) {
     private val prefs = context.getSharedPreferences("mavimusic_prefs", Context.MODE_PRIVATE)
 
+    fun getVisualizerStyle(): String = prefs.getString("visualizer_style", "SPECTRUM") ?: "SPECTRUM"
+    fun setVisualizerStyle(value: String) { prefs.edit().putString("visualizer_style", value).apply() }
+    fun getReduceVisualizerMotion(): Boolean = prefs.getBoolean("visualizer_reduce_motion", false)
+    fun setReduceVisualizerMotion(value: Boolean) { prefs.edit().putBoolean("visualizer_reduce_motion", value).apply() }
+
     fun saveLastSong(song: Song) {
         val json = songToJson(song)
         prefs.edit().putString(KEY_LAST_SONG, json.toString()).apply()

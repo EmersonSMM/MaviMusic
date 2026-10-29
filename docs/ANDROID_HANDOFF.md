@@ -68,3 +68,16 @@ Continúa sobre `c4db913a`, en la misma rama.
 - `MainActivity.kt`, `ui/AppModals.kt`: mini reproductor teal de la misma familia que PC, controles y filtros con contraste sobre blanco, eliminación de estilos magenta inconsistentes.
 - Validación: `assembleReview` y 14 pruebas Android aprobadas. Inspección visual en la SM-X110 horizontal de sidebar, Inicio y mini reproductor; faltan otros tamaños y orientación vertical.
 - Solo se actualiza el paquete review. No se modifica el perfil de la app habitual.
+
+## Etapa 3: visualizadores básicos con señal de audio
+
+Continúa sobre `23fc89fa`.
+
+- `audio/AudioSpectrumAnalyzer.kt`: FFT de 1024 muestras, ventana Hann, 32 bandas logarítmicas, onda y RMS. No genera movimiento aleatorio para simular sonido.
+- `audio/PcmVisualizationSink.kt`, `service/PlaybackService.kt`: TeeAudioProcessor observa el primer canal PCM sin modificar el buffer de entrada. FFT fuera del hilo de audio, canal conflado, límite de publicación de aproximadamente 30 Hz (10 Hz con movimiento reducido). Sin captura de micrófono ni permiso RECORD_AUDIO.
+- `ui/MobileVisualizerScreen.kt`: modos Espectro, Onda y Ambiente; colores de la carátula, pausa, anterior/siguiente y búsqueda de posición. Preferencias de modo/movimiento en `AndroidPreferences.kt`. Entrada desde el icono de espectro del reproductor, retorno con Atrás.
+- El análisis solo se habilita en la vista visible, con lifecycle RESUMED y reproducción activa; sale de ese estado al cerrar, pausar o pasar a segundo plano. El servicio cancela su worker al destruirse.
+- `MainActivity.kt` conecta el nuevo modo; `ui/AndroidAppearance.kt` completa colores secundarios neutros.
+- 21 pruebas Android aprobadas: las 14 anteriores, 5 de FFT/amplitud/silencio y 2 del observador PCM (buffer intacto, estéreo en contrafase, suspensión al estar oculto). `assembleReview` aprobado.
+- Validación visual real en SM-X110: espectro y onda muestran señal durante reproducción; Ambiente cambia de modo y muestra su composición; controles accesibles en horizontal y vertical. La captura vertical restauró los ajustes de rotación originales. Pausa accesible desde el visualizador.
+- Capturas temporales en `/tmp/mavimusic-stage3/`. No se midieron FPS, consumo, temperatura ni sincronía de la visualización con la salida acústica; no se garantiza 30 FPS por limitar el análisis a 30 Hz. Falta un teléfono de anchura pequeña.

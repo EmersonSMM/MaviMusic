@@ -59,6 +59,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -133,6 +134,7 @@ import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
 import com.music.mavimusic.android.ui.MaviAndroidTheme
 import com.music.mavimusic.android.ui.MobileSidebar
+import com.music.mavimusic.android.ui.MobileVisualizerScreen
 import com.music.mavimusic.android.ui.MobileHomeView
 import com.music.mavimusic.android.ui.MobileHomeState
 import com.music.mavimusic.android.ui.mobileChipColors
@@ -206,6 +208,7 @@ fun AndroidMusicApp() {
     val homeState = remember { MobileHomeState(searchScope) }
     var selectedTab by remember { mutableStateOf(MobileTab.HOME) }
     var showFullPlayer by remember { mutableStateOf(false) }
+    var showVisualizer by remember { mutableStateOf(false) }
     var showSleepTimerModal by remember { mutableStateOf(false) }
     var showDesktopSyncModal by remember { mutableStateOf(false) }
     var songForPlaylist by remember { mutableStateOf<Song?>(null) }
@@ -239,7 +242,7 @@ fun AndroidMusicApp() {
     )
 
     BackHandler(enabled = showFullPlayer) {
-        showFullPlayer = false
+        if (showVisualizer) showVisualizer = false else showFullPlayer = false
     }
 
     if (showSleepTimerModal) {
@@ -334,7 +337,9 @@ fun AndroidMusicApp() {
 
         if (showFullPlayer && currentSong != null) {
             val song = currentSong!!
-            Box(modifier = Modifier.fillMaxSize()) {
+            if (showVisualizer) {
+                MobileVisualizerScreen(song = song, onClose = { showVisualizer = false })
+            } else Box(modifier = Modifier.fillMaxSize()) {
                 NowPlayingScreen(
                     song = song,
                     isPlaying = isPlaying,
@@ -408,7 +413,13 @@ fun AndroidMusicApp() {
                         )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(
+                            onClick = { showVisualizer = true },
+                            modifier = Modifier.size(48.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(Icons.Rounded.GraphicEq, "Visualizador", tint = Color.White)
+                        }
                         IconButton(
                             onClick = { AndroidPlayerEngine.startRadio(song) },
                             modifier = Modifier
