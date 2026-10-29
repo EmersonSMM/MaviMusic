@@ -57,3 +57,14 @@ Samsung Galaxy Tab SM-X110, horizontal 1340 × 800, mediante ADB. Se instaló ú
 6. Conexión real con escritorio; calidad de audio conectada al resolver; CI Android. La opción «Lossless» continúa sin efecto real y requiere corrección en su etapa.
 
 No se crearon tags ni publicaciones. Antes de continuar, comprobar rama, commit y cambios de otros agentes. La app habitual y la variante review son paquetes distintos; usar review para las verificaciones automáticas futuras.
+
+## Etapa 2: identidad visual y navegación
+
+Continúa sobre `c4db913a`, en la misma rama.
+
+- `ui/AndroidAppearance.kt`: paleta neutra de escritorio, contraste blanco/negro y superficies semánticas. Se mantiene la fuente del sistema Android.
+- `ui/MobileSidebar.kt`: iconos compartidos con escritorio, marca naranja, sidebar con texto en tablet ancha y formato compacto en anchuras intermedias. Utilidades con objetivos táctiles de al menos 48 dp.
+- `ui/MobileHomeView.kt`: portada de altura acotada a 144 dp, carrusel y lista; cabecera y acciones útiles también cuando faltan recomendaciones. Resultados y desplazamiento de Inicio viven en el shell; radio basada en la canción actual como alternativa cuando quick picks no devuelve contenido.
+- `MainActivity.kt`, `ui/AppModals.kt`: mini reproductor teal de la misma familia que PC, controles y filtros con contraste sobre blanco, eliminación de estilos magenta inconsistentes.
+- Validación: `assembleReview` y 14 pruebas Android aprobadas. Inspección visual en la SM-X110 horizontal de sidebar, Inicio y mini reproductor; faltan otros tamaños y orientación vertical.
+- Solo se actualiza el paquete review. No se modifica el perfil de la app habitual.

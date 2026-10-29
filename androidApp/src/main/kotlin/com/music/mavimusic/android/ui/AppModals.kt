@@ -177,7 +177,7 @@ fun CreatePlaylistModal(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Crear", color = Color.White)
+                Text("Crear", color = MaterialTheme.colorScheme.onPrimary)
             }
         },
         dismissButton = {
@@ -319,7 +319,7 @@ fun DesktopSyncModal(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Conectar", color = Color.White)
+                Text("Conectar", color = MaterialTheme.colorScheme.onPrimary)
             }
         },
         dismissButton = {
@@ -365,7 +365,7 @@ fun SettingsModal(
                                 label = { Text(q, fontSize = 11.sp) },
                                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = Color.White,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                     containerColor = Color(0xFF22222E),
                                     labelColor = Color.LightGray
                                 )
@@ -442,11 +442,11 @@ fun SettingsModal(
                                 if (checkingUpdate) {
                                     androidx.compose.material3.CircularProgressIndicator(
                                         modifier = Modifier.size(16.dp),
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onPrimary,
                                         strokeWidth = 2.dp
                                     )
                                 } else {
-                                    Text("Comprobar actualizaciones", color = Color.White, fontSize = 13.sp)
+                                    Text("Comprobar actualizaciones", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp)
                                 }
                             }
                             if (checkUpdateStatus != null) {
@@ -607,7 +607,7 @@ fun LyricsOffsetModal(
                         Text("-0.5s", color = Color.White)
                     }
                     Button(onClick = { offset = 0; onOffsetChange(0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22222E))) {
-                        Text("Reset", color = Color.White)
+                        Text("Reset", color = MaterialTheme.colorScheme.onPrimary)
                     }
                     OutlinedButton(onClick = { offset += 500; onOffsetChange(offset) }) {
                         Text("+0.5s", color = Color.White)
@@ -620,7 +620,7 @@ fun LyricsOffsetModal(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Listo", color = Color.White)
+                Text("Listo", color = MaterialTheme.colorScheme.onPrimary)
             }
         },
         containerColor = Color(0xFF17171F),

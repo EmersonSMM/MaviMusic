@@ -131,6 +131,12 @@ import com.music.mavimusic.android.ui.DesktopSyncModal
 import com.music.mavimusic.android.ui.LyricsOffsetModal
 import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
+import com.music.mavimusic.android.ui.MaviAndroidTheme
+import com.music.mavimusic.android.ui.MobileSidebar
+import com.music.mavimusic.android.ui.MobileHomeView
+import com.music.mavimusic.android.ui.MobileHomeState
+import com.music.mavimusic.android.ui.mobileChipColors
+import com.music.mavimusic.ui.icons.MaviMusicIcons
 import com.music.mavimusic.android.ui.MobileSearchState
 import com.music.mavimusic.ui.theme.StatusBarIcons
 import com.music.mavimusic.android.ui.TrackActionsModal
@@ -154,10 +160,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class MobileTab(val label: String, val icon: ImageVector) {
-    HOME("Inicio", Icons.Rounded.Home),
-    EXPLORE("Explorar", Icons.Rounded.Explore),
-    SEARCH("Buscar", Icons.Rounded.Search),
-    LIBRARY("Biblioteca", Icons.Rounded.LibraryMusic)
+    HOME("Inicio", MaviMusicIcons.Home),
+    EXPLORE("Explorar", MaviMusicIcons.Explore),
+    SEARCH("Buscar", MaviMusicIcons.Search),
+    LIBRARY("Biblioteca", MaviMusicIcons.Library)
 }
 
 class MainActivity : ComponentActivity() {
@@ -177,16 +183,7 @@ class MainActivity : ComponentActivity() {
         AppUi.install(AndroidAppHost())
 
         setContent {
-            val darkTheme = darkColorScheme(
-                primary = Color(0xFFFF3366),
-                background = Color(0xFF0F0F13),
-                surface = Color(0xFF17171F),
-                surfaceVariant = Color(0xFF22222E),
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-
-            MaterialTheme(colorScheme = darkTheme) {
+            MaviAndroidTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -206,6 +203,7 @@ fun AndroidMusicApp() {
     val searchState = remember {
         MobileSearchState(searchScope, prefs.getSearchHistory(), prefs::saveSearchHistory)
     }
+    val homeState = remember { MobileHomeState(searchScope) }
     var selectedTab by remember { mutableStateOf(MobileTab.HOME) }
     var showFullPlayer by remember { mutableStateOf(false) }
     var showSleepTimerModal by remember { mutableStateOf(false) }
@@ -234,22 +232,7 @@ fun AndroidMusicApp() {
     val lyricsSource by AndroidPlayerEngine.lyricsSource.collectAsState()
     val sleepTimerMinutes by SleepTimer.minutesLeft.collectAsState()
 
-    val ambientTargetColor = remember(currentSong?.title) {
-        if (currentSong != null) {
-            val hash = (currentSong?.title.hashCode() xor currentSong?.artist.hashCode()).toLong()
-            val hues = listOf(
-                Color(0xFF5A1E48), // Deep Berry Magenta
-                Color(0xFF1B3B6F), // Midnight Ocean
-                Color(0xFF6B1D2F), // Crimson Velvet
-                Color(0xFF184E3F), // Emerald Night
-                Color(0xFF4B2378), // Royal Indigo
-                Color(0xFF66361C)  // Dark Amber
-            )
-            hues[(Math.abs(hash) % hues.size).toInt()]
-        } else {
-            Color(0xFF1E1428)
-        }
-    }
+    val ambientTargetColor = Color(0xFF31424A)
     val animatedAmbientColor by animateColorAsState(
         targetValue = ambientTargetColor,
         animationSpec = tween(durationMillis = 1000)
@@ -312,7 +295,7 @@ fun AndroidMusicApp() {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0C0C12))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         val windowW = maxWidth
         val windowH = maxHeight
@@ -325,7 +308,7 @@ fun AndroidMusicApp() {
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            animatedAmbientColor.copy(alpha = 0.35f),
+                            animatedAmbientColor.copy(alpha = 0.12f),
                             animatedAmbientColor.copy(alpha = 0.10f),
                             Color.Transparent
                         ),
@@ -340,7 +323,7 @@ fun AndroidMusicApp() {
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            animatedAmbientColor.copy(alpha = 0.18f),
+                            animatedAmbientColor.copy(alpha = 0.08f),
                             Color.Transparent
                         ),
                         center = Offset(0f, Float.POSITIVE_INFINITY),
@@ -470,130 +453,15 @@ fun AndroidMusicApp() {
         } else if (isTablet) {
             // Adaptive Tablet Layout: Side NavigationRail + Main Content + Bottom MiniPlayer
             Row(modifier = Modifier.fillMaxSize()) {
-                NavigationRail(
-                    modifier = Modifier.statusBarsPadding().navigationBarsPadding(),
-                    containerColor = Color(0xFF101017),
-                    contentColor = Color.White,
-                    header = {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 10.dp, bottom = 16.dp)
-                                .size(46.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0xFFFF2B66),
-                                            Color(0xFF9E1FBF)
-                                        )
-                                    )
-                                )
-                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(14.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MusicNote,
-                                contentDescription = "MaviMusic",
-                                tint = Color.White,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                    }
-                ) {
-                    MobileTab.values().forEach { tab ->
-                        NavigationRailItem(
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
-                            icon = {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = tab.label,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = tab.label,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            colors = NavigationRailItemDefaults.colors(
-                                selectedIconColor = Color.White,
-                                selectedTextColor = Color.White,
-                                unselectedIconColor = Color(0xFF8E8E9F),
-                                unselectedTextColor = Color(0xFF8E8E9F),
-                                indicatorColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // Island Dock for Utilities
-                    Surface(
-                        modifier = Modifier
-                            .padding(bottom = 12.dp)
-                            .clip(RoundedCornerShape(20.dp)),
-                        color = Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp)
-                        ) {
-                            IconButton(
-                                onClick = { showSleepTimerModal = true },
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Bedtime,
-                                    contentDescription = "Temporizador",
-                                    tint = if (sleepTimerMinutes != null) MaterialTheme.colorScheme.primary else Color(0xFFA0A0B2),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(20.dp)
-                                    .height(1.dp)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                            )
-
-                            IconButton(
-                                onClick = { showDesktopSyncModal = true },
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Computer,
-                                    contentDescription = "Sincronizar PC/Mac",
-                                    tint = Color(0xFFA0A0B2),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(20.dp)
-                                    .height(1.dp)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                            )
-
-                            IconButton(
-                                onClick = { showSettingsModal = true },
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Settings,
-                                    contentDescription = "Ajustes",
-                                    tint = Color(0xFFA0A0B2),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                MobileSidebar(
+                    selected = selectedTab,
+                    expanded = windowW >= 960.dp,
+                    timerActive = sleepTimerMinutes != null,
+                    onSelect = { selectedTab = it },
+                    onTimer = { showSleepTimerModal = true },
+                    onConnect = { showDesktopSyncModal = true },
+                    onSettings = { showSettingsModal = true },
+                )
 
                 // Vertical Divider between NavigationRail and Content
                 Box(
@@ -612,6 +480,8 @@ fun AndroidMusicApp() {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
                         when (selectedTab) {
                             MobileTab.HOME -> MobileHomeView(
+                                state = homeState,
+                                onSearch = { selectedTab = MobileTab.SEARCH },
                                 onAddToPlaylist = { songForPlaylist = it },
                                 onStartRadio = { AndroidPlayerEngine.startRadio(it) }
                             )
@@ -674,11 +544,11 @@ fun AndroidMusicApp() {
                                     icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
                                     label = { Text(tab.label, fontSize = 11.sp) },
                                     colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                                         selectedTextColor = MaterialTheme.colorScheme.primary,
                                         unselectedIconColor = Color.White.copy(alpha = 0.6f),
                                         unselectedTextColor = Color.White.copy(alpha = 0.6f),
-                                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        indicatorColor = MaterialTheme.colorScheme.primary
                                     )
                                 )
                             }
@@ -694,6 +564,8 @@ fun AndroidMusicApp() {
                 ) {
                     when (selectedTab) {
                         MobileTab.HOME -> MobileHomeView(
+                                state = homeState,
+                                onSearch = { selectedTab = MobileTab.SEARCH },
                             onAddToPlaylist = { songForPlaylist = it },
                             onStartRadio = { AndroidPlayerEngine.startRadio(it) }
                         )
@@ -745,8 +617,8 @@ fun MiniPlayerBar(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xE620202E),
-                        Color(0xF214141E)
+                        Color(0xFF09414B),
+                        Color(0xFF052B32)
                     )
                 )
             )
@@ -818,7 +690,7 @@ fun MiniPlayerBar(
                     IconButton(
                         onClick = onPlayPause,
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.08f))
                     ) {
@@ -836,7 +708,7 @@ fun MiniPlayerBar(
                 IconButton(
                     onClick = onNext,
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                 ) {
                     Icon(
@@ -863,7 +735,7 @@ fun MiniPlayerBar(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     MaterialTheme.colorScheme.primary,
-                                    Color(0xFFFF5277)
+                                    Color(0xFFB4DDE0)
                                 )
                             )
                         )
@@ -920,10 +792,10 @@ fun MobileSearchView(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF1E1E28),
-                unfocusedContainerColor = Color(0xFF17171F),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color(0xFF2A2A38),
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             )
@@ -948,7 +820,7 @@ fun MobileSearchView(
                     label = { Text(label, fontSize = 12.sp) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                         containerColor = Color(0xFF22222E),
                         labelColor = Color.LightGray
                     )
@@ -1045,314 +917,6 @@ fun MobileSearchView(
 }
 
 @Composable
-fun MobileHomeView(
-    onAddToPlaylist: (Song) -> Unit,
-    onStartRadio: (Song) -> Unit
-) {
-    var quickPicks by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    val currentPlayingSong by AndroidPlayerEngine.currentSong.collectAsState()
-
-    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
-    val greeting = remember(hour) {
-        when (hour) {
-            in 5..11 -> "Buenos días"
-            in 12..19 -> "Buenas tardes"
-            else -> "Buenas noches"
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            val res = YtMusicRepository.quickPicks()
-            res.onSuccess { list ->
-                quickPicks = list
-            }
-        }
-        isLoading = false
-    }
-
-    if (isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-        }
-    } else if (quickPicks.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Usa la pestaña Buscar para encontrar canciones", color = Color.Gray)
-        }
-    } else {
-        val heroSong = quickPicks.firstOrNull()
-        val horizontalRecommendations = remember(quickPicks) { quickPicks.drop(1).take(10) }
-        val restOfTracks = remember(quickPicks) { quickPicks.drop(6) }
-
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            // Header: Greeting + Brand
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = greeting,
-                            color = Color(0xFFA0A0B2),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "MaviMusic",
-                            color = Color.White,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.06f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF00E676))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "ONLINE",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Hero Banner: Panoramic featured mix card
-            if (heroSong != null) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(2.8f)
-                            .shadow(16.dp, RoundedCornerShape(18.dp), spotColor = Color.Black.copy(alpha = 0.6f))
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(
-                                        Color(0xFF38122B),
-                                        Color(0xFF151833)
-                                    )
-                                )
-                            )
-                            .clickable {
-                                AndroidPlayerEngine.playQueue(quickPicks, 0)
-                            }
-                    ) {
-                        // Background Artwork faded
-                        AsyncImage(
-                            model = heroSong.thumbnailUrl,
-                            contentDescription = heroSong.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .alpha(0.35f)
-                        )
-                        // Gradient Overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color(0xF012121A),
-                                            Color(0x9912121A),
-                                            Color.Transparent
-                                        )
-                                    )
-                                )
-                        )
-                        // Content
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                ) {
-                                    Text(
-                                        text = "★ DESTACADO DE HOY",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                                Text(
-                                    text = heroSong.title,
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = heroSong.artist,
-                                    color = Color.White.copy(alpha = 0.75f),
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Button(
-                                onClick = { AndroidPlayerEngine.playQueue(quickPicks, 0) },
-                                shape = RoundedCornerShape(24.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
-                            ) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Reproducir", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Horizontal Carousel: Éxitos y Recomendados
-            if (horizontalRecommendations.isNotEmpty()) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Para descubrir",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Deslizar ▸",
-                                color = Color.Gray,
-                                fontSize = 12.sp
-                            )
-                        }
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(end = 16.dp)
-                        ) {
-                            itemsIndexed(horizontalRecommendations) { rIdx, song ->
-                                val actualIdx = rIdx + 1
-                                Column(
-                                    modifier = Modifier
-                                        .width(132.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable {
-                                            AndroidPlayerEngine.playQueue(quickPicks, actualIdx)
-                                        }
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(132.dp)
-                                            .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.5f))
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(Color(0xFF222230))
-                                    ) {
-                                        AsyncImage(
-                                            model = song.thumbnailUrl,
-                                            contentDescription = song.title,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        // Floating Play Pill in corner
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.BottomEnd)
-                                                .padding(8.dp)
-                                                .size(34.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.Black.copy(alpha = 0.65f))
-                                                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.PlayArrow,
-                                                contentDescription = "Reproducir",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = song.title,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = song.artist,
-                                        color = Color(0xFFA0A0B2),
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Section: Tracks List
-            item {
-                Text(
-                    text = "Recomendaciones rápidas",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            itemsIndexed(restOfTracks, key = { _, s -> s.videoId }) { index, song ->
-                val queueIdx = index + 6
-                SongRowItem(
-                    song = song,
-                    isCurrent = currentPlayingSong?.videoId == song.videoId,
-                    onClick = {
-                        AndroidPlayerEngine.playQueue(quickPicks, queueIdx)
-                    },
-                    onAddToPlaylist = { onAddToPlaylist(song) },
-                    onStartRadio = { onStartRadio(song) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun MobileExploreView(
     onAddToPlaylist: (Song) -> Unit,
     onStartRadio: (Song) -> Unit
@@ -1436,9 +1000,9 @@ fun MobileExploreView(
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reproducir todo (${selectedGenreSongs.size} canciones)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Reproducir todo (${selectedGenreSongs.size} canciones)", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
                 LazyColumn(
@@ -1577,7 +1141,7 @@ fun MobileLibraryView(
                 label = { Text("Descargas (${downloadedSongs.size})", fontSize = 13.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                     containerColor = Color(0xFF22222E),
                     labelColor = Color.LightGray
                 )
@@ -1592,7 +1156,7 @@ fun MobileLibraryView(
                 label = { Text("Favoritos (${favorites.size})", fontSize = 13.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                     containerColor = Color(0xFF22222E),
                     labelColor = Color.LightGray
                 )
@@ -1607,7 +1171,7 @@ fun MobileLibraryView(
                 label = { Text("Playlists (${playlists.size})", fontSize = 13.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                     containerColor = Color(0xFF22222E),
                     labelColor = Color.LightGray
                 )
@@ -1618,7 +1182,7 @@ fun MobileLibraryView(
                 label = { Text("Archivos locales (${localTracks.size})", fontSize = 13.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                     containerColor = Color(0xFF22222E),
                     labelColor = Color.LightGray
                 )
@@ -1629,7 +1193,7 @@ fun MobileLibraryView(
                 label = { Text("Cola actual (${queue.size})", fontSize = 13.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                     containerColor = Color(0xFF22222E),
                     labelColor = Color.LightGray
                 )
@@ -1663,9 +1227,9 @@ fun MobileLibraryView(
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reproducir todo sin conexión (${downloadedSongs.size})", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Reproducir todo sin conexión (${downloadedSongs.size})", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
 
                     LazyColumn(
@@ -1705,9 +1269,9 @@ fun MobileLibraryView(
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reproducir favoritos (${favorites.size})", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Reproducir favoritos (${favorites.size})", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
 
                     LazyColumn(
@@ -1750,9 +1314,9 @@ fun MobileLibraryView(
                                 shape = RoundedCornerShape(24.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                             ) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Reproducir playlist", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Reproducir playlist", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                             }
                             LazyColumn(
                                 contentPadding = PaddingValues(vertical = 8.dp),
@@ -1794,9 +1358,9 @@ fun MobileLibraryView(
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                     shape = RoundedCornerShape(20.dp)
                                 ) {
-                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White)
+                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Crear primera playlist", color = Color.White)
+                                    Text("Crear primera playlist", color = MaterialTheme.colorScheme.onPrimary)
                                 }
                             }
                         }
@@ -1808,7 +1372,7 @@ fun MobileLibraryView(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable { selectedPlaylist = pl },
-                                    color = Color(0xFF1E1E28)
+                                    color = MaterialTheme.colorScheme.surfaceVariant
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(14.dp),
@@ -1859,9 +1423,9 @@ fun MobileLibraryView(
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reproducir todo (${localTracks.size} archivos locales)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Reproducir todo (${localTracks.size} archivos locales)", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
 
                     LazyColumn(
