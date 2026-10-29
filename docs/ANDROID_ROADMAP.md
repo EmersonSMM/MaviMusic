@@ -96,7 +96,8 @@ En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escrit
 - [x] **Diseño Adaptativo para Tablet:** En pantallas anchas (`>= 720dp`), activación automática de `NavigationRail` lateral izquierdo dejando libre la pantalla para cuadrículas y mini-player estilizado.
 - [x] **Temporizador de apagado (Sleep Timer):** Modal con tiempos (15, 30, 45, 60 min o al terminar canción), cuenta regresiva y pausa del reproductor.
 - [x] **Escáner de archivos locales (`MediaStore`):** Detección y reproducción de archivos MP3/FLAC del almacenamiento de la tablet.
-- [ ] **Sincronización con Escritorio:** Existe el modal de IP y PIN, pero faltan conexión, autenticación y sincronización real con `DesktopRemoteServer`.
+- [ ] **Sincronización nativa con Escritorio:** Faltan el enlace y la sincronización de favoritos/playlists dentro de la app Android. El acceso web al control remoto se describe por separado.
+- [x] **Acceso al control remoto de Escritorio:** Abre en el navegador el control remoto existente del PC/Mac; usa el puerto 8765 por defecto y el PIN se introduce en la web del equipo. Es independiente de la sincronización nativa de biblioteca pendiente.
 
 ---
 

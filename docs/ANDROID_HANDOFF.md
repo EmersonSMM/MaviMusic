@@ -95,3 +95,16 @@ Continúa sobre `5502546e`.
 - 28 pruebas Android aprobadas: añade 7 casos HTTP locales para rangos correctos/incorrectos, servidor sin rangos, bloque corto, contenido HTML y cancelación. Suite de escritorio/compartidos ejecutada: 103 + 42 + 504 = 649 casos, 647 aprobados y 2 omitidos; sin acceso opt-in al llavero ni Windows nativo.
 - SM-X110 con Android 16: solicitud de permiso y denegación verificadas sin conceder acceso a la biblioteca real. Descarga de prueba guardada en review (3.999.755 bytes) y reproducida desde archivo. Tras pausar, detener únicamente el paquete review y abrirlo de nuevo, la posición guardada se restaura y Play avanza desde aproximadamente 2:06.
 - Capturas temporales en `/tmp/mavimusic-stage4/`. La reproducción local se verificó con WiFi activo; no se cortó la conectividad global de la tablet para probar modo avión.
+
+## Etapa 5: acceso a escritorio y CI
+
+Continúa sobre `59b3a594`.
+
+- `data/DesktopRemoteAddress.kt`, `ui/AppModals.kt`, `MainActivity.kt`: sustituye el modal que simulaba conexión por acceso mediante navegador al control remoto web existente del PC/Mac. Puerto por defecto 8765, igual que `DesktopRemoteDiscovery`; permite puertos explícitos e IPv6. El PIN se introduce en la web del equipo; la app no simula emparejamiento ni sincronización de biblioteca. Recuerda la dirección abierta, comprueba su formato y maneja ausencia de navegador.
+- `data/AndroidPreferences.kt`: guarda la dirección del control remoto.
+- `.github/workflows/check.yml`: trabajo Android en Ubuntu 24.04, JDK 21, pruebas unitarias y APK review; solo sube informes si falla. No publica APK ni activa Release. El [inventario oficial del runner](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) confirma SDK Android 36 y ANDROID_HOME. YAML validado localmente con Ruby/Psych; ejecución remota pendiente de integrar la rama.
+- `scripts/deploy_android.sh`: instala review por defecto para aislar los datos. Sintaxis Bash comprobada; no se ejecutó el script completo sobre perfiles habituales.
+- `README.md`, `docs/ANDROID_ROADMAP.md`: documentan comandos y distinguen control web de sincronización nativa pendiente.
+- 32 pruebas Android aprobadas: añade 4 casos de direcciones (IP/nombre local, puerto, IPv6 y entradas inválidas). `assembleReview` aprobado. Suite JVM de escritorio/compartidos del bloque anterior: 647 aprobadas, 2 omitidas.
+- Validación en SM-X110: modal remoto y rechazo de dirección vacía sin abrir el navegador. No se conectó a la sesión real del PC ni se verificó emparejamiento extremo a extremo. Ajustes conserva Ahorro de datos al cerrar/abrir; se dejó Automática al terminar.
+- La última compilación quedó instalada únicamente como «MaviMusic · pruebas». La aplicación habitual no se reinstaló. No hubo push, tags ni publicaciones; no se modificó `.github/workflows/release.yml`.

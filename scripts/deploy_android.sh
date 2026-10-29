@@ -24,7 +24,7 @@ if [ -z "$DEVICES" ]; then
 fi
 
 echo ""
-echo "🚀 Instalando/actualizando MaviMusic en el dispositivo..."
-./gradlew :androidApp:installDebug
+echo "Instalando MaviMusic · pruebas con datos aislados en el dispositivo..."
+./gradlew :androidApp:installReview
 
 echo "✅ App instalada exitosamente en el dispositivo."

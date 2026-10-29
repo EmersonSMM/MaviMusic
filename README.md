@@ -117,8 +117,22 @@ Para más detalles sobre la arquitectura de compilación, consulta [DESKTOP.md](
 
 ---
 
+## Android: pruebas internas
+
+Android está en pruebas internas. Para compilar y probar sin tocar los datos de la aplicación habitual:
+
+```bash
+./gradlew :androidApp:testDebugUnitTest :androidApp:assembleReview
+./gradlew :androidApp:installReview  # Dispositivo ADB autorizado
+```
+
+La variante **MaviMusic · pruebas** usa el identificador independiente `com.music.mavimusic.android.review`.
+Incluye navegación adaptativa, reproducción Media3, descargas verificadas y visualizadores de espectro, onda y ambiente.
+Consulta el [relevo Android](docs/ANDROID_HANDOFF.md) para conocer pruebas y limitaciones. Estos comandos no publican una release.
+
 ## Estructura del Proyecto
 
+- `androidApp/`: Aplicación Android, servicio multimedia, biblioteca local y visualizadores de audio.
 - `desktopApp/`: Estado principal de la aplicación, motor de audio, integración con el SO, visualizadores SkSL y servicios nativos.
 - `desktopUi/`: Componentes gráficos en Compose Multiplatform (reproductor, letras inmersivas, panel de cola, páginas).
 - `shared/`: Modelos de datos, algoritmos de cola, red, clientes de metadatos y lógica multiplataforma.

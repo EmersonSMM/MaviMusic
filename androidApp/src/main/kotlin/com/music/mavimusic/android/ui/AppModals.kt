@@ -41,6 +41,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import android.content.Intent
+import android.content.ActivityNotFoundException
+import android.net.Uri
+import com.music.mavimusic.android.data.DesktopRemoteAddress
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -267,11 +271,12 @@ fun AddToPlaylistModal(
 }
 
 @Composable
-fun DesktopSyncModal(
+fun DesktopRemoteModal(
     onDismiss: () -> Unit
 ) {
-    var hostIp by remember { mutableStateOf("192.168.1.") }
-    var pin by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val preferences = remember { AndroidPreferences(context) }
+    var hostIp by remember { mutableStateOf(preferences.getDesktopRemoteAddress()) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -280,46 +285,50 @@ fun DesktopSyncModal(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Computer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Sincronizar con PC/Mac", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Control remoto de PC/Mac", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Activa el servidor remoto en MaviMusic Desktop (Ajustes -> Control Remoto) e introduce los datos de conexión:",
+                    "Activa Control remoto en los ajustes de MaviMusic de tu PC o Mac. Escribe la dirección que muestra el equipo; se abrirá en el navegador, donde podrás introducir su PIN.",
                     color = Color.LightGray,
                     fontSize = 13.sp
                 )
 
                 OutlinedTextField(
                     value = hostIp,
-                    onValueChange = { hostIp = it },
-                    label = { Text("IP de tu ordenador", color = Color.Gray) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = { pin = it },
-                    label = { Text("PIN de enlace (4 dígitos)", color = Color.Gray) },
+                    onValueChange = { hostIp = it; statusMessage = null },
+                    label = { Text("Dirección del equipo", color = Color.Gray) },
+                    placeholder = { Text("192.168.1.20:8765") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 if (statusMessage != null) {
-                    Text(statusMessage!!, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                    Text(statusMessage!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    statusMessage = "Conectando a $hostIp:8080..."
+                    val url = runCatching { DesktopRemoteAddress.normalize(hostIp) }.getOrNull()
+                    if (url == null) {
+                        statusMessage = "Revisa la dirección del equipo y su puerto."
+                    } else {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            preferences.setDesktopRemoteAddress(url)
+                            onDismiss()
+                        } catch (_: ActivityNotFoundException) {
+                            statusMessage = "Necesitas un navegador para abrir el control remoto."
+                        }
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Conectar", color = MaterialTheme.colorScheme.onPrimary)
+                Text("Abrir control remoto", color = MaterialTheme.colorScheme.onPrimary)
             }
         },
         dismissButton = {

@@ -144,7 +144,7 @@ import com.music.mavimusic.android.host.AndroidPlayerHost
 import com.music.mavimusic.android.service.PlaybackService
 import com.music.mavimusic.android.ui.AddToPlaylistModal
 import com.music.mavimusic.android.ui.CreatePlaylistModal
-import com.music.mavimusic.android.ui.DesktopSyncModal
+import com.music.mavimusic.android.ui.DesktopRemoteModal
 import com.music.mavimusic.android.ui.LyricsOffsetModal
 import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
@@ -226,7 +226,7 @@ fun AndroidMusicApp() {
     var showFullPlayer by remember { mutableStateOf(false) }
     var showVisualizer by remember { mutableStateOf(false) }
     var showSleepTimerModal by remember { mutableStateOf(false) }
-    var showDesktopSyncModal by remember { mutableStateOf(false) }
+    var showDesktopRemoteModal by remember { mutableStateOf(false) }
     var songForPlaylist by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistModal by remember { mutableStateOf(false) }
     var showTrackActionsModal by remember { mutableStateOf(false) }
@@ -274,8 +274,8 @@ fun AndroidMusicApp() {
     if (showSettingsModal) {
         SettingsModal(onDismiss = { showSettingsModal = false })
     }
-    if (showDesktopSyncModal) {
-        DesktopSyncModal(onDismiss = { showDesktopSyncModal = false })
+    if (showDesktopRemoteModal) {
+        DesktopRemoteModal(onDismiss = { showDesktopRemoteModal = false })
     }
     if (showTrackActionsModal && currentSong != null) {
         TrackActionsModal(
@@ -493,7 +493,7 @@ fun AndroidMusicApp() {
                     timerActive = sleepTimerMinutes != null,
                     onSelect = { selectedTab = it },
                     onTimer = { showSleepTimerModal = true },
-                    onConnect = { showDesktopSyncModal = true },
+                    onConnect = { showDesktopRemoteModal = true },
                     onSettings = { showSettingsModal = true },
                 )
 

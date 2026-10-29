@@ -10,6 +10,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  android:
+    name: Android · Pruebas internas
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          test -d "$ANDROID_HOME/platforms/android-36"
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+      - name: Android tests and isolated review APK
+        run: ./gradlew :androidApp:testDebugUnitTest :androidApp:assembleReview --console=plain
+      - name: Upload Android test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: |
+            androidApp/build/reports/tests/
+            androidApp/build/test-results/
+
   desktop-windows:
     name: Desktop · Windows
     runs-on: windows-latest

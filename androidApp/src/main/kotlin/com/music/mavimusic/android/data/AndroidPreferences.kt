@@ -15,6 +15,8 @@ class AndroidPreferences(context: Context) {
     fun setReduceVisualizerMotion(value: Boolean) { prefs.edit().putBoolean("visualizer_reduce_motion", value).apply() }
     fun getDataSaver(): Boolean = prefs.getBoolean("audio_data_saver", false)
     fun setDataSaver(value: Boolean) { prefs.edit().putBoolean("audio_data_saver", value).apply() }
+    fun getDesktopRemoteAddress(): String = prefs.getString("desktop_remote_address", "") ?: ""
+    fun setDesktopRemoteAddress(value: String) { prefs.edit().putString("desktop_remote_address", value).apply() }
     fun getShuffle(): Boolean = prefs.getBoolean("shuffle", false)
     fun getRepeatMode(): Int = prefs.getInt("repeat_mode", 0).coerceIn(0, 2)
     fun getAutoplay(): Boolean = prefs.getBoolean("autoplay", true)
