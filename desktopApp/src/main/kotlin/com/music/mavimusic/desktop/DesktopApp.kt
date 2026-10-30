@@ -900,7 +900,12 @@ fun MaviMusicDesktopApp() {
         }
     }
 
-    fun playSongs(songs: List<Song>, startIndex: Int = 0, source: DesktopQueueSource? = null) {
+    fun playSongs(
+        songs: List<Song>,
+        startIndex: Int = 0,
+        source: DesktopQueueSource? = null,
+        forceSequential: Boolean = false,
+    ) {
         // A Spotify playlist's rows still being matched to YouTube Music, or with no match, have
         // nothing to play: they stay out of the queue, and the pick moves to the next playable row.
         val resolved = songs.withIndex().filterNot { it.value.isUnresolvedSpotify }
@@ -915,6 +920,11 @@ fun MaviMusicDesktopApp() {
             playCurrent()
             return
         }
+        val effectiveShuffle = shuffle && !forceSequential
+        if (forceSequential && shuffle) {
+            shuffle = false
+            persistence.saveBoolean("shuffle", false)
+        }
         // The phone's context queue: the album up to the pick, the pick, what the listener had
         // queued by hand, then the rest of the album.
         val built = QueueTimeline.buildContextQueue(
@@ -924,13 +934,13 @@ fun MaviMusicDesktopApp() {
             selectedIndex = at,
             contextSource = playable[at].queueSource(),
         )
-        liveQueue = if (shuffle) {
+        liveQueue = if (effectiveShuffle) {
             DesktopQueue.shuffledStartingAt(built.timeline, built.startIndex).withoutDuplicates()
         } else {
             // Keep the complete queue so Previous can navigate to the tracks before the selected one.
             DesktopQueue.startingAt(built.timeline, built.startIndex).withoutDuplicates()
         }
-        preShuffleOrder = if (shuffle) built.timeline.map(DesktopQueue::orderKey) else emptyList()
+        preShuffleOrder = if (effectiveShuffle) built.timeline.map(DesktopQueue::orderKey) else emptyList()
         playCurrent()
     }
 
@@ -1050,15 +1060,34 @@ fun MaviMusicDesktopApp() {
     /** Starts the station YouTube Music builds around one track. */
     fun startRadio(song: Song) {
         if (partyTrackChangeBlocked()) return
-        val seed = canonicalSong(song).copy(radioName = song.title)
         scope.launch {
+            val resolvedSong = if (song.videoId.isBlank()) {
+                val query = song.artist.takeIf { !it.isUnknownArtist() } ?: song.title
+                DesktopSearchClient.search(query, SearchFilter.SONGS)
+                    .getOrNull()
+                    ?.filterIsInstance<SearchResult.Track>()
+                    ?.firstOrNull()?.song
+                    ?: DesktopSearchClient.search(query, SearchFilter.SONGS)
+                    .getOrNull()
+                    ?.filterIsInstance<SearchResult.TopTrack>()
+                    ?.firstOrNull()?.song
+                    ?: song
+            } else {
+                song
+            }
+            if (resolvedSong.videoId.isBlank()) {
+                DesktopTrackLog.log("radio: could not resolve seed track for '${song.title}'")
+                return@launch
+            }
+            val seed = canonicalSong(resolvedSong).copy(radioName = resolvedSong.title)
             // AutoPlay's section behind the seed, as the phone queues a station — which is also
             // what lets a party share it: a context tail is never published.
             val related = DesktopAutoplay.tracksFor(listOf(seed), seed, INITIAL_RADIO_TRACKS)
                 .getOrNull()
                 .orEmpty()
             if (related.isEmpty()) {
-                DesktopTrackLog.log("radio: nothing to build a station on for '${song.title}'")
+                DesktopTrackLog.log("radio: nothing to build a station on for '${resolvedSong.title}'")
+                playSong(seed)
                 return@launch
             }
             if (partyTrackChangeBlocked()) return@launch
@@ -1072,7 +1101,7 @@ fun MaviMusicDesktopApp() {
                 preShuffleOrder = if (shuffle) station.map(DesktopQueue::orderKey) else emptyList()
                 playCurrent()
             }
-            DesktopTrackLog.log("radio: started a station on '${song.title}' with ${related.size} tracks")
+            DesktopTrackLog.log("radio: started a station on '${resolvedSong.title}' with ${related.size} tracks")
         }
     }
 
@@ -2689,14 +2718,42 @@ fun MaviMusicDesktopApp() {
     fun openShelfItem(item: ShelfItem, shelfTitle: String? = null) {
         val videoId = item.videoId
         val browseId = item.browseId
+        val isRadio = shelfTitle?.contains("Radio", ignoreCase = true) == true ||
+            browseId?.startsWith("RADIO_") == true ||
+            item.title.startsWith("Radio ", ignoreCase = true)
+        val browseType = browseTypeOf(browseId.orEmpty())
+
         when {
+            isRadio -> {
+                val seed = if (videoId != null && videoId.isNotBlank()) {
+                    item.toSong()
+                } else {
+                    val cleanTitle = item.title.removePrefix("Radio de ").removePrefix("Radio ").trim()
+                    history.firstOrNull { it.artist.contains(cleanTitle, ignoreCase = true) }
+                        ?: localSongs.firstOrNull { it.artist.contains(cleanTitle, ignoreCase = true) }
+                        ?: item.toSong()
+                }
+                DesktopPlayerHost.showMessage("📻 ${item.title}")
+                startRadio(seed)
+            }
+            browseId != null && browseType == BrowseType.ARTIST ->
+                openArtist(browseId, item.title)
+            browseId != null && (browseType == BrowseType.ALBUM || browseType == BrowseType.PLAYLIST ||
+                browseId.startsWith("MPRE") || browseId.startsWith("OLAK5uy_") || browseId.startsWith("VL")) ->
+                openCollection(
+                    browseId = browseId,
+                    fallback = BrowseItem(
+                        browseId = browseId,
+                        title = item.title,
+                        subtitle = item.subtitle,
+                        thumbnailUrl = item.thumbnailUrl,
+                        type = if (browseType != BrowseType.OTHER) browseType else BrowseType.ALBUM,
+                    ),
+                )
             videoId != null -> {
                 val source = shelfTitle?.let { DesktopQueueSource(it, PlaybackSourceType.HOME) }
                 playSong(item.toSong(), source = source)
             }
-            // An artist is a page of its own, not a list of tracks with a photograph on top.
-            browseTypeOf(browseId.orEmpty()) == BrowseType.ARTIST ->
-                openArtist(browseId!!, item.title)
             browseId != null -> openCollection(
                 browseId = browseId,
                 fallback = BrowseItem(
@@ -2975,6 +3032,120 @@ fun MaviMusicDesktopApp() {
         if (added.isNotEmpty()) homeState = UiState.Success(existing + added)
     }
 
+    fun publishPersonalizedHomeShelves(shelves: List<HomeShelf>) {
+        if (shelves.isEmpty()) return
+        val existing = (homeState as? UiState.Success)?.data.orEmpty()
+        val replacing = shelves.map { it.title.lowercase() }.toSet()
+        homeSeenTitles.addAll(replacing)
+        val filtered = existing.filterNot { it.title.lowercase() in replacing }
+        val recentsIdx = filtered.indexOfFirst {
+            it.title.equals("recently played", ignoreCase = true) ||
+                it.title.equals("escuchar de nuevo", ignoreCase = true)
+        }
+        val updated = if (recentsIdx >= 0) {
+            filtered.take(recentsIdx + 1) + shelves + filtered.drop(recentsIdx + 1)
+        } else {
+            shelves + filtered
+        }
+        homeState = UiState.Success(updated)
+    }
+
+    fun buildStartRadioShelf(): HomeShelf? {
+        val candidates = mutableListOf<ShelfItem>()
+        val seenArtists = mutableSetOf<String>()
+
+        val topStatsArtists = DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME).artists
+        val statsArtistNames = topStatsArtists.map { it.title }
+        val historyArtistNames = history.map { it.artist }.filter { it.isNotBlank() }
+        val allArtists = (statsArtistNames + historyArtistNames)
+            .map { DesktopListeningStats.primaryArtist(it) }
+            .filter { it.isNotBlank() && !it.isUnknownArtist() }
+            .distinct()
+
+        // 1. Artist Radios (up to 5 rotating artists)
+        for (artist in allArtists.shuffled().take(5)) {
+            if (seenArtists.add(artist.lowercase())) {
+                val seed = history.firstOrNull { it.artist.contains(artist, ignoreCase = true) }
+                    ?: localSongs.firstOrNull { it.artist.contains(artist, ignoreCase = true) }
+                val art = seed?.thumbnailUrl
+                    ?: topStatsArtists.firstOrNull { it.title.equals(artist, ignoreCase = true) }?.artworkUrl
+                candidates.add(
+                    ShelfItem(
+                        title = "Radio de $artist",
+                        subtitle = DesktopStrings["artist_radio_subtitle", "Estación de artista"],
+                        thumbnailUrl = art ?: seed?.thumbnailUrl,
+                        videoId = seed?.videoId,
+                        browseId = "RADIO_ARTIST_${seed?.videoId ?: artist}",
+                    )
+                )
+            }
+        }
+
+        // 2. Favorite / recent tracks radios (up to 4 rotating songs)
+        val seedSongs = history.distinctBy { it.videoId }.shuffled().take(4)
+        for (song in seedSongs) {
+            candidates.add(
+                ShelfItem(
+                    title = "Radio ${song.title}",
+                    subtitle = song.artist,
+                    thumbnailUrl = song.thumbnailUrl,
+                    videoId = song.videoId,
+                    browseId = "RADIO_TRACK_${song.videoId}",
+                )
+            )
+        }
+
+        if (candidates.isEmpty()) return null
+        return HomeShelf(
+            title = DesktopStrings["start_radio_shelf", "Iniciar radio"],
+            items = candidates,
+            subtitle = DesktopStrings["start_radio_subtitle", "Estaciones basadas en lo que más escuchas"],
+        )
+    }
+
+    suspend fun loadPersonalizedAlbumsShelf(): HomeShelf? {
+        val topStatsArtists = DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME).artists
+        val historyArtists = history.map { it.artist }.filter { it.isNotBlank() }
+        val allArtists = (topStatsArtists.map { it.title } + historyArtists)
+            .map { DesktopListeningStats.primaryArtist(it) }
+            .filter { it.isNotBlank() && !it.isUnknownArtist() }
+            .distinct()
+
+        if (allArtists.isEmpty()) return null
+
+        // Pick 2-3 rotating artists each time Home loads so recommendations vary continuously
+        val pickedArtists = allArtists.shuffled().take(3)
+        val albumItems = mutableListOf<ShelfItem>()
+        val seenAlbumBrowseIds = mutableSetOf<String>()
+
+        for (artist in pickedArtists) {
+            val results = DesktopSearchClient.search(artist, SearchFilter.ALBUMS).getOrNull().orEmpty()
+            for (res in results) {
+                if (res is SearchResult.Browse) {
+                    val bId = res.item.browseId
+                    if (seenAlbumBrowseIds.add(bId)) {
+                        albumItems.add(
+                            ShelfItem(
+                                title = res.item.title,
+                                subtitle = res.item.subtitle.ifBlank { artist },
+                                thumbnailUrl = res.item.thumbnailUrl,
+                                videoId = null,
+                                browseId = bId,
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        if (albumItems.isEmpty()) return null
+        return HomeShelf(
+            title = DesktopStrings["albums_for_you", "Álbumes para ti"],
+            items = albumItems.shuffled(),
+            subtitle = DesktopStrings["albums_for_you_subtitle", "Basados en tus artistas más escuchados"],
+        )
+    }
+
     /**
      * The phone's Home: the core feed, the account's own Recently Played at its head, and the
      * supplementary browse feeds, all asked for at once and laid down as each lands. Signed out
@@ -2994,6 +3165,11 @@ fun MaviMusicDesktopApp() {
         homeLoadingMore = false
         homeRecentsLoading = signedIn
         scope.launch {
+            val radioShelf = buildStartRadioShelf()
+            if (radioShelf != null) {
+                publishPersonalizedHomeShelves(listOf(radioShelf))
+            }
+
             launch {
                 DesktopSearchClient.home().fold(
                     onSuccess = { feed ->
@@ -3019,10 +3195,27 @@ fun MaviMusicDesktopApp() {
                         .onFailure { if (generation == homeGeneration) homeRecentsLoading = false }
                 }
             }
+            launch {
+                val albumsShelf = loadPersonalizedAlbumsShelf()
+                if (generation == homeGeneration && albumsShelf != null) {
+                    publishPersonalizedHomeShelves(listOf(albumsShelf))
+                }
+            }
             DesktopSearchClient.HOME_SUPPLEMENT_BROWSE_IDS.forEach { browseId ->
                 launch {
                     DesktopSearchClient.homeSupplement(browseId).onSuccess { shelves ->
-                        if (generation == homeGeneration) publishHomeShelves(shelves)
+                        if (generation == homeGeneration) {
+                            val existing = (homeState as? UiState.Success)?.data.orEmpty()
+                            val hasPersonalized = existing.any { it.title.equals(DesktopStrings["albums_for_you", "Álbumes para ti"], ignoreCase = true) }
+                            val filteredShelves = if (hasPersonalized && browseId == "FEmusic_new_releases") {
+                                emptyList()
+                            } else {
+                                shelves
+                            }
+                            if (filteredShelves.isNotEmpty()) {
+                                publishHomeShelves(filteredShelves)
+                            }
+                        }
                     }
                 }
             }
@@ -5010,10 +5203,12 @@ fun MaviMusicDesktopApp() {
                                 artistReloads++
                             },
                             onPlaySongs = { songs, index ->
-                                playSongs(songs, index, openedArtist?.let { artistSource(it) })
+                                if (shuffle) setShuffle(false)
+                                playSongs(songs, index, openedArtist?.let { artistSource(it) }, forceSequential = true)
                             },
                             onShuffle = { songs ->
-                                playSongs(songs, 0, openedArtist?.let { artistSource(it) })
+                                setShuffle(true)
+                                playSongs(songs.shuffled(), 0, openedArtist?.let { artistSource(it) })
                             },
                             onOpenMenu = { song -> openMenu(song) },
                             onShelfItemClick = ::openShelfItem,
@@ -5050,14 +5245,16 @@ fun MaviMusicDesktopApp() {
                                 },
                                 onRemoveFromPlaylist = ::removeFromOpenPlaylist
                                     .takeIf { openedCollection?.owned == true && !isSmartCurrent },
-                                onEditRules = if (isSmartCurrent && currentLocalPlaylist != null) {
+                                onEditRules = if (isSmartCurrent) {
                                     { openSmartPlaylistEditor(currentLocalPlaylist) }
                                 } else null,
                                 likedIds = likedIds,
                                 onPlaySongs = { songs, index ->
-                                    playSongs(songs, index, openedCollection?.let { collectionSource(it) })
+                                    if (shuffle) setShuffle(false)
+                                    playSongs(songs, index, openedCollection?.let { collectionSource(it) }, forceSequential = true)
                                 },
                                 onShuffle = { songs ->
+                                    setShuffle(true)
                                     playSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
                                 },
                                 onDownloadAll = { downloadAll(it, DesktopDownloadContext.from(openedCollection)) },

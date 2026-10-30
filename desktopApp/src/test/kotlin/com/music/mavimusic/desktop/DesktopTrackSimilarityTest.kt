@@ -1,5 +1,7 @@
 package com.music.mavimusic.desktop
 
+import com.music.mavimusic.data.model.PlaybackSourceType
+import com.music.mavimusic.data.model.QueueTier
 import com.music.mavimusic.data.model.Song
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -161,5 +163,31 @@ class DesktopTrackSimilarityTest {
         val other = Song("callaita", "Callaíta", "Bad Bunny", null, durationText = "4:10")
         val queue = DesktopQueue.startingAt(listOf(cosculluela, alexisFido, other), startIndex = 0).withoutDuplicates()
         assertEquals(listOf("m1", "callaita"), queue.songs.map { it.videoId })
+    }
+
+    @Test
+    fun albumTracksInContextArePreservedWithoutSkippingEvenIfMatchingHistoryOrVariant() {
+        val track1 = Song("alb_1", "Intro", "Rosalía", null, durationText = "1:20", queueTier = QueueTier.CONTEXT, playbackSourceType = PlaybackSourceType.BROWSE)
+        val track2 = Song("alb_2", "Candy", "Rosalía", null, durationText = "3:13", queueTier = QueueTier.CONTEXT, playbackSourceType = PlaybackSourceType.BROWSE)
+        val track3 = Song("alb_3", "Candy (Remix)", "Rosalía", null, durationText = "3:15", queueTier = QueueTier.CONTEXT, playbackSourceType = PlaybackSourceType.BROWSE)
+        val track4 = Song("alb_4", "Hentai", "Rosalía", null, durationText = "2:42", queueTier = QueueTier.CONTEXT, playbackSourceType = PlaybackSourceType.BROWSE)
+
+        // Recent history has track2 and a variant
+        val recentHistory = listOf(track2, track3)
+
+        val queue = DesktopQueue(
+            songs = listOf(track1, track2, track3, track4),
+            index = 0,
+        )
+
+        // Verifies that nextDistinctIndex in an album context plays in exact sequential order (track 2, not skipping to track 4)
+        val nextIdx = queue.nextDistinctIndex(track1.videoId, repeatAll = false, recent = recentHistory)
+        assertNotNull(nextIdx)
+        assertEquals(1, nextIdx, "Album must advance strictly to the next sequential track without skipping due to history")
+        assertEquals("alb_2", queue.songs[nextIdx].videoId)
+
+        // Verifies that withoutDuplicates retains all tracks in an album context
+        val deduplicated = queue.withoutDuplicates()
+        assertEquals(listOf("alb_1", "alb_2", "alb_3", "alb_4"), deduplicated.songs.map { it.videoId }, "Album context must not prune tracks")
     }
 }
