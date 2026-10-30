@@ -1,5 +1,6 @@
 package com.music.mavimusic.desktop
 
+import com.music.mavimusic.data.model.PlaybackSourceType
 import com.music.mavimusic.data.model.QueueTier
 import com.music.mavimusic.data.model.Song
 import com.music.mavimusic.playback.QueueTimeline
@@ -56,6 +57,7 @@ internal data class DesktopQueue(
         val next = ((at + 1)..songs.lastIndex).firstOrNull { candidate ->
             val candSong = songs[candidate]
             if (candSong.queueTier == QueueTier.USER_QUEUE) return@firstOrNull true
+            if (candSong.queueTier == QueueTier.CONTEXT && candSong.playbackSourceType == PlaybackSourceType.BROWSE) return@firstOrNull true
             val duplicateMatch = DesktopTrackSimilarity.findDuplicateMatch(candSong, played)
             val isDuplicate = duplicateMatch != null ||
                 (DesktopTrackSimilarity.avoidDuplicateVersions &&
@@ -137,7 +139,8 @@ internal data class DesktopQueue(
         val known = songs.take(index + 1).toMutableList()
         val kept = songs.take(index + 1).toMutableList()
         for (song in upcoming) {
-            val isExplicitUserRequest = song.queueTier == QueueTier.USER_QUEUE
+            val isExplicitUserRequest = song.queueTier == QueueTier.USER_QUEUE ||
+                (song.queueTier == QueueTier.CONTEXT && song.playbackSourceType == PlaybackSourceType.BROWSE)
             if (!isExplicitUserRequest) {
                 val recentWindow = known.takeLast(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)
                 val isSimDup = DesktopTrackSimilarity.isDuplicateOfAny(song, recentWindow)
