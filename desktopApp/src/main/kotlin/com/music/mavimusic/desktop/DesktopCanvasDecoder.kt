@@ -23,8 +23,10 @@ import org.bytedeco.ffmpeg.global.avformat.avformat_close_input
 import org.bytedeco.ffmpeg.global.avformat.avformat_find_stream_info
 import org.bytedeco.ffmpeg.global.avformat.AVSEEK_FLAG_BACKWARD
 import org.bytedeco.ffmpeg.global.avformat.avformat_open_input
+import org.bytedeco.ffmpeg.global.avutil.AVERROR_EOF
 import org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_VIDEO
 import org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_BGRA
+import org.bytedeco.ffmpeg.global.avutil.av_dict_free
 import org.bytedeco.ffmpeg.global.avutil.av_dict_set
 import org.bytedeco.ffmpeg.global.avutil.av_frame_alloc
 import org.bytedeco.ffmpeg.global.avutil.av_frame_free
@@ -40,7 +42,14 @@ import org.bytedeco.javacpp.IntPointer
 import org.bytedeco.javacpp.PointerPointer
 
 /** The motion artwork, decoded here rather than played by a second media stack. */
-internal class DesktopCanvasDecoder {
+internal class DesktopCanvasDecoder(private val maxEdge: Int = 540, private val looping: Boolean = true) {
+    var positionMs: Long = 0L
+        private set
+    @Volatile
+    var failure: Throwable? = null
+        private set
+    private var timeBaseSeconds = 0.0
+    private var drained = false
 
     private var format: AVFormatContext? = null
     private var codec: AVCodecContext? = null
@@ -68,6 +77,8 @@ internal class DesktopCanvasDecoder {
         private set
 
     fun open(url: String, headers: Map<String, String> = emptyMap()): Result<Unit> = runCatching {
+        failure = null
+        drained = false
         DesktopAudioDecoder.ensureNetworkReady()
         val options = AVDictionary(null)
         if (headers.isNotEmpty()) {
@@ -78,10 +89,19 @@ internal class DesktopCanvasDecoder {
                 0,
             )
         }
+        if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
+            av_dict_set(options, "reconnect", "1", 0)
+            av_dict_set(options, "reconnect_streamed", "1", 0)
+            av_dict_set(options, "reconnect_on_network_error", "1", 0)
+            av_dict_set(options, "reconnect_delay_max", "5", 0)
+            av_dict_set(options, "reconnect_max_retries", "2", 0)
+            av_dict_set(options, "reconnect_delay_total_max", "8", 0)
+        }
         av_dict_set(options, "rw_timeout", "15000000", 0)
 
         val opened = AVFormatContext(null)
-        check(avformat_open_input(opened, url, null, options) >= 0) { "could not open the clip" }
+        val result = try { avformat_open_input(opened, url, null, options) } finally { av_dict_free(options) }
+        check(result >= 0) { "could not open the clip" }
         format = opened
         check(avformat_find_stream_info(opened, null as AVDictionary?) >= 0) { "no stream info" }
         streamIndex = av_find_best_stream(
@@ -90,19 +110,20 @@ internal class DesktopCanvasDecoder {
         check(streamIndex >= 0) { "no video stream" }
 
         val stream = opened.streams(streamIndex)
+        timeBaseSeconds = stream.time_base().num().toDouble() / stream.time_base().den().coerceAtLeast(1)
         val parameters = stream.codecpar()
         val decoder = avcodec_find_decoder(parameters.codec_id()) ?: error("no decoder for this clip")
         val context = avcodec_alloc_context3(decoder)
+        codec = context
         check(avcodec_parameters_to_context(context, parameters) >= 0) { "bad codec parameters" }
         check(avcodec_open2(context, decoder, null as AVDictionary?) >= 0) { "decoder refused to open" }
-        codec = context
 
         sourceWidth = context.width()
         sourceHeight = context.height()
         check(sourceWidth > 0 && sourceHeight > 0) { "the clip has no size" }
 
         // Scaled down on the way out.
-        val scale = minOf(1.0, MAX_EDGE.toDouble() / maxOf(sourceWidth, sourceHeight))
+        val scale = minOf(1.0, maxEdge.toDouble() / maxOf(sourceWidth, sourceHeight))
         width = ((sourceWidth * scale).toInt() / 2) * 2
         height = ((sourceHeight * scale).toInt() / 2) * 2
 
@@ -135,6 +156,8 @@ internal class DesktopCanvasDecoder {
         var looped = false
         while (true) {
             if (avcodec_receive_frame(context, decoded) == 0) {
+                val timestamp = decoded.best_effort_timestamp()
+                if (timestamp != Long.MIN_VALUE) positionMs = (timestamp * timeBaseSeconds * 1000).toLong().coerceAtLeast(0L)
                 val converter = scalerFor(decoded.format()) ?: return false
                 sws_scale(converter, decoded.data(), decoded.linesize(), 0, sourceHeight, planes, strides)
                 // Read through an explicit NIO view rewound each time rather than through the
@@ -145,7 +168,18 @@ internal class DesktopCanvasDecoder {
                 }
                 return true
             }
-            if (av_read_frame(container, pkt) < 0) {
+            val read = av_read_frame(container, pkt)
+            if (read < 0) {
+                if (read != AVERROR_EOF) {
+                    failure = java.io.IOException("Error al leer el vídeo ($read)")
+                    return false
+                }
+                if (!looping) {
+                    if (drained) return false
+                    drained = true
+                    avcodec_send_packet(context, null)
+                    continue
+                }
                 if (looped) return false
                 looped = true
                 av_seek_frame(container, streamIndex, 0, AVSEEK_FLAG_BACKWARD)
@@ -155,6 +189,19 @@ internal class DesktopCanvasDecoder {
             if (pkt.stream_index() == streamIndex) avcodec_send_packet(context, pkt)
             av_packet_unref(pkt)
         }
+    }
+
+    fun seek(positionMs: Long): Boolean {
+        val container = format ?: return false
+        val context = codec ?: return false
+        if (timeBaseSeconds <= 0) return false
+        val timestamp = (positionMs.coerceAtLeast(0L) / 1000.0 / timeBaseSeconds).toLong()
+        if (av_seek_frame(container, streamIndex, timestamp, AVSEEK_FLAG_BACKWARD) < 0) return false
+        avcodec_flush_buffers(context)
+        failure = null
+        drained = false
+        this.positionMs = positionMs
+        return true
     }
 
     /** The converter for the format frames are actually arriving in. */
@@ -195,6 +242,7 @@ internal class DesktopCanvasDecoder {
         format = null
         buffer = null
         view = null
+        planes?.deallocate()
         planes = null
         strides = null
         streamIndex = -1
@@ -204,8 +252,6 @@ internal class DesktopCanvasDecoder {
 
     private companion object {
         /** Plenty for a sleeve, and a quarter of the pixels of the source. */
-        const val MAX_EDGE = 540
-
         /** Thirty frames a second is motion; sixty is just more bitmaps. */
         const val MIN_INTERVAL_MS = 33L
     }

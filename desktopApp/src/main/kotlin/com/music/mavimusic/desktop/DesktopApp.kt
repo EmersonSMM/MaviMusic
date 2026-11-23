@@ -30,6 +30,8 @@ import com.music.mavimusic.data.model.EntityType
 import com.music.mavimusic.data.model.SearchHistoryEntity
 import com.music.mavimusic.ui.LocalPullToRefreshEnabled
 import com.music.mavimusic.ui.screens.ExploreScreen
+import com.music.mavimusic.ui.screens.HomeShelfActions
+import com.music.mavimusic.ui.screens.LocalHomeShelfActions
 import com.music.mavimusic.ui.screens.HomeScreen
 import com.music.mavimusic.ui.screens.CompactTrackRow
 import com.music.mavimusic.ui.screens.LibraryGridPage
@@ -461,6 +463,7 @@ fun MaviMusicDesktopApp() {
     var pageMenu by remember { mutableStateOf<(Song) -> Unit>({}) }
     val homeSeenTitles = remember { HashSet<String>() }
     var homeGeneration by remember { mutableStateOf(0) }
+    var homeJob by remember { mutableStateOf<Job?>(null) }
     var homeIdentity by remember { mutableStateOf<String?>(null) }
     var exploreState by remember { mutableStateOf<UiState<List<MoodGenreSection>>>(UiState.Loading) }
     var selectedMoodGenre by remember { mutableStateOf<MoodGenre?>(null) }
@@ -470,6 +473,10 @@ fun MaviMusicDesktopApp() {
     var moodGenreReloads by remember { mutableStateOf(0) }
     var moodGenreShelves by remember { mutableStateOf<UiState<List<HomeShelf>>>(UiState.Loading) }
     var selectedSong by remember { mutableStateOf<Song?>(null) }
+    var automaticMusicVideo by remember { mutableStateOf(persistence.boolean("immersive_music_video", true)) }
+    var musicVideo by remember { mutableStateOf<DesktopMusicVideo?>(null) }
+    var musicVideoLoading by remember { mutableStateOf(false) }
+
     // The live queue: what is playing, what played before it, what is next.
     var liveQueue by remember {
         mutableStateOf(
@@ -725,15 +732,21 @@ fun MaviMusicDesktopApp() {
         persistence.saveString("queue_index", liveQueue.index.toString())
     }
 
+    var playbackIntent by remember { mutableStateOf(0L) }
+    var radioJob by remember { mutableStateOf<Job?>(null) }
+
     /** Opens whatever the queue is currently pointing at. */
     fun playCurrent(startPlaying: Boolean = true) {
+        playbackIntent++
+        radioJob?.cancel()
+        radioJob = null
         val rawSong = liveQueue.current ?: return
         val audioCached = if (preferAudioTracks && rawSong.isVideo) YtMusicRepository.getCachedAudio(rawSong.videoId) else null
-        val song = audioCached ?: rawSong
+        val song = audioCached?.let { rawSong.withRecording(it) } ?: rawSong
         if (song.videoId != rawSong.videoId) {
             liveQueue = liveQueue.copy(
-                songs = liveQueue.songs.map { if (it.videoId == rawSong.videoId) song else it },
-            )
+                songs = liveQueue.songs.map { if (it.videoId == rawSong.videoId) it.withRecording(song) else it },
+            ).withoutDuplicates()
         }
         selectedSong = song
         history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
@@ -745,17 +758,20 @@ fun MaviMusicDesktopApp() {
 
         // Prefer songs over videos using YouTube Music's track matching engine
         if (preferAudioTracks && song.isVideo) {
+            val intent = playbackIntent
             scope.launch {
                 runCatching {
                     val resolvedAudio = YtMusicRepository.resolveAudio(song)
                     if (resolvedAudio.videoId != song.videoId && !resolvedAudio.isVideo) {
                         DesktopTrackLog.log("audio prefer: resolved video '${song.title}' to official song '${resolvedAudio.title}' (${resolvedAudio.videoId})")
-                        if (selectedSong?.videoId == song.videoId) {
-                            selectedSong = resolvedAudio
+                        if (selectedSong?.videoId == song.videoId && intent == playbackIntent) {
+                            val updated = song.withRecording(resolvedAudio)
+                            selectedSong = updated
                             liveQueue = liveQueue.copy(
-                                songs = liveQueue.songs.map { if (it.videoId == song.videoId) resolvedAudio else it },
-                            )
-                            playbackEngine.load(resolvedAudio, playbackEngine.state.value.isPlaying)
+                                songs = liveQueue.songs.map { if (it.videoId == song.videoId) it.withRecording(resolvedAudio) else it },
+                            ).withoutDuplicates()
+                            saveQueue()
+                            playbackEngine.load(updated, playbackEngine.wantsPlayback, playbackEngine.state.value.positionMs)
                         }
                     }
                 }
@@ -766,22 +782,26 @@ fun MaviMusicDesktopApp() {
     var isSwitchingAudioVideoMode by remember { mutableStateOf(false) }
 
     fun toggleAudioVideoMode(song: Song) {
-        if (isSwitchingAudioVideoMode) return
+        if (isSwitchingAudioVideoMode || DesktopListenTogether.state.value.inParty) return
         val targetIsVideo = !song.isVideo
         isSwitchingAudioVideoMode = true
+        val intent = ++playbackIntent
         scope.launch {
             try {
                 if (targetIsVideo) {
                     DesktopTrackLog.log("video switch: user requested music video for '${song.title}'")
                     val videoCut = YtMusicRepository.resolveVideo(song)
+                    if (intent != playbackIntent || selectedSong?.videoId != song.videoId || DesktopListenTogether.state.value.inParty) return@launch
                     if (videoCut != null) {
                         preferAudioTracks = false
                         persistence.savePreferAudioTracks(false)
-                        selectedSong = videoCut
+                        val updated = song.withRecording(videoCut)
+                        selectedSong = updated
                         liveQueue = liveQueue.copy(
-                            songs = liveQueue.songs.map { if (it.videoId == song.videoId) videoCut else it },
+                            songs = liveQueue.songs.map { if (it.videoId == song.videoId) it.withRecording(videoCut) else it },
                         )
-                        playbackEngine.load(videoCut, playbackEngine.state.value.isPlaying)
+                        saveQueue()
+                        playbackEngine.load(updated, playbackEngine.wantsPlayback, playbackEngine.state.value.positionMs)
                         DesktopPlayerHost.showMessage("Modo Video Musical activado")
                     } else {
                         DesktopPlayerHost.showMessage("No se encontró versión videoclip para esta canción")
@@ -789,19 +809,24 @@ fun MaviMusicDesktopApp() {
                 } else {
                     DesktopTrackLog.log("audio switch: user requested official song for '${song.title}'")
                     val audioCut = YtMusicRepository.resolveAudio(song)
+                    if (intent != playbackIntent || selectedSong?.videoId != song.videoId || DesktopListenTogether.state.value.inParty) return@launch
                     if (audioCut.videoId != song.videoId) {
                         preferAudioTracks = true
                         persistence.savePreferAudioTracks(true)
-                        selectedSong = audioCut
+                        val updated = song.withRecording(audioCut)
+                        selectedSong = updated
                         liveQueue = liveQueue.copy(
-                            songs = liveQueue.songs.map { if (it.videoId == song.videoId) audioCut else it },
+                            songs = liveQueue.songs.map { if (it.videoId == song.videoId) it.withRecording(audioCut) else it },
                         ).withoutDuplicates()
-                        playbackEngine.load(audioCut, playbackEngine.state.value.isPlaying)
+                        saveQueue()
+                        playbackEngine.load(updated, playbackEngine.wantsPlayback, playbackEngine.state.value.positionMs)
                         DesktopPlayerHost.showMessage("Modo Canción Oficial (álbum) activado")
                     } else {
                         DesktopPlayerHost.showMessage("Ya estás reproduciendo la versión oficial de estudio")
                     }
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 DesktopTrackLog.log("video switch error: ${e.message}")
                 DesktopPlayerHost.showMessage("No se pudo cambiar el modo de video")
@@ -1060,48 +1085,41 @@ fun MaviMusicDesktopApp() {
     /** Starts the station YouTube Music builds around one track. */
     fun startRadio(song: Song) {
         if (partyTrackChangeBlocked()) return
-        scope.launch {
-            val resolvedSong = if (song.videoId.isBlank()) {
-                val query = song.artist.takeIf { !it.isUnknownArtist() } ?: song.title
-                DesktopSearchClient.search(query, SearchFilter.SONGS)
-                    .getOrNull()
-                    ?.filterIsInstance<SearchResult.Track>()
-                    ?.firstOrNull()?.song
-                    ?: DesktopSearchClient.search(query, SearchFilter.SONGS)
-                    .getOrNull()
-                    ?.filterIsInstance<SearchResult.TopTrack>()
-                    ?.firstOrNull()?.song
-                    ?: song
-            } else {
-                song
+        val intent = ++playbackIntent
+        radioJob?.cancel()
+        DesktopPlayerHost.showMessage("Preparando radio…")
+        radioJob = scope.launch {
+            try {
+                val resolvedSong = if (song.videoId.isBlank()) {
+                    val query = song.artist.takeIf { !it.isUnknownArtist() } ?: song.title
+                    val results = DesktopSearchClient.search(query, SearchFilter.SONGS).getOrThrow()
+                    results.filterIsInstance<SearchResult.Track>().firstOrNull()?.song
+                        ?: results.filterIsInstance<SearchResult.TopTrack>().firstOrNull()?.song
+                        ?: error("No se encontró una canción para iniciar la radio")
+                } else song
+                if (intent != playbackIntent || partyTrackChangeBlocked()) return@launch
+                val seed = canonicalSong(resolvedSong).copy(radioName = resolvedSong.title)
+                val related = DesktopAutoplay.tracksFor(listOf(seed), seed, INITIAL_RADIO_TRACKS).getOrThrow()
+                if (intent != playbackIntent || partyTrackChangeBlocked()) return@launch
+                if (related.isEmpty()) {
+                    DesktopPlayerHost.showMessage("Sin canciones relacionadas; reproduciendo la canción elegida")
+                    playSong(seed)
+                } else if (liveQueue.current?.videoId == seed.videoId) {
+                    liveQueue = DesktopQueue(listOf(liveQueue.current!!) + related, index = 0).withoutDuplicates()
+                    saveQueue()
+                    partySyncHolder[0]?.onLocalIntent()
+                } else {
+                    radioJob = null
+                    val station = listOf(seed.asQueueEntry(QueueTier.CONTEXT)) + related
+                    liveQueue = if (shuffle) DesktopQueue.shuffledStartingAt(station, 0) else DesktopQueue(station, 0)
+                    preShuffleOrder = if (shuffle) station.map(DesktopQueue::orderKey) else emptyList()
+                    playCurrent()
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (intent == playbackIntent) DesktopPlayerHost.showMessage("No se pudo iniciar la radio: ${failure.message}")
             }
-            if (resolvedSong.videoId.isBlank()) {
-                DesktopTrackLog.log("radio: could not resolve seed track for '${song.title}'")
-                return@launch
-            }
-            val seed = canonicalSong(resolvedSong).copy(radioName = resolvedSong.title)
-            // AutoPlay's section behind the seed, as the phone queues a station — which is also
-            // what lets a party share it: a context tail is never published.
-            val related = DesktopAutoplay.tracksFor(listOf(seed), seed, INITIAL_RADIO_TRACKS)
-                .getOrNull()
-                .orEmpty()
-            if (related.isEmpty()) {
-                DesktopTrackLog.log("radio: nothing to build a station on for '${resolvedSong.title}'")
-                playSong(seed)
-                return@launch
-            }
-            if (partyTrackChangeBlocked()) return@launch
-            if (liveQueue.current?.videoId == seed.videoId) {
-                liveQueue = DesktopQueue(listOf(liveQueue.current!!) + related, index = 0)
-                saveQueue()
-                partySyncHolder[0]?.onLocalIntent()
-            } else {
-                val station = listOf(seed.asQueueEntry(QueueTier.CONTEXT)) + related
-                liveQueue = if (shuffle) DesktopQueue.shuffledStartingAt(station, 0) else DesktopQueue(station, 0)
-                preShuffleOrder = if (shuffle) station.map(DesktopQueue::orderKey) else emptyList()
-                playCurrent()
-            }
-            DesktopTrackLog.log("radio: started a station on '${resolvedSong.title}' with ${related.size} tracks")
         }
     }
 
@@ -1811,6 +1829,7 @@ fun MaviMusicDesktopApp() {
     }
     fun togglePlayPauseFromUser() {
         if (partySync.handleLockedPlayPause()) return
+        if (playbackEngine.state.value.error != null) playbackIntent++
         playbackEngine.togglePlayPause()
         partySync.onLocalIntent()
     }
@@ -1819,6 +1838,7 @@ fun MaviMusicDesktopApp() {
             if (!playbackEngine.state.value.isPlaying) partySync.handleLockedPlayPause()
             return
         }
+        if (playbackEngine.state.value.error != null) playbackIntent++
         playbackEngine.play()
         partySync.onLocalIntent()
     }
@@ -1991,10 +2011,10 @@ fun MaviMusicDesktopApp() {
     LaunchedEffect(audioDeviceChanges, audioDeviceSelected) {
         DesktopAutoEqSettings.onAudioDeviceChanged(DesktopAudioDevices.label())
     }
-    LaunchedEffect(spatialAudio, skipSilence, outputPrecision, volumeNormalization, smartTrim) {
+    LaunchedEffect(spatialAudio, skipSilence, outputPrecision, volumeNormalization, smartTrim, musicVideo?.song?.videoId) {
         playbackEngine.setSpatialAudio(spatialAudio)
-        playbackEngine.setSkipSilence(skipSilence)
-        playbackEngine.setSmartTrim(smartTrim)
+        playbackEngine.setSkipSilence(skipSilence && musicVideo == null)
+        playbackEngine.setSmartTrim(smartTrim && musicVideo == null)
         playbackEngine.setOutputPrecision(outputPrecision)
         playbackEngine.setVolumeNormalization(volumeNormalization)
     }
@@ -2003,12 +2023,13 @@ fun MaviMusicDesktopApp() {
     // the next song at a different moment and be dragged back by a correcting seek. The transition a
     // party shares is the plain one. The settings themselves are left alone and come back after.
     val inParty = partyState.inParty
-    LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode) {
-        playbackEngine.setAutomixEnabled(automix && !inParty)
-        playbackEngine.setAutomixPhraseBars(if (automix && !inParty) automixPhraseBars else 0)
-        playbackEngine.setCrossfadeSeconds(if (inParty) 0 else crossfadeSeconds)
+    LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode, musicVideo?.song?.videoId) {
+        val canMix = !inParty && musicVideo == null
+        playbackEngine.setAutomixEnabled(automix && canMix)
+        playbackEngine.setAutomixPhraseBars(if (automix && canMix) automixPhraseBars else 0)
+        playbackEngine.setCrossfadeSeconds(if (canMix) crossfadeSeconds else 0)
         // A party mixes only with the plain transition, so a skip there cuts like it always did.
-        playbackEngine.setSkipMixEnabled(automixOnSkip && !inParty)
+        playbackEngine.setSkipMixEnabled(automixOnSkip && canMix)
         // Exactly what Next would play, so a crossfade can never blend into anything else. Shuffle
         // is already the queue's order; picking "the first track that is not this one" under it
         // blended into a song from history whenever the current one was not at the top.
@@ -2115,6 +2136,84 @@ fun MaviMusicDesktopApp() {
             playerPosition.seeks = it.seeks
             playerPosition.advancing = !it.awaitingAudio
         }
+    }
+
+    fun replaceRecording(version: Song, direct: DesktopStream? = null, resume: Boolean = playbackEngine.wantsPlayback, startAtMs: Long = playbackEngine.state.value.positionMs) {
+        val current = liveQueue.current ?: return
+        val updated = current.withRecording(version)
+        val positionMs = startAtMs
+        playbackIntent++
+        selectedSong = updated
+        liveQueue = liveQueue.copy(songs = liveQueue.songs.mapIndexed { index, song -> if (index == liveQueue.index) updated else song })
+        saveQueue()
+        if (direct != null) playbackEngine.loadMusicVideo(updated, direct, resume, positionMs)
+        else playbackEngine.load(updated, resume, positionMs)
+    }
+
+    LaunchedEffect(overlays.immersiveLyrics, automaticMusicVideo, selectedSong?.videoId, inParty) {
+        val current = selectedSong
+        if (!overlays.immersiveLyrics || !automaticMusicVideo || inParty) {
+            val previous = musicVideo
+            musicVideo = null
+            musicVideoLoading = false
+            if (!inParty && previous != null && current?.videoId == previous.song.videoId) {
+                val state = playbackEngine.state.value
+                replaceRecording(previous.original, resume = playbackEngine.wantsPlayback, startAtMs = state.positionMs)
+            }
+            return@LaunchedEffect
+        }
+        if (current == null || current.localPath != null || current.localUri != null || musicVideo?.song?.videoId == current.videoId) return@LaunchedEffect
+        musicVideo = null
+        musicVideoLoading = true
+        val intent = playbackIntent
+        try {
+            val matched = kotlinx.coroutines.withTimeout(35_000L) {
+                val version = if (current.isVideo) current else findMusicVideo(current)
+                version?.let { it to com.music.mavimusic.data.innertube.StreamResolver.resolveVideoStreams(it.videoId) }
+            }
+            if (matched != null && intent == playbackIntent && selectedSong?.videoId == current.videoId) {
+                val (version, streams) = matched
+                val resume = playbackEngine.wantsPlayback
+                val headers = com.music.mavimusic.data.innertube.StreamResolver.mediaHeadersFor(streams.videoUrl)
+                musicVideo = DesktopMusicVideo(current, version, streams.videoUrl, headers, resume, playbackEngine.state.value.positionMs)
+                replaceRecording(version, DesktopStream(streams.audioUrl, headers = com.music.mavimusic.data.innertube.StreamResolver.mediaHeadersFor(streams.audioUrl)), resume)
+            }
+        } catch (timeout: kotlinx.coroutines.TimeoutCancellationException) {
+            DesktopPlayerHost.showMessage("El videoclip tardó demasiado; continúa el visualizador")
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            DesktopTrackLog.log("music video: ${failure.message}")
+            DesktopPlayerHost.showMessage("Videoclip no disponible; continúa el visualizador")
+        } finally {
+            musicVideoLoading = false
+        }
+    }
+    LaunchedEffect(playback.error, musicVideo) {
+        if (musicVideo != null && playback.song?.videoId == musicVideo?.song?.videoId && playback.error != null) {
+            DesktopPlayerHost.showMessage("No se pudo abrir el audio del videoclip; recuperando la canción")
+            automaticMusicVideo = false
+        }
+    }
+
+    val playbackRecovery = remember { DesktopPlaybackRecovery() }
+    LaunchedEffect(playback.error, playback.seeks, playbackIntent, selectedSong?.videoId, inParty) {
+        val failed = playbackEngine.state.value
+        val error = failed.error ?: return@LaunchedEffect
+        val song = failed.song ?: return@LaunchedEffect
+        if (musicVideo != null || inParty || !playbackEngine.wantsPlayback || selectedSong?.videoId != song.videoId) return@LaunchedEffect
+        val intent = playbackIntent
+        val remote = song.localPath == null && song.localUri == null && DesktopDownloadManager.savedFile(song) == null
+        val wait = playbackRecovery.nextDelay("${song.queueEntryId ?: song.videoId}/$intent", remote, error, failed.positionMs)
+        if (wait == null) {
+            DesktopPlayerHost.showMessage("No se pudo recuperar la canción. Pulsa Reproducir para reintentar.")
+            return@LaunchedEffect
+        }
+        DesktopPlayerHost.showMessage("Conexión interrumpida. Recuperando la canción…")
+        delay(wait)
+        if (intent != playbackIntent || selectedSong?.videoId != song.videoId || DesktopListenTogether.state.value.inParty || !playbackEngine.wantsPlayback || playbackEngine.state.value.error == null) return@LaunchedEffect
+        com.music.mavimusic.data.innertube.StreamResolver.invalidateResolvedStream(song.videoId)
+        playbackEngine.load(song, true, failed.positionMs, forceFresh = true)
     }
 
     // Lyrics and motion artwork follow whatever is *playing*, not whatever page happens to be open.
@@ -2718,9 +2817,8 @@ fun MaviMusicDesktopApp() {
     fun openShelfItem(item: ShelfItem, shelfTitle: String? = null) {
         val videoId = item.videoId
         val browseId = item.browseId
-        val isRadio = shelfTitle?.contains("Radio", ignoreCase = true) == true ||
-            browseId?.startsWith("RADIO_") == true ||
-            item.title.startsWith("Radio ", ignoreCase = true)
+        val isRadio = browseId?.startsWith("RADIO_") == true ||
+            (browseId == null && shelfTitle?.equals("Radio", ignoreCase = true) == true)
         val browseType = browseTypeOf(browseId.orEmpty())
 
         when {
@@ -2731,9 +2829,8 @@ fun MaviMusicDesktopApp() {
                     val cleanTitle = item.title.removePrefix("Radio de ").removePrefix("Radio ").trim()
                     history.firstOrNull { it.artist.contains(cleanTitle, ignoreCase = true) }
                         ?: localSongs.firstOrNull { it.artist.contains(cleanTitle, ignoreCase = true) }
-                        ?: item.toSong()
+                        ?: item.toSong().copy(artist = cleanTitle)
                 }
-                DesktopPlayerHost.showMessage("📻 ${item.title}")
                 startRadio(seed)
             }
             browseId != null && browseType == BrowseType.ARTIST ->
@@ -3024,12 +3121,12 @@ fun MaviMusicDesktopApp() {
         if (prepend) {
             val replacing = shelves.map { it.title.lowercase() }.toSet()
             homeSeenTitles.addAll(replacing)
-            homeState = UiState.Success(shelves + existing.filterNot { it.title.lowercase() in replacing })
+            homeState = UiState.Success(mergeHomeShelves(existing, shelves, prepend = true))
             return
         }
         val added = shelves.withoutRepeatsOf(existing)
             .filter { it.items.isNotEmpty() && homeSeenTitles.add(it.title.lowercase()) }
-        if (added.isNotEmpty()) homeState = UiState.Success(existing + added)
+        if (added.isNotEmpty()) homeState = UiState.Success(mergeHomeShelves(existing, added, prepend = false))
     }
 
     fun publishPersonalizedHomeShelves(shelves: List<HomeShelf>) {
@@ -3037,24 +3134,13 @@ fun MaviMusicDesktopApp() {
         val existing = (homeState as? UiState.Success)?.data.orEmpty()
         val replacing = shelves.map { it.title.lowercase() }.toSet()
         homeSeenTitles.addAll(replacing)
-        val filtered = existing.filterNot { it.title.lowercase() in replacing }
-        val recentsIdx = filtered.indexOfFirst {
-            it.title.equals("recently played", ignoreCase = true) ||
-                it.title.equals("escuchar de nuevo", ignoreCase = true)
-        }
-        val updated = if (recentsIdx >= 0) {
-            filtered.take(recentsIdx + 1) + shelves + filtered.drop(recentsIdx + 1)
-        } else {
-            shelves + filtered
-        }
-        homeState = UiState.Success(updated)
+        homeState = UiState.Success(mergePersonalizedHomeShelves(existing, shelves))
     }
 
-    fun buildStartRadioShelf(): HomeShelf? {
+    fun buildStartRadioShelf(topStatsArtists: List<DesktopRankedEntry>): HomeShelf? {
         val candidates = mutableListOf<ShelfItem>()
         val seenArtists = mutableSetOf<String>()
 
-        val topStatsArtists = DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME).artists
         val statsArtistNames = topStatsArtists.map { it.title }
         val historyArtistNames = history.map { it.artist }.filter { it.isNotBlank() }
         val allArtists = (statsArtistNames + historyArtistNames)
@@ -3062,8 +3148,8 @@ fun MaviMusicDesktopApp() {
             .filter { it.isNotBlank() && !it.isUnknownArtist() }
             .distinct()
 
-        // 1. Artist Radios (up to 5 rotating artists)
-        for (artist in allArtists.shuffled().take(5)) {
+        // Artist radios from the listening ranking.
+        for (artist in allArtists.take(5)) {
             if (seenArtists.add(artist.lowercase())) {
                 val seed = history.firstOrNull { it.artist.contains(artist, ignoreCase = true) }
                     ?: localSongs.firstOrNull { it.artist.contains(artist, ignoreCase = true) }
@@ -3072,7 +3158,7 @@ fun MaviMusicDesktopApp() {
                 candidates.add(
                     ShelfItem(
                         title = "Radio de $artist",
-                        subtitle = DesktopStrings["artist_radio_subtitle", "Estación de artista"],
+                        subtitle = artist,
                         thumbnailUrl = art ?: seed?.thumbnailUrl,
                         videoId = seed?.videoId,
                         browseId = "RADIO_ARTIST_${seed?.videoId ?: artist}",
@@ -3081,8 +3167,8 @@ fun MaviMusicDesktopApp() {
             }
         }
 
-        // 2. Favorite / recent tracks radios (up to 4 rotating songs)
-        val seedSongs = history.distinctBy { it.videoId }.shuffled().take(4)
+        // Recent track radios remain stable while browsing Home.
+        val seedSongs = history.distinctBy { it.videoId }.take(4)
         for (song in seedSongs) {
             candidates.add(
                 ShelfItem(
@@ -3103,47 +3189,46 @@ fun MaviMusicDesktopApp() {
         )
     }
 
-    suspend fun loadPersonalizedAlbumsShelf(): HomeShelf? {
-        val topStatsArtists = DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME).artists
-        val historyArtists = history.map { it.artist }.filter { it.isNotBlank() }
-        val allArtists = (topStatsArtists.map { it.title } + historyArtists)
-            .map { DesktopListeningStats.primaryArtist(it) }
-            .filter { it.isNotBlank() && !it.isUnknownArtist() }
-            .distinct()
-
-        if (allArtists.isEmpty()) return null
-
-        // Pick 2-3 rotating artists each time Home loads so recommendations vary continuously
-        val pickedArtists = allArtists.shuffled().take(3)
-        val albumItems = mutableListOf<ShelfItem>()
-        val seenAlbumBrowseIds = mutableSetOf<String>()
-
-        for (artist in pickedArtists) {
-            val results = DesktopSearchClient.search(artist, SearchFilter.ALBUMS).getOrNull().orEmpty()
-            for (res in results) {
-                if (res is SearchResult.Browse) {
-                    val bId = res.item.browseId
-                    if (seenAlbumBrowseIds.add(bId)) {
-                        albumItems.add(
-                            ShelfItem(
-                                title = res.item.title,
-                                subtitle = res.item.subtitle.ifBlank { artist },
-                                thumbnailUrl = res.item.thumbnailUrl,
-                                videoId = null,
-                                browseId = bId,
-                            )
-                        )
-                    }
+    val recommendationFeedback = remember { DesktopRecommendationFeedback({ persistence.string(it) }, { key, value -> persistence.saveString(key, value) }) }
+    val homeRecommendations = remember { DesktopHomeRecommendations(feedback = recommendationFeedback) }
+    var suggestionMenuItem by remember { mutableStateOf<ShelfItem?>(null) }
+    var recommendationRefreshJob by remember { mutableStateOf<Job?>(null) }
+    var recommendationsRefreshing by remember { mutableStateOf(false) }
+    var recommendationRefreshRequest by remember { mutableStateOf(0) }
+    suspend fun personalizedShelves(frequentArtists: List<DesktopRankedEntry>): List<HomeShelf> {
+        val favorites = (history + playlists.flatMap { it.songs } + (libraryState as? UiState.Success)?.data?.likedSongs.orEmpty()).filter { it.videoId in likedIds }.distinctBy { it.videoId }
+        val artists = DesktopHomeRecommendations.rankedArtists(history, frequentArtists.map { it.title }, favorites, recommendationFeedback::artistPenalty)
+        return homeRecommendations.load(artists)
+    }
+    fun refreshHomeRecommendations() {
+        recommendationRefreshJob?.cancel()
+        val request = ++recommendationRefreshRequest
+        val generation = homeGeneration
+        recommendationsRefreshing = true
+        homeRecommendations.invalidate()
+        recommendationRefreshJob = scope.launch {
+            try {
+                val artists = withContext(Dispatchers.IO) { DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME).artists }
+                val shelves = personalizedShelves(artists)
+                if (generation == homeGeneration && request == recommendationRefreshRequest) {
+                    if (shelves.isEmpty()) DesktopPlayerHost.showMessage("No se pudieron actualizar las sugerencias. Inténtalo de nuevo.")
+                    else publishPersonalizedHomeShelves(shelves)
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (generation == homeGeneration && request == recommendationRefreshRequest) DesktopPlayerHost.showMessage("No se pudieron actualizar las sugerencias. Inténtalo de nuevo.")
+            } finally {
+                if (request == recommendationRefreshRequest) recommendationsRefreshing = false
             }
         }
-
-        if (albumItems.isEmpty()) return null
-        return HomeShelf(
-            title = DesktopStrings["albums_for_you", "Álbumes para ti"],
-            items = albumItems.shuffled(),
-            subtitle = DesktopStrings["albums_for_you_subtitle", "Basados en tus artistas más escuchados"],
-        )
+    }
+    fun isPersonalizedShelf(shelf: HomeShelf): Boolean = shelf.title in setOf(DesktopStrings["suggested_music", "Música sugerida"], DesktopStrings["albums_for_you", "Álbumes para ti"])
+    fun dismissSuggestion(item: ShelfItem) {
+        recommendationFeedback.dismiss(item, homeRecommendations.artistFor(item))
+        val shelves = (homeState as? UiState.Success)?.data ?: return
+        homeState = UiState.Success(shelves.map { shelf -> if (isPersonalizedShelf(shelf)) shelf.copy(items = shelf.items.filterNot(recommendationFeedback::isHidden)) else shelf })
+        DesktopPlayerHost.showMessage("Sugerencia ocultada")
     }
 
     /**
@@ -3152,11 +3237,13 @@ fun MaviMusicDesktopApp() {
      * there is no Recently Played to ask for, which is also how the phone has it.
      */
     fun loadHome() {
+        recommendationRefreshJob?.cancel()
+        homeJob?.cancel()
+        val generation = ++homeGeneration
         if (!youtubeSourceEnabled) {
             homeState = UiState.Error("YouTube Music is disabled")
             return
         }
-        val generation = ++homeGeneration
         val signedIn = DesktopYouTubeAuth.isSignedIn
         homeIdentity = "$signedIn/${DesktopAccounts.activeAccountId()}"
         homeState = UiState.Loading
@@ -3164,8 +3251,27 @@ fun MaviMusicDesktopApp() {
         homeSeenTitles.clear()
         homeLoadingMore = false
         homeRecentsLoading = signedIn
-        scope.launch {
-            val radioShelf = buildStartRadioShelf()
+        fun localRecentsShelf(): HomeShelf? {
+            val items = history.distinctBy { it.videoId }.take(20).map {
+                ShelfItem(
+                    title = it.title,
+                    subtitle = it.artist,
+                    thumbnailUrl = it.thumbnailUrl,
+                    videoId = it.videoId,
+                    browseId = null,
+                )
+            }
+            return if (items.isEmpty()) null else HomeShelf(title = "Recents", items = items)
+        }
+        if (!signedIn) {
+            localRecentsShelf()?.let { publishHomeShelves(listOf(it), prepend = true) }
+        }
+        homeJob = scope.launch {
+            val frequentArtists = withContext(Dispatchers.Default) {
+                DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME).artists
+            }
+            if (generation != homeGeneration) return@launch
+            val radioShelf = buildStartRadioShelf(frequentArtists)
             if (radioShelf != null) {
                 publishPersonalizedHomeShelves(listOf(radioShelf))
             }
@@ -3190,31 +3296,24 @@ fun MaviMusicDesktopApp() {
                         .onSuccess { shelf ->
                             if (generation != homeGeneration) return@onSuccess
                             homeRecentsLoading = false
-                            shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
+                            (shelf ?: localRecentsShelf())?.let { publishHomeShelves(listOf(it), prepend = true) }
                         }
-                        .onFailure { if (generation == homeGeneration) homeRecentsLoading = false }
+                        .onFailure {
+                            if (generation != homeGeneration) return@onFailure
+                            homeRecentsLoading = false
+                            localRecentsShelf()?.let { publishHomeShelves(listOf(it), prepend = true) }
+                        }
                 }
             }
             launch {
-                val albumsShelf = loadPersonalizedAlbumsShelf()
-                if (generation == homeGeneration && albumsShelf != null) {
-                    publishPersonalizedHomeShelves(listOf(albumsShelf))
-                }
+                val shelves = personalizedShelves(frequentArtists)
+                if (generation == homeGeneration && shelves.isNotEmpty()) publishPersonalizedHomeShelves(shelves)
             }
             DesktopSearchClient.HOME_SUPPLEMENT_BROWSE_IDS.forEach { browseId ->
                 launch {
                     DesktopSearchClient.homeSupplement(browseId).onSuccess { shelves ->
                         if (generation == homeGeneration) {
-                            val existing = (homeState as? UiState.Success)?.data.orEmpty()
-                            val hasPersonalized = existing.any { it.title.equals(DesktopStrings["albums_for_you", "Álbumes para ti"], ignoreCase = true) }
-                            val filteredShelves = if (hasPersonalized && browseId == "FEmusic_new_releases") {
-                                emptyList()
-                            } else {
-                                shelves
-                            }
-                            if (filteredShelves.isNotEmpty()) {
-                                publishHomeShelves(filteredShelves)
-                            }
+                            publishHomeShelves(shelves)
                         }
                     }
                 }
@@ -4547,6 +4646,17 @@ fun MaviMusicDesktopApp() {
                     ) {
                         val current = selectedSong ?: return@AnimatedVisibility
                         DesktopImmersiveLyricsScreen(
+                            musicVideo = musicVideo?.takeIf { it.song.videoId == current.videoId },
+                            musicVideoLoading = musicVideoLoading,
+                            automaticMusicVideo = automaticMusicVideo,
+                            onAutomaticMusicVideoChange = {
+                                automaticMusicVideo = it
+                                persistence.saveBoolean("immersive_music_video", it)
+                            },
+                            onMusicVideoFailure = {
+                                DesktopPlayerHost.showMessage("Videoclip no disponible; recuperando la canción")
+                                automaticMusicVideo = false
+                            },
                             song = current,
                             isPlaying = playback.isPlaying,
                             isLoading = playback.isLoading,
@@ -4588,6 +4698,15 @@ fun MaviMusicDesktopApp() {
                             volumeNormalizationActive = volumeNormalization && (playback.volumeNormalizationActive || playback.loudnessDb != null),
                             onClose = { overlays.immersiveLyrics = false },
                             modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    suggestionMenuItem?.let { item ->
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { suggestionMenuItem = null },
+                            title = { Text(item.title) },
+                            text = { Text("Ocultar esta colección y mostrar menos sugerencias de este artista.") },
+                            confirmButton = { androidx.compose.material3.TextButton(onClick = { dismissSuggestion(item); suggestionMenuItem = null }) { Text("No me interesa") } },
+                            dismissButton = { androidx.compose.material3.TextButton(onClick = { suggestionMenuItem = null }) { Text("Cancelar") } },
                         )
                     }
                     if (overlays.accounts) {
@@ -5208,7 +5327,7 @@ fun MaviMusicDesktopApp() {
                             },
                             onShuffle = { songs ->
                                 setShuffle(true)
-                                playSongs(songs.shuffled(), 0, openedArtist?.let { artistSource(it) })
+                                playSongs(songs, songs.indices.randomOrNull() ?: 0, openedArtist?.let { artistSource(it) })
                             },
                             onOpenMenu = { song -> openMenu(song) },
                             onShelfItemClick = ::openShelfItem,
@@ -5255,7 +5374,7 @@ fun MaviMusicDesktopApp() {
                                 },
                                 onShuffle = { songs ->
                                     setShuffle(true)
-                                    playSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
+                                    playSongs(songs, songs.indices.randomOrNull() ?: 0, openedCollection?.let { collectionSource(it) })
                                 },
                                 onDownloadAll = { downloadAll(it, DesktopDownloadContext.from(openedCollection)) },
                                 animatedCanvas = animatedCanvas,
@@ -5281,13 +5400,14 @@ fun MaviMusicDesktopApp() {
                                 },
                             )
                         }
-                        destination == DesktopDestination.LISTEN_NOW -> HomeScreen(
+                        destination == DesktopDestination.LISTEN_NOW -> CompositionLocalProvider(LocalHomeShelfActions provides HomeShelfActions(::isPersonalizedShelf, ::refreshHomeRecommendations, recommendationsRefreshing)) {
+                        HomeScreen(
                             state = homeState,
                             listState = homeListState,
                             onItemClick = { item, shelfTitle -> openShelfItem(item, shelfTitle) },
                             onRetry = ::loadHome,
                             refreshing = false,
-                            onRefresh = ::loadHome,
+                            onRefresh = { homeRecommendations.invalidate(); loadHome() },
                             pullState = rememberPullToRefreshState(),
                             contentPadding = sharedPagePadding,
                             title = null,
@@ -5299,12 +5419,16 @@ fun MaviMusicDesktopApp() {
                                 accounts.isNotEmpty() -> "Tu perfil está guardado, pero falta una sesión activa. Inicia sesión o usa la recuperación opcional en Ajustes → Cuenta."
                                 else -> null
                             },
-                            onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
+                            onItemLongPress = { item ->
+                                if (homeRecommendations.artistFor(item) != null) suggestionMenuItem = item
+                                else if (item.videoId != null) openMenu(item.toSong())
+                            },
                             onLoadMore = ::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentsLoading,
                             leadHero = false,
                         )
+                                                }
                         destination == DesktopDestination.EXPLORE && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
                             MoodGenrePlaylistsScreen(
                                 title = selectedMoodGenre!!.title,

@@ -60,6 +60,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -227,6 +229,11 @@ internal enum class VisualizerSubmenu {
 @Composable
 internal fun DesktopImmersiveLyricsScreen(
     song: Song,
+    musicVideo: DesktopMusicVideo? = null,
+    musicVideoLoading: Boolean = false,
+    automaticMusicVideo: Boolean = true,
+    onAutomaticMusicVideoChange: (Boolean) -> Unit = {},
+    onMusicVideoFailure: (String) -> Unit = {},
     isPlaying: Boolean,
     isLoading: Boolean,
     position: PlaybackPosition,
@@ -290,6 +297,13 @@ internal fun DesktopImmersiveLyricsScreen(
     var showQueuePanel by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var activeSubmenu by remember { mutableStateOf(VisualizerSubmenu.NONE) }
+
+    LaunchedEffect(musicVideo != null, musicVideoLoading) {
+        if (musicVideo != null || musicVideoLoading) {
+            menuExpanded = false
+            activeSubmenu = VisualizerSubmenu.NONE
+        }
+    }
 
     val closeLyrics = androidx.compose.runtime.rememberUpdatedState(onClose)
     val hostWindow = LocalDesktopWindowScope.current?.window
@@ -367,7 +381,9 @@ internal fun DesktopImmersiveLyricsScreen(
                 onClick = {}, // Consumes all clicks so they never skip tracks or leak underneath
             ),
     ) {
-        if (visualMode == ImmersiveVisualMode.APPLE_LYRICS) {
+        if (musicVideo != null) {
+            // The video stage provides the backdrop; suspend visualizer work while it is visible.
+        } else if (visualMode == ImmersiveVisualMode.APPLE_LYRICS) {
             MeshGradientBackground(
                 palette = artworkPalette,
                 trackKey = song.videoId,
@@ -428,9 +444,22 @@ internal fun DesktopImmersiveLyricsScreen(
                     .padding(start = topStartPadding, end = 24.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DesktopLyricsClose(onClose)
+                DesktopLyricsClose(onClose, tint = Color.White)
 
-                Spacer(Modifier.weight(1f))
+                if (musicVideo != null) {
+                    Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                        Text(song.title, color = Color.White, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(song.artist, color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                } else Spacer(Modifier.weight(1f))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(selected = !automaticMusicVideo, onClick = { onAutomaticMusicVideoChange(false) }, label = { Text("Audio") })
+                    FilterChip(selected = automaticMusicVideo, onClick = { onAutomaticMusicVideoChange(true) }, label = { Text("Vídeo") })
+                    if (musicVideoLoading) Text("Buscando videoclip…", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    else if (automaticMusicVideo && musicVideo == null) Text("Sin videoclip disponible", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                }
+                Spacer(Modifier.width(16.dp))
 
                 // Dynamic real audio quality indicator (Point B.7) + Floating Queue toggle button (Q)
                 val qualityBadgeText = remember(streamFormat, song.videoId, song.sourceQuality) {
@@ -554,7 +583,14 @@ internal fun DesktopImmersiveLyricsScreen(
                 val isWide = maxWidth >= 860.dp
                 val displayLyrics = visualMode == ImmersiveVisualMode.APPLE_LYRICS || showLyricsInWinamp
 
-                if (isWide && displayLyrics) {
+                if (musicVideo != null) {
+                    DesktopMusicVideoStage(
+                        video = musicVideo, position = position, isPlaying = isPlaying, isLoading = isLoading,
+                        durationMs = durationMs, volume = volume, onVolumeChange = onVolumeChange, onSeek = onSeek, onPlayPause = onPlayPause,
+                        onPrevious = onPrevious, onNext = onNext, onFailure = onMusicVideoFailure,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (isWide && displayLyrics) {
                     Row(
                         modifier = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.spacedBy(36.dp),
@@ -650,6 +686,7 @@ internal fun DesktopImmersiveLyricsScreen(
             }
         }
 
+        if (musicVideo == null && !musicVideoLoading) {
         // Bottom-left visualizer effects selector (sober, clean, no emojis)
         Box(
             modifier = Modifier
@@ -1169,6 +1206,8 @@ internal fun DesktopImmersiveLyricsScreen(
             }
         }
 
+        }
+
         // Dedicated Floating Glass Queue Panel on the right (Point B.6)
         if (showQueuePanel) {
             Surface(
@@ -1452,7 +1491,7 @@ private fun WinampVisualizerBackdrop(
     val targetFps by DesktopGpuSettings.targetFps.collectAsState()
     val isGpuEnabled by DesktopGpuSettings.enabled.collectAsState()
     val renderActive by DesktopWindowVisibility.renderActive.collectAsState()
-    val animate = !DesktopPlatform.isWindows || (isPlaying && renderActive)
+    val animate = isPlaying && renderActive
 
     DisposableEffect(Unit) {
         onDispose {

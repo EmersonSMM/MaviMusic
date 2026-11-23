@@ -44,6 +44,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,6 +91,9 @@ import com.music.mavimusic.ui.components.thumbnailBorder
 import com.music.mavimusic.ui.components.trackColumnWidth
 import com.music.mavimusic.ui.player.MeshGradientBackground
 import com.music.mavimusic.ui.player.MeshPalette
+
+data class HomeShelfActions(val appliesTo: (HomeShelf) -> Boolean, val onRefresh: () -> Unit, val refreshing: Boolean = false)
+val LocalHomeShelfActions = compositionLocalOf<HomeShelfActions?> { null }
 
 /** How far the Listen now heading and feed sit above the shared top inset. */
 private val HOME_TITLE_LIFT = 28.dp
@@ -535,7 +540,7 @@ private const val LOGO_ASPECT = 1f
  * Home and Explore never pass it, so their heading is unchanged.
  */
 @Composable
-internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() -> Unit)? = null) {
+internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() -> Unit)? = null, actions: (@Composable () -> Unit)? = null) {
     val displayTitle = localizeShelfTitle(title)
     val displaySubtitle = localizeShelfSubtitle(subtitle)
     Row(
@@ -562,6 +567,7 @@ internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() 
                 )
             }
         }
+        actions?.invoke()
         if (onShowAll != null) {
             Text(
                 text = stringResource(Res.string.show_all),
@@ -753,7 +759,9 @@ private fun HeroShelf(
     isPlaying: Boolean = false,
 ) {
     Column(Modifier.padding(bottom = 26.dp)) {
-        SectionHeader(shelf.title, shelf.subtitle)
+        val actions = LocalHomeShelfActions.current?.takeIf { it.appliesTo(shelf) }
+        SectionHeader(shelf.title, shelf.subtitle, actions = actions?.let { { TextButton(onClick = it.onRefresh, enabled = !it.refreshing) { Text(if (it.refreshing) "Actualizando…" else "Actualizar sugerencias") } } })
+        if (actions != null && shelf.items.isEmpty()) Text("Actualiza las sugerencias para descubrir más música", Modifier.padding(horizontal = PAGE_GUTTER), color = MaterialTheme.colorScheme.onSurfaceVariant)
         val isCurrentItem = shelf.items.playingItemMatcher(currentSong)
         // Measured rather than taken as a share of the parent, because the card
         // has a ceiling as well as a fraction — see [heroCardWidth]. A fixed
@@ -858,7 +866,9 @@ internal fun Shelf(
     isPlaying: Boolean = false,
 ) {
     Column(Modifier.padding(bottom = 26.dp)) {
-        SectionHeader(shelf.title, shelf.subtitle)
+        val actions = LocalHomeShelfActions.current?.takeIf { it.appliesTo(shelf) }
+        SectionHeader(shelf.title, shelf.subtitle, actions = actions?.let { { TextButton(onClick = it.onRefresh, enabled = !it.refreshing) { Text(if (it.refreshing) "Actualizando…" else "Actualizar sugerencias") } } })
+        if (actions != null && shelf.items.isEmpty()) Text("Actualiza las sugerencias para descubrir más música", Modifier.padding(horizontal = PAGE_GUTTER), color = MaterialTheme.colorScheme.onSurfaceVariant)
         val isCurrentItem = shelf.items.playingItemMatcher(currentSong)
         ShelfRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
@@ -872,6 +882,7 @@ internal fun Shelf(
                     onLongPress = onItemLongPress?.let { { it(item) } },
                     isCurrent = isCurrentItem(item),
                     isPlaying = isCurrentItem(item) && isPlaying,
+                    showMore = actions != null,
                 )
             }
         }
@@ -981,6 +992,7 @@ internal fun ShelfCard(
     isPinned: Boolean = false,
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
+    showMore: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -1070,8 +1082,9 @@ internal fun ShelfCard(
                 color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f),
             )
+            if (showMore && onLongPress != null) RowMoreButton(onClick = onLongPress)
         }
         val displaySubtitle = localizeCardSubtitle(item.subtitle)
         Text(

@@ -4,6 +4,8 @@ import java.awt.Desktop
 import java.awt.EventQueue
 import java.awt.Frame
 import java.awt.Window
+import java.awt.desktop.AppHiddenEvent
+import java.awt.desktop.AppHiddenListener
 import java.awt.desktop.AppReopenedListener
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +16,10 @@ internal object DesktopWindowVisibility {
 
     private val _visible = MutableStateFlow(true)
 
-    fun startHidden() { _visible.value = false }
+    fun startHidden() {
+        _visible.value = false
+        refreshRendering()
+    }
 
     /** What the window's own `visible` is driven from. */
     val visible: StateFlow<Boolean> = _visible
@@ -27,26 +32,35 @@ internal object DesktopWindowVisibility {
 
     private var windowRef: WeakReference<Window>? = null
     private var isListenerInstalled = false
+    @Volatile
+    private var appHidden: Boolean = false
+
+    internal fun shouldRenderWindow(
+        visible: Boolean,
+        showing: Boolean,
+        iconified: Boolean,
+        appHidden: Boolean = false,
+    ): Boolean = visible && showing && !iconified && !appHidden
+
+    private fun refreshRendering(window: Window? = windowRef?.get()) {
+        val showing = window?.isShowing ?: true
+        val iconified = window is Frame && (window.extendedState and Frame.ICONIFIED) != 0
+        _renderActive.value = shouldRenderWindow(_visible.value, showing, iconified, appHidden)
+    }
 
     /** Attaches the active Compose window so show() can bring it to the foreground. */
     fun attachWindow(window: Window) {
         windowRef = WeakReference(window)
-        if (DesktopPlatform.isWindows) {
-            fun refreshRendering() {
-                _renderActive.value = window.isShowing &&
-                    (window !is Frame || window.extendedState and Frame.ICONIFIED == 0)
-            }
-            window.addComponentListener(object : java.awt.event.ComponentAdapter() {
-                override fun componentShown(event: java.awt.event.ComponentEvent) = refreshRendering()
-                override fun componentHidden(event: java.awt.event.ComponentEvent) = refreshRendering()
-            })
-            if (window is Frame) window.addWindowStateListener { refreshRendering() }
-            refreshRendering()
-        }
+        window.addComponentListener(object : java.awt.event.ComponentAdapter() {
+            override fun componentShown(event: java.awt.event.ComponentEvent) = refreshRendering(window)
+            override fun componentHidden(event: java.awt.event.ComponentEvent) = refreshRendering(window)
+        })
+        if (window is Frame) window.addWindowStateListener { refreshRendering(window) }
+        refreshRendering(window)
     }
 
     /**
-     * Installs system-level reopen hooks (e.g. macOS Dock click when window is closed).
+     * Installs system-level reopen and hide hooks (e.g. macOS Dock click or Cmd+H).
      */
     fun install() {
         if (isListenerInstalled) return
@@ -64,15 +78,30 @@ internal object DesktopWindowVisibility {
                     })
                     DesktopTrackLog.log("DesktopWindowVisibility: AppReopenedListener registered")
                 }
+                if (desktop.isSupported(Desktop.Action.APP_EVENT_HIDDEN)) {
+                    desktop.addAppEventListener(object : AppHiddenListener {
+                        override fun appHidden(event: AppHiddenEvent?) {
+                            appHidden = true
+                            refreshRendering()
+                        }
+
+                        override fun appUnhidden(event: AppHiddenEvent?) {
+                            appHidden = false
+                            refreshRendering()
+                        }
+                    })
+                }
             }.onFailure {
-                DesktopTrackLog.log("DesktopWindowVisibility: failed to register AppReopenedListener: ${it.message}")
+                DesktopTrackLog.log("DesktopWindowVisibility: failed to register macOS app listeners: ${it.message}")
             }
         }
     }
 
     /** Brings the window back — from the Dock, tray menu, or the icon itself. */
     fun show() {
+        appHidden = false
         _visible.value = true
+        refreshRendering()
         EventQueue.invokeLater {
             val win = windowRef?.get()
             if (win != null) {
@@ -82,6 +111,7 @@ internal object DesktopWindowVisibility {
                 win.isVisible = true
                 win.toFront()
                 win.requestFocus()
+                refreshRendering(win)
             }
             if (DesktopPlatform.isMac) {
                 runCatching {
@@ -104,6 +134,7 @@ internal object DesktopWindowVisibility {
         // the app having broken rather than as it having been hidden.
         DesktopWindowMode.exit()
         _visible.value = false
+        refreshRendering()
         DesktopTrackLog.log("window closed to the tray; playback continues")
         return false
     }

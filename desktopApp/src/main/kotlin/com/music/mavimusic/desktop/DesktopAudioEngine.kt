@@ -116,6 +116,8 @@ class DesktopPlaybackEngine(
     @Volatile private var playbackSpeed = 1f
     @Volatile private var volume = 1f
     @Volatile private var paused = true
+    @Volatile private var playbackRequested = false
+    val wantsPlayback: Boolean get() = playbackRequested
     // Volatile, every one of them: these are set from the UI thread when a setting changes and read
     // from the audio thread on the next block.
     @Volatile private var audioQuality = "HIGH"
@@ -219,14 +221,23 @@ class DesktopPlaybackEngine(
 
     // ---- the surface the application uses -------------------------------
 
-    fun load(song: Song, playWhenReady: Boolean = true, startAtMs: Long = 0L) {
+    fun load(song: Song, playWhenReady: Boolean = true, startAtMs: Long = 0L, forceFresh: Boolean = false) {
+        playbackRequested = playWhenReady
         retryingSongId = null
         loadInternal(
             song,
             playWhenReady,
             excludedSourceId = refusedSources[song.videoId],
             startAtMs = startAtMs.coerceAtLeast(0L),
+            bypassCache = forceFresh,
         )
+    }
+
+    /** Use the matched video's own audio, bypassing alternate recordings from other sources. */
+    internal fun loadMusicVideo(song: Song, stream: DesktopStream, playWhenReady: Boolean, startAtMs: Long) {
+        playbackRequested = playWhenReady
+        retryingSongId = null
+        loadInternal(song, playWhenReady, startAtMs = startAtMs.coerceAtLeast(0L), directStream = stream)
     }
 
     /**
@@ -244,6 +255,8 @@ class DesktopPlaybackEngine(
         startAtMs: Long = 0L,
         /** Why the first attempt failed, when this call is the retry. */
         priorFailure: Throwable? = null,
+        directStream: DesktopStream? = null,
+        bypassCache: Boolean = false,
     ) {
         resolveJob?.cancel()
         nextResolveJob?.cancel()
@@ -251,7 +264,7 @@ class DesktopPlaybackEngine(
         commands += Command.Flush
         searchingBetterFor = null
         incomingSearchingFor = null
-        _state.value = DesktopPlaybackState(song = song, volume = volume, isLoading = true)
+        _state.value = DesktopPlaybackState(song = song, volume = volume, isLoading = true, positionMs = startAtMs)
         resolveJob = scope.launch {
             // Only when the file is really there: a download record can outlive the file it names,
             // and handing the decoder a path that is not there fails as "could not open stream"
@@ -260,9 +273,10 @@ class DesktopPlaybackEngine(
             // so a URI for "Justin Bieber - Peaches (feat. …).m4a" sent it looking for a file
             // literally named "Justin%20Bieber%20-%20…" and it answered ENOENT for a file that was
             // sitting right there.
-            val localUrl = DesktopDownloadManager.savedFile(song)?.toAbsolutePath()?.toString()
-                ?: DesktopPredictiveCache.cachedStream(song)?.url
-            val resolved = localUrl?.let { Result.success(DesktopLiveResolution(DesktopStream(it))) }
+            val localUrl = if (bypassCache) null else (DesktopDownloadManager.savedFile(song)?.toAbsolutePath()?.toString()
+                ?: DesktopPredictiveCache.cachedStream(song)?.url)
+            val resolved = directStream?.let { Result.success(DesktopLiveResolution(it)) }
+                ?: localUrl?.let { Result.success(DesktopLiveResolution(DesktopStream(it))) }
                 ?: DesktopMusicSources.resolveLive(song, audioQuality, excludedSourceId)
             resolved.fold(
                 onSuccess = { live ->
@@ -273,7 +287,10 @@ class DesktopPlaybackEngine(
                             commands += Command.Start(track, playWhenReady)
                             live.pendingSubstitute?.let { watchForUpgrade(song, it) }
                         },
-                        onFailure = { failure -> retryAfterFailure(song, playWhenReady, live.stream, failure) },
+                        onFailure = { failure ->
+                            if (directStream != null) _state.update { it.copy(isLoading = false, error = failure.message ?: "No se pudo abrir el videoclip") }
+                            else retryAfterFailure(song, playWhenReady, live.stream, failure, startAtMs)
+                        },
                     )
                 },
                 onFailure = { failure ->
@@ -281,6 +298,7 @@ class DesktopPlaybackEngine(
                     _state.value = DesktopPlaybackState(
                         song = song,
                         volume = volume,
+                        positionMs = startAtMs,
                         error = reported.message ?: "Playback failed",
                     )
                 },
@@ -318,16 +336,18 @@ class DesktopPlaybackEngine(
     /**
      * A source that cannot actually be decoded is struck off and the track asked for again, once.
      */
-    private fun retryAfterFailure(song: Song, playWhenReady: Boolean, stream: DesktopStream, failure: Throwable) {
+    private fun retryAfterFailure(song: Song, playWhenReady: Boolean, stream: DesktopStream, failure: Throwable, startAtMs: Long) {
         if (retryingSongId != song.videoId) {
             retryingSongId = song.videoId
             DesktopTrackLog.log("could not decode '${song.title}' from ${DesktopMusicSources.sourceNameFor(stream)}: ${failure.message}")
             stream.sourceId?.let { refusedSources[song.videoId] = it }
-            loadInternal(song, playWhenReady, excludedSourceId = stream.sourceId, priorFailure = failure)
+            StreamResolver.invalidateResolvedStream(song.videoId)
+            loadInternal(song, playWhenReady, excludedSourceId = stream.sourceId, priorFailure = failure, startAtMs = startAtMs, bypassCache = true)
         } else {
             _state.value = DesktopPlaybackState(
                 song = song,
                 volume = volume,
+                positionMs = startAtMs,
                 error = "Could not play this track: ${failure.message}",
             )
         }
@@ -449,6 +469,13 @@ class DesktopPlaybackEngine(
     }
 
     fun play() {
+        playbackRequested = true
+        val failed = _state.value
+        if (failed.error != null && !failed.isLoading && failed.song != null && current == null) {
+            StreamResolver.invalidateResolvedStream(failed.song.videoId)
+            load(failed.song, true, failed.positionMs, forceFresh = true)
+            return
+        }
         paused = false
         if (!sink.isOpen && current != null) {
             commands += Command.Reconfigure
@@ -457,11 +484,17 @@ class DesktopPlaybackEngine(
     }
 
     fun pause() {
+        playbackRequested = false
         paused = true
         _state.update { it.copy(isPlaying = false) }
     }
 
     fun seekTo(positionMs: Long) {
+        if (current == null && _state.value.song != null) {
+            val state = _state.value
+            load(state.song!!, playbackRequested, positionMs, forceFresh = true)
+            return
+        }
         commands.removeAll { it is Command.SeekTo }
         commands += Command.SeekTo(positionMs.coerceAtLeast(0))
     }
@@ -927,6 +960,26 @@ class DesktopPlaybackEngine(
         val block = readCurrent(track)
         val count = currentReadCount
         if (block == null) {
+            val state = _state.value
+            val remote = track.stream.url.startsWith("http", ignoreCase = true)
+            val failure = track.decoder.failure ?: if (DesktopPlaybackRecovery.prematureEnd(remote && !displaySwitched && fadeRemaining <= 0 && state.song?.videoId == track.song.videoId, state.positionMs, state.durationMs)) java.io.IOException("La conexión terminó antes de completar la canción") else null
+            if (failure != null && displaySwitched && upcoming != null) {
+                promoteUpcoming()
+                return
+            }
+            if (failure != null) {
+                // Keep this song and its heard position. Recovery must not advance the queue.
+                track.decoder.close()
+                current = null
+                upcoming?.decoder?.close()
+                upcoming = null
+                nextDeckOpenId = null
+                sink.flush()
+                paused = true
+                StreamResolver.invalidateResolvedStream(track.song.videoId)
+                _state.update { it.copy(isPlaying = false, isLoading = false, error = failure.message ?: "Se interrumpió la reproducción") }
+                return
+            }
             if (fadeRemaining > 0 && upcoming != null) {
                 val channels = sink.format.channels.coerceAtLeast(1)
                 val wanted = MIX_END_PADDING_FRAMES * channels
@@ -1458,7 +1511,7 @@ class DesktopPlaybackEngine(
     private fun drainCommands() {
         while (true) {
             when (val command = commands.poll() ?: return) {
-                is Command.Start -> startTrack(command.track, command.playWhenReady)
+                is Command.Start -> startTrack(command.track, playbackRequested)
                 is Command.ReplaceCurrent -> replaceCurrent(command.track, command.playWhenReady)
                 is Command.Upcoming -> {
                     upcoming?.decoder?.close()
