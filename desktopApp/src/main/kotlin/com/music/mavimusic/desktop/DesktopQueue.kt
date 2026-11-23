@@ -57,7 +57,9 @@ internal data class DesktopQueue(
         val next = ((at + 1)..songs.lastIndex).firstOrNull { candidate ->
             val candSong = songs[candidate]
             if (candSong.queueTier == QueueTier.USER_QUEUE) return@firstOrNull true
-            if (candSong.queueTier == QueueTier.CONTEXT && candSong.playbackSourceType == PlaybackSourceType.BROWSE) return@firstOrNull true
+            if (candSong.queueTier == QueueTier.CONTEXT && candSong.playbackSourceType == PlaybackSourceType.BROWSE) {
+                return@firstOrNull !queueRecent.any { (it.videoId == candSong.videoId || DesktopTrackSimilarity.areAudioVideoVariants(it, candSong)) }
+            }
             val duplicateMatch = DesktopTrackSimilarity.findDuplicateMatch(candSong, played)
             val isDuplicate = duplicateMatch != null ||
                 (DesktopTrackSimilarity.avoidDuplicateVersions &&
@@ -141,6 +143,8 @@ internal data class DesktopQueue(
         for (song in upcoming) {
             val isExplicitUserRequest = song.queueTier == QueueTier.USER_QUEUE ||
                 (song.queueTier == QueueTier.CONTEXT && song.playbackSourceType == PlaybackSourceType.BROWSE)
+            if (song.queueTier != QueueTier.USER_QUEUE &&
+                known.any { (it.videoId == song.videoId || DesktopTrackSimilarity.areAudioVideoVariants(it, song)) }) continue
             if (!isExplicitUserRequest) {
                 val recentWindow = known.takeLast(DesktopTrackSimilarity.DEFAULT_HISTORY_WINDOW)
                 val isSimDup = DesktopTrackSimilarity.isDuplicateOfAny(song, recentWindow)

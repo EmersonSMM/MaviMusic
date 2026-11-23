@@ -120,6 +120,7 @@ object DesktopStrings {
         "shelf_top_music_videos" to "Vídeos musicales destacados",
         "widget_previous" to "Anterior",
         "widget_next" to "Siguiente",
+        "d_volume" to "Volumen",
         "widget_open_mavimusic" to "Abrir MaviMusic",
         "d_quit_mavimusic" to "Salir de MaviMusic",
         "d_choose_something_to_play" to "Elige algo para reproducir",

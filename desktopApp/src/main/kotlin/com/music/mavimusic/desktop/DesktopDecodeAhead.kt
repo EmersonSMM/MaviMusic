@@ -53,6 +53,8 @@ internal class DesktopDecodeAhead(
     private var generation = 0
     /** Whether a block has been handed out since the last seek; a wait before the first is a load. */
     private var started = false
+    @Volatile var failure: Throwable? = null
+        private set
 
     /** How much of the array [readSamples] returned is actually this block. */
     var sampleCount: Int = 0
@@ -94,6 +96,7 @@ internal class DesktopDecodeAhead(
             queue.clear()
             queuedSamples = 0
             ended = false
+            failure = null
             started = false
             pendingSeekUs = micros
             wake.signal()
@@ -131,10 +134,12 @@ internal class DesktopDecodeAhead(
                     continue
                 }
 
+                var readFailure: Throwable? = null
                 val decoded = try {
                     source.readSamples()?.copyOf(source.sampleCount)
                 } catch (failure: Exception) {
-                    DesktopTrackLog.log("decode-ahead: decoder failed, ending the track: ${failure.message}")
+                    DesktopTrackLog.log("decode-ahead: decoder failed: ${failure.message}")
+                    readFailure = failure
                     null
                 }
                 lock.withLock {
@@ -147,6 +152,7 @@ internal class DesktopDecodeAhead(
                     // Linux's timing hides it. The block dies with the closed reader.
                     if (closed) return@withLock
                     if (decoded == null) {
+                        failure = readFailure
                         ended = true
                     } else if (decoded.isNotEmpty()) {
                         queue.addLast(decoded)

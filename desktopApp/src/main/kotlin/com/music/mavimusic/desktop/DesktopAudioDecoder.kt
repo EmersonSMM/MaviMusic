@@ -156,6 +156,8 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         av_dict_set(options, "reconnect_streamed", "1", 0)
         av_dict_set(options, "reconnect_on_network_error", "1", 0)
         av_dict_set(options, "reconnect_delay_max", "5", 0)
+        av_dict_set(options, "reconnect_max_retries", "2", 0)
+        av_dict_set(options, "reconnect_delay_total_max", "8", 0)
         av_dict_set(options, "rw_timeout", "15000000", 0)
 
         val opened = if (windowed) windowedContext(url, headers) else AVFormatContext(null)
@@ -382,6 +384,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         if (drained) return false
         val read = av_read_frame(container, pkt)
         if (read < 0) {
+            if (read != AVERROR_EOF) throw java.io.IOException("Error al leer el audio: ${describe(read)}")
             avcodec_send_packet(context, null as AVPacket?)
             drained = true
             return true

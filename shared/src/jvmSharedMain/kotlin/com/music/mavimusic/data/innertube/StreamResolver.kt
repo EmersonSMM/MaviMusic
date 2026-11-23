@@ -284,6 +284,9 @@ object StreamResolver {
         recent.clear()
     }
 
+    /** Renew one expired media URL without disturbing other tracks' read-ahead. */
+    fun invalidateResolvedStream(videoId: String) { recent.remove(videoId) }
+
     /** Per-track loudness, read once and kept for as long as the process runs. */
     private val loudness = ConcurrentHashMap<String, Double>()
 
@@ -513,6 +516,31 @@ object StreamResolver {
             skip += found.profileId
         }
         return null
+    }
+
+    data class VideoStreams(val videoUrl: String, val audioUrl: String)
+
+    /** Same upload for picture and sound; bounded to 720p for desktop's software decoder. */
+    suspend fun resolveVideoStreams(videoId: String): VideoStreams {
+        init
+        return extractionGate.withLock {
+            withContext(Dispatchers.IO) {
+                require(Regex("[A-Za-z0-9_-]{11}").matches(videoId)) { "Identificador de vídeo inválido" }
+                val extractor = ServiceList.YouTube.getStreamExtractor(ServiceList.YouTube.streamLHFactory.fromId(videoId))
+                extractor.fetchPage()
+                val video = (extractor.videoStreams + extractor.videoOnlyStreams)
+                    .filter { !it.content.isNullOrBlank() && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+                    .filter { it.height in 1..720 || it.resolution.substringBefore("p").toIntOrNull() in 1..720 }
+                    .maxByOrNull { it.height.takeIf { height -> height > 0 } ?: it.resolution.substringBefore("p").toIntOrNull() ?: 0 }
+                    ?: error("No hay un flujo de vídeo compatible")
+                val audio = extractor.audioStreams
+                    .filter { !it.content.isNullOrBlank() && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+                    .maxByOrNull { it.averageBitrate }?.content
+                    ?: video.content.takeUnless { video.isVideoOnly }
+                    ?: error("El videoclip no tiene audio disponible")
+                VideoStreams(video.content, audio)
+            }
+        }
     }
 
     /** The headers a media fetch for [url] must carry to match whoever minted it. */

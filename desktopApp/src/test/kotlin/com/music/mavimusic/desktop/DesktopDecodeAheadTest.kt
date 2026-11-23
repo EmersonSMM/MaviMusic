@@ -114,4 +114,25 @@ class DesktopDecodeAheadTest {
         assertTrue(source.closedOn !== Thread.currentThread())
         assertNull(reader.readSamples())
     }
+    @Test fun decoderFailureIsExposedAfterBufferedAudioAndCanBeClearedBySeek() {
+        val source = object : DesktopSampleSource {
+            var reads = 0
+            override var sampleCount = 4
+            override fun readSamples(): FloatArray? {
+                if (reads++ == 0) return floatArrayOf(1f, 2f, 3f, 4f)
+                throw java.io.IOException("network disconnected")
+            }
+            override fun seek(micros: Long): Boolean { reads = 0; return true }
+            override fun close() {}
+        }
+        val reader = DesktopDecodeAhead(source, DesktopPcmFormat(44_100, 2, 4, true), null, null, aheadSamples = 4)
+        try {
+            assertTrue(reader.readSamples()!!.isNotEmpty())
+            assertNull(reader.readSamples())
+            assertTrue(reader.failure is java.io.IOException)
+            reader.seek(0)
+            assertTrue(reader.readSamples()!!.isNotEmpty())
+        } finally { reader.close() }
+    }
+
 }

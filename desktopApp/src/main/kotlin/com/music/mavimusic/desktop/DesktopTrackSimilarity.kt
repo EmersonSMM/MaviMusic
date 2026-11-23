@@ -401,6 +401,13 @@ object DesktopTrackSimilarity {
         return best
     }
 
+    /** Audio and its music video are one recording, even in an ordered collection. */
+    fun areAudioVideoVariants(a: Song, b: Song): Boolean {
+        if (a.videoId == b.videoId || (!isLikelyVideo(a) && !isLikelyVideo(b))) return false
+        if (extractVersionTags(a.title) != extractVersionTags(b.title)) return false
+        return compare(a, b, avoidDuplicates = true, allowRemixesLive = true).isDuplicate
+    }
+
     /**
      * Evaluates multi-layer similarity between two songs [a] and [b].
      */

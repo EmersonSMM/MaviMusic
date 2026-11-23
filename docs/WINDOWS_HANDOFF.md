@@ -82,3 +82,20 @@ Prompt de continuidad:
 - Validación local Mac: 627 pruebas JVM aprobadas, 2 omitidas (llavero y prueba HWND Windows opt-in). Sin validación visual en hardware Windows.
 
 - Barra inferior Windows compacta (menos de 1800 dp): altura de 110 dp y controles auxiliares con FlowRow; conserva todas las acciones y el slider de volumen. Mac conserva su disposición anterior.
+
+## Revisión local de escritorio del 20 y 23 de noviembre de 2026
+
+Consolidado en `codex/android-stability-stage-1` sobre `8d4929d6` (commit local sin push/tags/publicación): ver `docs/DESKTOP_REVIEW_HANDOFF.md`.
+Se añadieron el selector Audio/Vídeo inmersivo, ocultación del menú de efectos durante vídeo,
+feedback y refresco de sugerencias, recuperación acotada de reproducción, fijación de `Recents` al
+tope de Inicio con sugerencias debajo, propagación de error/reconexión/EOF en vídeo, localización
+de controles de vídeo y suspensión de animación/decodificación en pausa, minimización y ocultación
+también en macOS. Las reglas Win32 de geometría y DPI no cambian.
+
+Comprobación tras los últimos cambios desde Mac:
+- `:shared:jvmTest :desktopUi:jvmTest :desktopApp:test --rerun-tasks`: `103` `shared`, `42` `desktopUi`, `525` `desktopApp` aprobadas y `6` omitidas (llavero macOS, opt-in visuales/red/perfil y prueba HWND Windows).
+- `MAVIMUSIC_REVIEW_VISUAL=1 :desktopApp:test --tests '*DesktopImmersivePreviewTest' --rerun-tasks`: `2` aprobadas.
+- `-Pmavimusic.target=windows :desktopApp:compileKotlin :desktopApp:compileTestKotlin`: `BUILD SUCCESSFUL`.
+`desktopUi` respeta ese destino explícito para comprobar las APIs de Compose 1.10.3 usadas por Windows.
+No equivale a compilar los puentes Win32/analizador ni a ejecutar la app en Windows: faltan las
+herramientas nativas en este Mac y la aceptación visual/de rendimiento sigue pendiente en PC real.
