@@ -83,9 +83,9 @@ Prompt de continuidad:
 
 - Barra inferior Windows compacta (menos de 1800 dp): altura de 110 dp y controles auxiliares con FlowRow; conserva todas las acciones y el slider de volumen. Mac conserva su disposición anterior.
 
-## Revisión local de escritorio del 20 y 23 de noviembre de 2026
+## Revisión local de escritorio del 20 al 24 de noviembre de 2026
 
-Consolidado en `codex/android-stability-stage-1` sobre `8d4929d6` (commit local sin push/tags/publicación): ver `docs/DESKTOP_REVIEW_HANDOFF.md`.
+Consolidado y subido en `origin/codex/android-stability-stage-1` sobre `8d4929d6` (base `7eec953d`, sin tags ni publicación): ver `docs/DESKTOP_REVIEW_HANDOFF.md`.
 Se añadieron el selector Audio/Vídeo inmersivo, ocultación del menú de efectos durante vídeo,
 feedback y refresco de sugerencias, recuperación acotada de reproducción, fijación de `Recents` al
 tope de Inicio con sugerencias debajo, propagación de error/reconexión/EOF en vídeo, localización
