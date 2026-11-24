@@ -1,5 +1,18 @@
 # Novedades de MaviMusic
 
+## 1.8.54
+
+- **Inicio y sugerencias personalizadas**:
+  - «Recientes» (`Recents`) fijo en la parte superior de Inicio con respaldo del historial local, seguido de «Música sugerida», «Álbumes para ti» e «Iniciar radio».
+  - Botón «Actualizar sugerencias» y acción «No me interesa» para ocultar colecciones y ajustar recomendaciones sin alterar el historial de escucha.
+- **Modo inmersivo con videoclip y selector Audio/Vídeo**:
+  - Opción «Vídeo automático» y selector explícito Audio/Vídeo en la cabecera inmersiva, sincronizado con el reloj de audio y controles localizados.
+  - Ocultación de menús de efectos durante vídeo y retorno limpio al visualizador o audio original cuando no hay coincidencia o falla el flujo.
+- **Cola, recuperación y eficiencia en macOS y Windows**:
+  - Conservación del orden original de álbumes y playlists tras usar aleatorio, y deduplicación de pares audio/vídeo en colecciones conservando remixes y entradas manuales.
+  - Recuperación automática acotada ante interrupciones de red, reconexión FFmpeg en vídeo/audio y propagación de errores de lectura.
+  - Suspensión de animaciones de visualizadores y decodificación de vídeo al pausar, minimizar u ocultar la ventana/aplicación (`⌘H`) también en macOS.
+
 ## 1.8.53
 
 - **Control Remoto Web Local (MaviMusic Remote)**:
