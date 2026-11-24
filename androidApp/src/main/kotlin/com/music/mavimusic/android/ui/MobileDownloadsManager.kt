@@ -150,6 +150,7 @@ fun MobileDownloadsManager(
 
     var segment by remember { mutableStateOf(OfflineSegment.SONGS) }
     var filterQuery by remember { mutableStateOf("") }
+    var showSearchField by remember { mutableStateOf(false) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedAlbumKey by remember { mutableStateOf<Pair<String, String>?>(null) }
     var selectedPlaylistId by remember { mutableStateOf<String?>(null) }
@@ -392,98 +393,134 @@ fun MobileDownloadsManager(
             return
         }
 
-        // Main Offline Manager header: Summary + Compact Filter + iPod-style Segmented Bar
+        // Compact single-row iPod / Apple Music Segmented Toolbar + collapsible filter icon
+        // so the song/artist/album browser gets maximum vertical breathing room even in landscape.
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "${downloadedSongs.size} ${if (downloadedSongs.size == 1) "canción" else "canciones"} · ${artistGroups.size} artistas · $totalMb MB",
-                color = Color.White.copy(alpha = 0.68f),
-                fontSize = 12.sp,
-            )
-        }
-
-        // Compact search filter inside Downloads
-        OutlinedTextField(
-            value = filterQuery,
-            onValueChange = { filterQuery = it },
-            placeholder = { Text("Filtrar descargas por artista, álbum o canción…", color = Color.Gray, fontSize = 13.sp) },
-            leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
-            trailingIcon = {
-                if (filterQuery.isNotEmpty()) {
-                    IconButton(onClick = { filterQuery = "" }) {
-                        Icon(Icons.Rounded.Clear, "Limpiar filtro", tint = Color.Gray, modifier = Modifier.size(18.dp))
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color(0x881A1C24),
-                unfocusedContainerColor = Color(0x66161820),
-                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-            ),
-        )
-
-        // iPod / Apple Music Segmented Control
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0x88161820),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp)
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp)),
+                .padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x88161820),
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    .weight(1f)
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
             ) {
-                OfflineSegment.entries.forEach { tab ->
-                    val selected = segment == tab
-                    val count = when (tab) {
-                        OfflineSegment.SONGS -> filteredSongs.size
-                        OfflineSegment.ARTISTS -> artistGroups.size
-                        OfflineSegment.ALBUMS -> albumGroups.size
-                        OfflineSegment.PLAYLISTS -> playlistGroups.size
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    OfflineSegment.entries.forEach { tab ->
+                        val selected = segment == tab
+                        val count = when (tab) {
+                            OfflineSegment.SONGS -> filteredSongs.size
+                            OfflineSegment.ARTISTS -> artistGroups.size
+                            OfflineSegment.ALBUMS -> albumGroups.size
+                            OfflineSegment.PLAYLISTS -> playlistGroups.size
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(9.dp),
+                            color = if (selected) Color.White else Color.Transparent,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(9.dp))
+                                .clickable { segment = tab },
+                        ) {
+                            Text(
+                                text = "${tab.label} ($count)",
+                                color = if (selected) Color.Black else Color.White.copy(alpha = 0.78f),
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            )
+                        }
                     }
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color.White else Color.Transparent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { segment = tab },
-                    ) {
-                        Text(
-                            text = "${tab.label} ($count)",
-                            color = if (selected) Color.Black else Color.White.copy(alpha = 0.78f),
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        )
-                    }
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (showSearchField || filterQuery.isNotEmpty()) Color.White else Color(0x88161820),
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (showSearchField) {
+                            filterQuery = ""
+                            showSearchField = false
+                        } else {
+                            showSearchField = true
+                        }
+                    },
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (showSearchField) Icons.Rounded.Clear else Icons.Rounded.Search,
+                        contentDescription = if (showSearchField) "Cerrar filtro" else "Filtrar descargas",
+                        tint = if (showSearchField || filterQuery.isNotEmpty()) Color.Black else Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }
 
+        if (showSearchField) {
+            OutlinedTextField(
+                value = filterQuery,
+                onValueChange = { filterQuery = it },
+                placeholder = { Text("Filtrar por artista, álbum o canción…", color = Color.Gray, fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
+                trailingIcon = {
+                    if (filterQuery.isNotEmpty()) {
+                        IconButton(onClick = { filterQuery = "" }) {
+                            Icon(Icons.Rounded.Clear, "Limpiar filtro", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0x881A1C24),
+                    unfocusedContainerColor = Color(0x66161820),
+                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                ),
+            )
+        }
+
         when (segment) {
             OfflineSegment.SONGS -> {
-                PlayShuffleHeader(
-                    onPlayAll = { AndroidPlayerEngine.playQueue(filteredSongs, 0) },
-                    onShuffle = { playShuffled(filteredSongs) },
-                )
                 LazyColumn(
-                    contentPadding = PaddingValues(vertical = 8.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(top = 2.dp, bottom = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "${downloadedSongs.size} canciones · $totalMb MB sin conexión",
+                                color = Color.White.copy(alpha = 0.62f),
+                                fontSize = 11.sp,
+                            )
+                        }
+                        PlayShuffleHeader(
+                            onPlayAll = { AndroidPlayerEngine.playQueue(filteredSongs, 0) },
+                            onShuffle = { playShuffled(filteredSongs) },
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
                     itemsIndexed(filteredSongs, key = { _, s -> s.videoId }) { index, song ->
                         SongRowItem(
                             song = song,
@@ -499,7 +536,8 @@ fun MobileDownloadsManager(
 
             OfflineSegment.ARTISTS -> {
                 LazyColumn(
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(top = 2.dp, bottom = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     items(artistGroups, key = { it.name }) { group ->
@@ -518,7 +556,7 @@ fun MobileDownloadsManager(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(48.dp)
+                                        .size(46.dp)
                                         .clip(CircleShape)
                                         .background(Color(0xFF232634)),
                                     contentAlignment = Alignment.Center,
@@ -547,10 +585,11 @@ fun MobileDownloadsManager(
 
             OfflineSegment.ALBUMS -> {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 148.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                    columns = GridCells.Adaptive(minSize = 144.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(top = 2.dp, bottom = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(albumGroups, key = { "${it.title}_${it.artist}" }) { alb ->
                         Column(

@@ -175,6 +175,7 @@ import com.music.mavimusic.data.model.BrowseItem
 import com.music.mavimusic.data.model.BrowseType
 import com.music.mavimusic.android.ui.MobileSearchState
 import com.music.mavimusic.ui.theme.StatusBarIcons
+import com.music.mavimusic.ui.theme.rememberArtworkPalette
 import com.music.mavimusic.android.ui.TrackActionsModal
 import com.music.mavimusic.ui.screens.MOOD_CARD_ASPECT
 import com.music.mavimusic.ui.screens.MoodGenreSleeve
@@ -756,10 +757,26 @@ fun MiniPlayerBar(
     val progress = remember(positionMs, durationMs) {
         if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
     }
+    val palette = rememberArtworkPalette(song.thumbnailUrl)
+    val barTop by animateColorAsState(
+        targetValue = androidx.compose.ui.graphics.lerp(palette.wash, palette.accent, 0.26f).copy(alpha = 0.94f),
+        animationSpec = tween(durationMillis = 700),
+        label = "mini_top",
+    )
+    val barBottom by animateColorAsState(
+        targetValue = androidx.compose.ui.graphics.lerp(palette.background, palette.accent, 0.14f).copy(alpha = 0.96f),
+        animationSpec = tween(durationMillis = 700),
+        label = "mini_bottom",
+    )
+    val barAccent by animateColorAsState(
+        targetValue = palette.accent,
+        animationSpec = tween(durationMillis = 700),
+        label = "mini_accent",
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
             .shadow(
                 elevation = 20.dp,
                 shape = RoundedCornerShape(20.dp),
@@ -768,18 +785,15 @@ fun MiniPlayerBar(
             .clip(RoundedCornerShape(20.dp))
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF09414B),
-                        Color(0xFF052B32)
-                    )
+                    colors = listOf(barTop, barBottom)
                 )
             )
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.18f),
-                        Color.White.copy(alpha = 0.04f)
+                        barAccent.copy(alpha = 0.34f),
+                        Color.White.copy(alpha = 0.06f)
                     )
                 ),
                 shape = RoundedCornerShape(20.dp)
@@ -886,8 +900,8 @@ fun MiniPlayerBar(
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    Color(0xFFB4DDE0)
+                                    barAccent,
+                                    Color.White.copy(alpha = 0.92f)
                                 )
                             )
                         )
@@ -1303,26 +1317,25 @@ fun MobileLibraryView(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Spacer(modifier = Modifier.height(12.dp))
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Tu Biblioteca", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Tu Biblioteca", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (libraryTab == 2 && selectedPlaylist == null) {
-                    IconButton(onClick = { showCreateModal = true }) {
+                    IconButton(onClick = { showCreateModal = true }, modifier = Modifier.size(44.dp)) {
                         Icon(Icons.Rounded.Add, contentDescription = "Nueva Playlist", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-                IconButton(onClick = onOpenSettings) {
+                IconButton(onClick = onOpenSettings, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Rounded.Settings, contentDescription = "Ajustes", tint = Color.LightGray)
                 }
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         // Horizontal scrolling tabs
         Row(
@@ -1396,7 +1409,7 @@ fun MobileLibraryView(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         when (libraryTab) {
             0 -> {
