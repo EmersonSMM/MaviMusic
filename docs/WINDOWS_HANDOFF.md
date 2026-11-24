@@ -85,7 +85,7 @@ Prompt de continuidad:
 
 ## Revisión local de escritorio del 20 al 24 de noviembre de 2026
 
-Consolidado y subido en `origin/codex/android-stability-stage-1` sobre `8d4929d6` (base `7eec953d`, sin tags ni publicación): ver `docs/DESKTOP_REVIEW_HANDOFF.md`.
+Consolidado y publicado en la rama limpia `codex/desktop-review` sobre `origin/main` (`143940dd`, commits `702bea33` y `2437fabd`, sin módulo ni historial Android, sin tags ni publicación): ver `docs/DESKTOP_REVIEW_HANDOFF.md`.
 Se añadieron el selector Audio/Vídeo inmersivo, ocultación del menú de efectos durante vídeo,
 feedback y refresco de sugerencias, recuperación acotada de reproducción, fijación de `Recents` al
 tope de Inicio con sugerencias debajo, propagación de error/reconexión/EOF en vídeo, localización

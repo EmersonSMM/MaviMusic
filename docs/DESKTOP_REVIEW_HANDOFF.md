@@ -51,7 +51,7 @@ Resultado final r2: 103 pruebas shared + 42 desktopUi + 527 desktopApp; 670 apro
 
 ## Tercera revisión: suspensión en macOS, orden de Inicio y vídeo (23–24 de noviembre de 2026)
 
-Consolidado y publicado en la rama `codex/android-stability-stage-1` (sobre `8d4929d6`, commit `7eec953d` en `origin/codex/android-stability-stage-1`, sin tags ni publicación de release).
+Consolidado y publicado en la rama limpia 100 % Desktop `codex/desktop-review` sobre `origin/main` (`143940dd`, trasladando `702bea33` y `2437fabd` sin historial ni módulo de Android, sin tags ni publicación de release).
 
 - Confirmaciones de diseño cerradas con el usuario (24 de noviembre de 2026):
   - `Música sugerida`, `Álbumes para ti` e `Iniciar radio` permanecen justo debajo de `Recents` y encima del feed general de YouTube.
