@@ -199,6 +199,7 @@ fun MobileHomeView(
     onStartRadio: (Song) -> Unit,
     onOpenCollection: (BrowseItem) -> Unit = {},
     onOpenSignIn: (() -> Unit)? = null,
+    showBrandLogo: Boolean = true,
 ) {
     val song by AndroidPlayerEngine.currentSong.collectAsState()
     val playing by AndroidPlayerEngine.isPlaying.collectAsState()
@@ -221,13 +222,24 @@ fun MobileHomeView(
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "ESCUCHA A TU MANERA",
-                        fontSize = 10.sp,
-                        letterSpacing = 1.6.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text("Inicio", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    if (showBrandLogo) {
+                        MaviAnimatedLogo(fontSize = 24.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "INICIO · ESCUCHA A TU MANERA",
+                            fontSize = 10.sp,
+                            letterSpacing = 1.6.sp,
+                            color = Color.White.copy(alpha = 0.62f),
+                        )
+                    } else {
+                        Text(
+                            "ESCUCHA A TU MANERA",
+                            fontSize = 10.sp,
+                            letterSpacing = 1.6.sp,
+                            color = Color.White.copy(alpha = 0.62f),
+                        )
+                        Text("Inicio", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
                 IconButton(
                     onClick = { state.load(refresh = true) },

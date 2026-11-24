@@ -167,3 +167,16 @@ Dispositivo: **Samsung Galaxy Tab A9 (`SM-X110`)**, Android 16 (API 36), `800×1
 2. Probar emparejamiento en vivo del Control remoto nativo contra una instancia activa de MaviMusic Desktop en la misma red LAN.
 3. Probar descarga real vía `WorkManager` mandando la app a segundo plano o matando el proceso con red activa.
 4. Validación visual en un teléfono estrecho (`360–411 dp`) y con teclado virtual abierto en Buscar.
+
+## Pulido v2.1: notificación multimedia Android, estética cristalizada, visualizadores 60 fps y gestor offline tipo iPod
+
+Sobre `84539ca3` en `codex/android-v2`:
+
+- **Controles de música en notificaciones y pantalla de bloqueo (`PlaybackService.kt`, `MainActivity.kt`, `AndroidPlayerEngine.kt`, `ic_media_notification.xml`, `strings.xml`):**
+  - Se registra `DefaultMediaNotificationProvider` (`mavimusic_playback_channel`, icono monocromo vectorial `ic_media_notification`), `addSession(session)`, `WAKE_MODE_NETWORK`, metadatos `MEDIA_TYPE_MUSIC` (`displayTitle`/`subtitle`/`isPlayable`), vinculación de `MediaController` en `MainActivity.onStart/onStop` y solicitud del permiso `POST_NOTIFICATIONS` en Android 13+.
+  - Verificado en el dispositivo `SM-X110` (Android 16): `PlaybackService` entra en primer plano (`isForeground=true`, `types=mediaPlayback`, `Notification$MediaStyle`) y One UI muestra la tarjeta multimedia nativa con carátula, progreso y controles `Anterior / Pausa / Siguiente`.
+- **Fondo cristalizado de la carátula (`ui/CrystallizedArtworkBackdrop.kt`, `MainActivity.kt`, `ui/MobileSidebar.kt`):** escena de vidrio esmerilado con desenfoque nativo de la carátula en reproducción, paleta animada y planos prismáticos translúcidos detrás de toda la app.
+- **Visualizadores estéticos a 60 fps (`ui/MobileVisualizerScreen.kt`):** interpolación exponencial continua a 60 fps sobre el análisis PCM/FFT real con 5 modos inspirados en escritorio: **Aurora** (cintas de plasma y partículas reactivas), **Espectro** (barras simétricas con reflejo en cristal y peak-hold), **Órbita** (espectro radial alrededor de la carátula circular), **Onda Neón** (osciloscopio multicapa con curvas Bézier) y **Cristal** (orbes y hexágonos prismáticos).
+- **Gestor de descargas tipo iPod Music (`ui/MobileDownloadsManager.kt`):** segmentación en **Canciones**, **Artistas**, **Álbumes** y **Playlists**, filtro rápido, vistas de detalle por artista/álbum/playlist con `Reproducir` y `Aleatorio`, y tarjeta de progreso activo de descargas.
+- **Nombre de app y logo animado (`androidApp/build.gradle.kts`, `ui/MaviBrandLogo.kt`, `ui/MobileHomeView.kt`, `ui/MobileSidebar.kt`):** se retiró «pruebas» de la etiqueta visible (`appLabel = "MaviMusic"`, conservando `applicationIdSuffix = ".review"` para aislamiento de datos) y se animó la marca **MaviMusic** con un barrido luminoso tipo cortina sobre las letras.
+- **Pruebas:** `46` pruebas unitarias Android aprobadas (añade `MobileDownloadsManagerTest`), `:shared:jvmTest :desktopUi:jvmTest :desktopApp:test` sin regresiones y verificación visual en `SM-X110` (Android 16) mediante ADB.

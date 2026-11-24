@@ -26,7 +26,7 @@ android {
             applicationIdSuffix = ".review"
             versionNameSuffix = "-review"
             matchingFallbacks += "debug"
-            manifestPlaceholders["appLabel"] = "MaviMusic · pruebas"
+            manifestPlaceholders["appLabel"] = "MaviMusic"
         }
         release {
             isMinifyEnabled = false

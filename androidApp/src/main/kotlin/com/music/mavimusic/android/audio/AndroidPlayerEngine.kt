@@ -744,8 +744,12 @@ object AndroidPlayerEngine {
             try {
                 val metadata = MediaMetadata.Builder()
                     .setTitle(song.title)
+                    .setDisplayTitle(song.title)
                     .setArtist(song.artist)
+                    .setSubtitle(song.artist)
                     .setAlbumTitle(song.albumName)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                    .setIsPlayable(true)
                     .setArtworkUri(song.thumbnailUrl?.let { Uri.parse(it) })
                     .build()
 
@@ -763,6 +767,7 @@ object AndroidPlayerEngine {
                         .build()
 
                     val p = player ?: return@launch
+                    applyLoudnessNormalization(song.videoId)
                     p.setMediaItem(mediaItem, startPositionMs)
                     p.prepare()
                     p.playWhenReady = shouldPlayWhenReady
@@ -782,6 +787,7 @@ object AndroidPlayerEngine {
                         .build()
 
                     val p = player ?: return@launch
+                    applyLoudnessNormalization(song.videoId)
                     p.setMediaItem(mediaItem, startPositionMs)
                     p.prepare()
                     p.playWhenReady = shouldPlayWhenReady

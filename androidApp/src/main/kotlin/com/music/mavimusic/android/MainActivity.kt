@@ -2,13 +2,18 @@ package com.music.mavimusic.android
 
 import android.Manifest
 import android.app.Activity
+import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.CancellationException
 import android.content.Intent
@@ -149,8 +154,10 @@ import com.music.mavimusic.android.host.AndroidPlayerHost
 import com.music.mavimusic.android.service.PlaybackService
 import com.music.mavimusic.android.ui.AddToPlaylistModal
 import com.music.mavimusic.android.ui.CreatePlaylistModal
+import com.music.mavimusic.android.ui.CrystallizedArtworkBackdrop
 import com.music.mavimusic.android.ui.DesktopRemoteModal
 import com.music.mavimusic.android.ui.LyricsOffsetModal
+import com.music.mavimusic.android.ui.MobileDownloadsManager
 import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
 import com.music.mavimusic.android.ui.YouTubeSignInModal
@@ -196,13 +203,24 @@ enum class MobileTab(val label: String, val icon: ImageVector) {
 }
 
 class MainActivity : ComponentActivity() {
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Start native background audio playback service
+        // Request POST_NOTIFICATIONS on Android 13+ so the system media player controls
+        // appear in the notification shade and lockscreen.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
+
+        // Start native background audio playback service safely (MediaController in onStart
+        // also binds PlaybackService when Android restricts direct background startService).
         val serviceIntent = Intent(this, PlaybackService::class.java)
-        startService(serviceIntent)
+        runCatching { startService(serviceIntent) }
 
         // Configure shared lyrics translation cache & YouTube auth session
         LyricsTranslation.cacheDir = applicationContext.cacheDir
@@ -225,6 +243,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Binding a MediaController connects MainActivity to PlaybackService's MediaSessionService
+        // lifecycle so Android promotes native music controls in notifications and lockscreen.
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        controllerFuture = MediaController.Builder(this, token).buildAsync()
+    }
+
+    override fun onStop() {
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
+        super.onStop()
     }
 }
 
@@ -378,42 +410,14 @@ fun AndroidMusicApp() {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color(0xFF0A0B0F))
     ) {
         val windowW = maxWidth
         val windowH = maxHeight
         val isTablet = windowW >= 720.dp
 
-        // Atmospheric Ambient Glow Layers
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            animatedAmbientColor.copy(alpha = 0.12f),
-                            animatedAmbientColor.copy(alpha = 0.10f),
-                            Color.Transparent
-                        ),
-                        center = Offset(Float.POSITIVE_INFINITY, 0f),
-                        radius = 1300f
-                    )
-                )
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            animatedAmbientColor.copy(alpha = 0.08f),
-                            Color.Transparent
-                        ),
-                        center = Offset(0f, Float.POSITIVE_INFINITY),
-                        radius = 1100f
-                    )
-                )
-        )
+        // Crystallized frosted-glass backdrop derived from the currently playing song's artwork
+        CrystallizedArtworkBackdrop(artworkUrl = currentSong?.thumbnailUrl)
 
         if (showFullPlayer && currentSong != null) {
             val song = currentSong!!
@@ -626,6 +630,7 @@ fun AndroidMusicApp() {
                                 onStartRadio = { AndroidPlayerEngine.startRadio(it) },
                                 onOpenCollection = { openedCollection = it },
                                 onOpenSignIn = { showSignInModal = true },
+                                showBrandLogo = false,
                             )
                             MobileTab.EXPLORE -> MobileExploreView(
                                 onAddToPlaylist = { songForPlaylist = it },
@@ -658,8 +663,9 @@ fun AndroidMusicApp() {
                 }
             }
         } else {
-            // Phone Layout: Bottom Navigation Bar + MiniPlayer
+            // Phone Layout: Bottom Navigation Bar + MiniPlayer over crystallized backdrop
             Scaffold(
+                containerColor = Color.Transparent,
                 bottomBar = {
                     Column(modifier = Modifier.navigationBarsPadding()) {
                         if (currentSong != null) {
@@ -675,9 +681,9 @@ fun AndroidMusicApp() {
                         }
 
                         NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surface,
+                            containerColor = Color(0xCC111319),
                             contentColor = Color.White,
-                            tonalElevation = 4.dp
+                            tonalElevation = 0.dp
                         ) {
                             MobileTab.values().forEach { tab ->
                                 NavigationBarItem(
@@ -1394,51 +1400,15 @@ fun MobileLibraryView(
 
         when (libraryTab) {
             0 -> {
-                // Descargas offline
-                if (downloadedSongs.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Rounded.Download,
-                                contentDescription = null,
-                                tint = Color.DarkGray,
-                                modifier = Modifier.size(52.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("No tienes canciones descargadas", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Pulsa el icono de descarga en cualquier canción para escucharla sin conexión", color = Color.Gray, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                        }
-                    }
-                } else {
-                    Button(
-                        onClick = { AndroidPlayerEngine.playQueue(downloadedSongs, 0) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reproducir todo sin conexión (${downloadedSongs.size})", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-
-                    LazyColumn(
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        itemsIndexed(downloadedSongs, key = { _, s -> s.videoId }) { index, song ->
-                            val isCurrent = song.videoId == AndroidPlayerEngine.currentSong.value?.videoId
-                            SongRowItem(
-                                song = song,
-                                isCurrent = isCurrent,
-                                onClick = { AndroidPlayerEngine.playQueue(downloadedSongs, index) },
-                                onDelete = { OfflineDownloadManager.deleteDownload(song.videoId) },
-                                onAddToPlaylist = { onAddToPlaylist(song) },
-                                onStartRadio = { onStartRadio(song) }
-                            )
-                        }
-                    }
-                }
+                // iPod / Apple Music-style segmented Offline Downloads Manager
+                val currentPlayingId by AndroidPlayerEngine.currentSong.collectAsState()
+                MobileDownloadsManager(
+                    downloadedSongs = downloadedSongs,
+                    playlists = playlists,
+                    currentSongId = currentPlayingId?.videoId,
+                    onAddToPlaylist = onAddToPlaylist,
+                    onStartRadio = onStartRadio,
+                )
             }
             1 -> {
                 // Favoritos

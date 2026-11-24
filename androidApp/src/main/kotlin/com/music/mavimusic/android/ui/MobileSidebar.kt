@@ -25,10 +25,7 @@ import com.music.mavimusic.android.MobileTab
 
 @Composable
 fun MobileBrand() {
-    Text("MaviMusic", style = TextStyle(
-        brush = Brush.horizontalGradient(listOf(Color(0xFFFFD76A), Color(0xFFFF9A32), Color(0xFFFF632D))),
-        fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp,
-    ))
+    MaviAnimatedLogo(fontSize = 23.sp)
 }
 
 @Composable
@@ -43,7 +40,7 @@ fun MobileSidebar(
 ) {
     Column(
         Modifier.width(if (expanded) 184.dp else 80.dp).fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(Color(0xB8111319))
             .statusBarsPadding().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 20.dp),
         horizontalAlignment = if (expanded) Alignment.Start else Alignment.CenterHorizontally,
     ) {
