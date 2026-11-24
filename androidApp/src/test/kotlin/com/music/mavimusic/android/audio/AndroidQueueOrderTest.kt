@@ -53,4 +53,32 @@ class AndroidQueueOrderTest {
         assertEquals(0, order.next(true))
         assertNull(order.previous())
     }
+
+    @Test fun `insertAfterCurrent, removeAt, and syncAfterMove keep shuffle and linear order consistent`() {
+        val order = AndroidQueueOrder(Random(11))
+        order.reset(4, 1, shuffle = false)
+        assertTrue(order.hasPrevious())
+        assertTrue(order.hasNext(repeatAll = false))
+
+        // Insert a new track at index 2 (right after current 1) -> queue size is now 5
+        order.insertAfterCurrent(2)
+        assertEquals(2, order.next(repeatAll = false))
+
+        // Remove track at index 0 -> current shifts down to 1, next is 2
+        order.removeAt(0)
+        assertEquals(2, order.next(repeatAll = false))
+
+        // Shuffle mode insertAfterCurrent schedules the new item next
+        val shuffled = AndroidQueueOrder(Random(5))
+        shuffled.reset(4, 0, shuffle = true)
+        assertFalse(shuffled.hasPrevious())
+        assertTrue(shuffled.hasNext(repeatAll = false))
+        shuffled.insertAfterCurrent(1)
+        assertEquals(1, shuffled.next(repeatAll = false))
+
+        // Move current from 1 to 3 -> previous still returns 0 and next returns a valid index
+        shuffled.syncAfterMove(1, 3)
+        assertEquals(0, shuffled.previous())
+        assertEquals(3, shuffled.next(repeatAll = false))
+    }
 }

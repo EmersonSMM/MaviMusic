@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -75,6 +76,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -89,6 +91,8 @@ import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -136,6 +140,7 @@ import coil3.compose.AsyncImage
 import com.music.mavimusic.android.audio.AndroidPlayerEngine
 import com.music.mavimusic.android.audio.SleepTimer
 import com.music.mavimusic.android.data.AndroidPreferences
+import com.music.mavimusic.android.data.AndroidYouTubeAuth
 import com.music.mavimusic.android.data.LocalAudioScanner
 import com.music.mavimusic.android.data.OfflineDownloadManager
 import com.music.mavimusic.android.data.UserPlaylist
@@ -148,6 +153,8 @@ import com.music.mavimusic.android.ui.DesktopRemoteModal
 import com.music.mavimusic.android.ui.LyricsOffsetModal
 import com.music.mavimusic.android.ui.SettingsModal
 import com.music.mavimusic.android.ui.SleepTimerModal
+import com.music.mavimusic.android.ui.YouTubeSignInModal
+import com.music.mavimusic.data.lyrics.LyricsTranslation
 import com.music.mavimusic.android.ui.MaviAndroidTheme
 import com.music.mavimusic.android.ui.MobileSidebar
 import com.music.mavimusic.android.ui.MobileVisualizerScreen
@@ -197,6 +204,10 @@ class MainActivity : ComponentActivity() {
         val serviceIntent = Intent(this, PlaybackService::class.java)
         startService(serviceIntent)
 
+        // Configure shared lyrics translation cache & YouTube auth session
+        LyricsTranslation.cacheDir = applicationContext.cacheDir
+        AndroidYouTubeAuth.init(applicationContext)
+
         // Initialize audio engine & persistent storage
         AndroidPlayerEngine.init(applicationContext)
 
@@ -225,18 +236,29 @@ fun AndroidMusicApp() {
     val searchState = remember {
         MobileSearchState(searchScope, prefs.getSearchHistory(), prefs::saveSearchHistory, onSearchSubmitted = prefs::recordSearch)
     }
-    val homeState = remember { MobileHomeState(searchScope, prefs::getRecentSearches) }
+    val homeState = remember {
+        MobileHomeState(
+            scope = searchScope,
+            recentSearches = prefs::getRecentSearches,
+            fetchHomeFeed = { YtMusicRepository.home() },
+            fetchRecentlyPlayed = { YtMusicRepository.homeRecentlyPlayed() },
+            localHistory = { AndroidPlayerEngine.playHistory.value },
+            isSignedIn = { AndroidYouTubeAuth.isSignedIn },
+        )
+    }
     var selectedTab by remember { mutableStateOf(MobileTab.HOME) }
     var showFullPlayer by remember { mutableStateOf(false) }
     var showVisualizer by remember { mutableStateOf(false) }
     var showSleepTimerModal by remember { mutableStateOf(false) }
     var showDesktopRemoteModal by remember { mutableStateOf(false) }
+    var showSignInModal by remember { mutableStateOf(false) }
+    var openedCollection by remember { mutableStateOf<BrowseItem?>(null) }
     var songForPlaylist by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistModal by remember { mutableStateOf(false) }
     var showTrackActionsModal by remember { mutableStateOf(false) }
     var showLyricsOffsetModal by remember { mutableStateOf(false) }
     var showSettingsModal by remember { mutableStateOf(false) }
-    var lyricsOffsetMs by remember { mutableStateOf(0L) }
+    var lyricsOffsetMs by remember { mutableStateOf(prefs.getLyricsOffsetMs().toLong()) }
 
     if (!showFullPlayer) StatusBarIcons(dark = false)
 
@@ -260,6 +282,8 @@ fun AndroidMusicApp() {
     val lyrics by AndroidPlayerEngine.lyrics.collectAsState()
     val lyricsLoading by AndroidPlayerEngine.lyricsLoading.collectAsState()
     val lyricsSource by AndroidPlayerEngine.lyricsSource.collectAsState()
+    val lyricsProviderStates by AndroidPlayerEngine.lyricsProviderStates.collectAsState()
+    val authState by AndroidYouTubeAuth.state.collectAsState()
     val sleepTimerMinutes by SleepTimer.minutesLeft.collectAsState()
 
     val ambientTargetColor = Color(0xFF31424A)
@@ -272,11 +296,34 @@ fun AndroidMusicApp() {
         if (showVisualizer) showVisualizer = false else showFullPlayer = false
     }
 
+    openedCollection?.let { item ->
+        CollectionSheet(
+            item = item,
+            onDismiss = { openedCollection = null },
+            onAdd = { songForPlaylist = it },
+            onRadio = { AndroidPlayerEngine.startRadio(it) },
+        )
+    }
+
+    if (showSignInModal) {
+        YouTubeSignInModal(
+            onSignedIn = {
+                showSignInModal = false
+                homeState.load(refresh = true)
+            },
+            onDismiss = { showSignInModal = false },
+        )
+    }
     if (showSleepTimerModal) {
         SleepTimerModal(onDismiss = { showSleepTimerModal = false })
     }
     if (showSettingsModal) {
-        SettingsModal(onDismiss = { showSettingsModal = false })
+        SettingsModal(
+            onOpenSignIn = { showSignInModal = true },
+            onOpenDesktopRemote = { showDesktopRemoteModal = true },
+            onOpenSleepTimer = { showSleepTimerModal = true },
+            onDismiss = { showSettingsModal = false },
+        )
     }
     if (showDesktopRemoteModal) {
         DesktopRemoteModal(onDismiss = { showDesktopRemoteModal = false })
@@ -284,6 +331,8 @@ fun AndroidMusicApp() {
     if (showTrackActionsModal && currentSong != null) {
         TrackActionsModal(
             song = currentSong!!,
+            onPlayNext = { AndroidPlayerEngine.playNext(currentSong!!) },
+            onAddToQueue = { AndroidPlayerEngine.addToQueue(currentSong!!) },
             onStartRadio = { AndroidPlayerEngine.startRadio(currentSong!!) },
             onAddToPlaylist = { songForPlaylist = currentSong },
             onAdjustLyricsOffset = { showLyricsOffsetModal = true },
@@ -293,7 +342,11 @@ fun AndroidMusicApp() {
     if (showLyricsOffsetModal) {
         LyricsOffsetModal(
             currentOffsetMs = lyricsOffsetMs,
-            onOffsetChange = { lyricsOffsetMs = it },
+            onOffsetChange = {
+                lyricsOffsetMs = it
+                prefs.setLyricsOffsetMs(it.toInt())
+                PlayerPlatform.host.settings.setLyricsOffsetMs(it.toInt())
+            },
             onDismiss = { showLyricsOffsetModal = false }
         )
     }
@@ -367,6 +420,12 @@ fun AndroidMusicApp() {
             if (showVisualizer) {
                 MobileVisualizerScreen(song = song, onClose = { showVisualizer = false })
             } else Box(modifier = Modifier.fillMaxSize()) {
+                val canGoPrevious = remember(queue, queueIndex, shuffleEnabled) {
+                    AndroidPlayerEngine.hasPrevious()
+                }
+                val canGoNext = remember(queue, queueIndex, shuffleEnabled, repeatMode, autoplayEnabled) {
+                    AndroidPlayerEngine.hasNext()
+                }
                 NowPlayingScreen(
                     song = song,
                     isPlaying = isPlaying,
@@ -377,14 +436,13 @@ fun AndroidMusicApp() {
                     qualityUpgraded = false,
                     queue = queue,
                     queueIndex = queueIndex,
-                    hasPrevious = shuffleEnabled || queueIndex > 0,
-                    hasNext = (shuffleEnabled && queue.size > 1) || queueIndex + 1 < queue.size ||
-                        repeatMode == com.music.mavimusic.ui.player.RepeatModes.ALL || autoplayEnabled,
+                    hasPrevious = canGoPrevious,
+                    hasNext = canGoNext,
                     repeatMode = repeatMode,
                     shuffleEnabled = shuffleEnabled,
                     autoplayEnabled = autoplayEnabled,
-                    signedIn = false,
-                    accountName = null,
+                    signedIn = authState.signedIn,
+                    accountName = authState.accountName,
                     likeStatus = if (isFavorite) LikeStatus.LIKE else LikeStatus.INDIFFERENT,
                     onToggleLike = { AndroidPlayerEngine.toggleCurrentFavorite() },
                     onPlayPause = { AndroidPlayerEngine.togglePlayPause() },
@@ -399,18 +457,58 @@ fun AndroidMusicApp() {
                     onJumpTo = { idx ->
                         if (idx in queue.indices) AndroidPlayerEngine.playQueue(queue, idx)
                     },
-                    onRemoveFromQueue = {},
-                    onMoveInQueue = { _, _ -> },
-                    onClearQueue = {},
+                    onRemoveFromQueue = { idx -> AndroidPlayerEngine.removeFromQueue(idx) },
+                    onMoveInQueue = { from, to -> AndroidPlayerEngine.moveInQueue(from, to) },
+                    onClearQueue = { AndroidPlayerEngine.clearQueue() },
                     onOpenMenu = { showTrackActionsModal = true },
-                    onOpenAlbum = {},
-                    onOpenArtist = { _, _ -> },
+                    onOpenAlbum = { albumId ->
+                        openedCollection = BrowseItem(
+                            browseId = albumId,
+                            title = song.albumName ?: "Álbum",
+                            subtitle = song.artist,
+                            thumbnailUrl = song.thumbnailUrl,
+                            type = BrowseType.ALBUM,
+                        )
+                        showFullPlayer = false
+                    },
+                    onOpenArtist = { artistId, artistName ->
+                        val targetName = artistName.ifBlank { song.artist }
+                        if (!artistId.isNullOrBlank()) {
+                            openedCollection = BrowseItem(
+                                browseId = artistId,
+                                title = targetName,
+                                subtitle = "Artista",
+                                thumbnailUrl = song.thumbnailUrl,
+                                type = BrowseType.ARTIST,
+                            )
+                            showFullPlayer = false
+                        } else if (targetName.isNotBlank()) {
+                            showFullPlayer = false
+                            searchScope.launch {
+                                val resolvedId = withContext(Dispatchers.IO) {
+                                    YtMusicRepository.findArtistPageId(targetName).getOrNull()
+                                }
+                                if (!resolvedId.isNullOrBlank()) {
+                                    openedCollection = BrowseItem(
+                                        browseId = resolvedId,
+                                        title = targetName,
+                                        subtitle = "Artista",
+                                        thumbnailUrl = song.thumbnailUrl,
+                                        type = BrowseType.ARTIST,
+                                    )
+                                } else {
+                                    selectedTab = MobileTab.SEARCH
+                                    searchState.submit(targetName)
+                                }
+                            }
+                        }
+                    },
                     onOpenPlaybackSource = {},
                     onListenTogether = {},
                     lyrics = lyrics,
                     lyricsSource = lyricsSource,
-                    lyricsProviderStates = emptyMap(),
-                    onSelectLyricsProvider = {},
+                    lyricsProviderStates = lyricsProviderStates,
+                    onSelectLyricsProvider = { AndroidPlayerEngine.selectLyricsProvider(it) },
                     lyricsUnavailable = (!lyricsLoading && lyrics == null),
                     lyricsOffsetOpen = showLyricsOffsetModal,
                     onDismissLyricsOffset = { showLyricsOffsetModal = false },
@@ -418,19 +516,22 @@ fun AndroidMusicApp() {
                     windowHeight = windowH
                 )
 
-                // Top control buttons on NowPlayingScreen
+                // Top control buttons on NowPlayingScreen (shown on main artwork view so they
+                // never overlap the compact Queue/Lyrics header)
+                val playerSubScreen by PlayerPlatform.host.settings.lastPlayerScreen.collectAsState()
+                if (playerSubScreen == com.music.mavimusic.data.settings.LastPlayerScreen.MAIN) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = { showFullPlayer = false },
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(48.dp)
                             .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
@@ -440,7 +541,7 @@ fun AndroidMusicApp() {
                         )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
                             onClick = { showVisualizer = true },
                             modifier = Modifier.size(48.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
@@ -450,7 +551,7 @@ fun AndroidMusicApp() {
                         IconButton(
                             onClick = { AndroidPlayerEngine.startRadio(song) },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         ) {
                             Icon(
@@ -463,7 +564,7 @@ fun AndroidMusicApp() {
                         IconButton(
                             onClick = { songForPlaylist = song },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         ) {
                             Icon(
@@ -476,7 +577,7 @@ fun AndroidMusicApp() {
                         IconButton(
                             onClick = { showSleepTimerModal = true },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         ) {
                             Icon(
@@ -486,6 +587,7 @@ fun AndroidMusicApp() {
                             )
                         }
                     }
+                }
                 }
             }
         } else if (isTablet) {
@@ -521,7 +623,9 @@ fun AndroidMusicApp() {
                                 state = homeState,
                                 onSearch = { selectedTab = MobileTab.SEARCH },
                                 onAddToPlaylist = { songForPlaylist = it },
-                                onStartRadio = { AndroidPlayerEngine.startRadio(it) }
+                                onStartRadio = { AndroidPlayerEngine.startRadio(it) },
+                                onOpenCollection = { openedCollection = it },
+                                onOpenSignIn = { showSignInModal = true },
                             )
                             MobileTab.EXPLORE -> MobileExploreView(
                                 onAddToPlaylist = { songForPlaylist = it },
@@ -602,10 +706,12 @@ fun AndroidMusicApp() {
                 ) {
                     when (selectedTab) {
                         MobileTab.HOME -> MobileHomeView(
-                                state = homeState,
-                                onSearch = { selectedTab = MobileTab.SEARCH },
+                            state = homeState,
+                            onSearch = { selectedTab = MobileTab.SEARCH },
                             onAddToPlaylist = { songForPlaylist = it },
-                            onStartRadio = { AndroidPlayerEngine.startRadio(it) }
+                            onStartRadio = { AndroidPlayerEngine.startRadio(it) },
+                            onOpenCollection = { openedCollection = it },
+                            onOpenSignIn = { showSignInModal = true },
                         )
                         MobileTab.EXPLORE -> MobileExploreView(
                             onAddToPlaylist = { songForPlaylist = it },
@@ -808,7 +914,7 @@ fun MobileSearchView(
         state.submit(searchQuery)
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Buscar música",
@@ -1019,7 +1125,7 @@ fun MobileExploreView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selectedGenreTitle != null) {
@@ -1561,6 +1667,7 @@ fun MobileLibraryView(
                                 song = song,
                                 isCurrent = isCurrent,
                                 onClick = { AndroidPlayerEngine.playQueue(queue, index) },
+                                onDelete = { AndroidPlayerEngine.removeFromQueue(index) },
                                 onAddToPlaylist = { onAddToPlaylist(song) },
                                 onStartRadio = { onStartRadio(song) }
                             )
@@ -1666,6 +1773,8 @@ fun SongRowItem(
                 }
             }
 
+            var menuExpanded by remember(song.videoId) { mutableStateOf(false) }
+
             if (!song.durationText.isNullOrBlank()) {
                 Text(
                     text = song.durationText!!,
@@ -1675,64 +1784,95 @@ fun SongRowItem(
                 )
             }
 
-            if (onStartRadio != null && !song.videoId.startsWith("local_")) {
-                IconButton(onClick = onStartRadio, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Rounded.Radio,
-                        contentDescription = "Iniciar Radio",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            if (onAddToPlaylist != null) {
-                IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Rounded.PlaylistAdd,
-                        contentDescription = "Añadir a playlist",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
             if (onDelete != null) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(44.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.Delete,
                         contentDescription = "Eliminar",
                         tint = Color.Gray,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             } else if (isDownloading) {
-                IconButton(onClick = { OfflineDownloadManager.cancelDownload(song.videoId) }, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = { OfflineDownloadManager.cancelDownload(song.videoId) }, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Rounded.Close, "Cancelar descarga", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
             } else if (isDownloaded) {
                 IconButton(
                     onClick = { OfflineDownloadManager.deleteDownload(song.videoId) },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.DownloadDone,
                         contentDescription = "Descargada",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             } else if (!song.videoId.startsWith("local_")) {
                 IconButton(
                     onClick = { OfflineDownloadManager.downloadSong(song) },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Download,
                         contentDescription = "Descargar",
                         tint = Color.Gray,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
+                }
+            }
+
+            Box {
+                IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "Más opciones",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    containerColor = Color(0xFF1D1D28),
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Reproducir siguiente", color = Color.White) },
+                        leadingIcon = { Icon(Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.primary) },
+                        onClick = {
+                            menuExpanded = false
+                            AndroidPlayerEngine.playNext(song)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Añadir a la cola", color = Color.White) },
+                        leadingIcon = { Icon(Icons.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.primary) },
+                        onClick = {
+                            menuExpanded = false
+                            AndroidPlayerEngine.addToQueue(song)
+                        },
+                    )
+                    if (onAddToPlaylist != null) {
+                        DropdownMenuItem(
+                            text = { Text("Añadir a playlist", color = Color.White) },
+                            leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = MaterialTheme.colorScheme.primary) },
+                            onClick = {
+                                menuExpanded = false
+                                onAddToPlaylist()
+                            },
+                        )
+                    }
+                    if (onStartRadio != null && !song.videoId.startsWith("local_")) {
+                        DropdownMenuItem(
+                            text = { Text("Iniciar Radio", color = Color.White) },
+                            leadingIcon = { Icon(Icons.Rounded.Radio, null, tint = MaterialTheme.colorScheme.primary) },
+                            onClick = {
+                                menuExpanded = false
+                                onStartRadio()
+                            },
+                        )
+                    }
                 }
             }
         }

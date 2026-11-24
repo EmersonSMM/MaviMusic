@@ -2,8 +2,9 @@ package com.music.mavimusic.android.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -72,27 +73,55 @@ fun MobileVisualizerScreen(song: Song, onClose: () -> Unit) {
 
     Column(
         Modifier.fillMaxSize().background(Color(0xFF0D0D0F))
-            .statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+            .statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.ArrowBack, "Volver al reproductor", tint = Color.White) }
-            Text("Visualizador", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, modifier = Modifier.weight(1f))
-            Text("Reducir movimiento", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(8.dp))
-            Switch(checked = reduceMotion, onCheckedChange = { reduceMotion = it; prefs.setReduceVisualizerMotion(it) },
-                modifier = Modifier.height(40.dp).semantics { contentDescription = "Reducir movimiento" })
+            IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.ArrowBack, "Volver al reproductor", tint = Color.White)
+            }
+            Text(
+                "Visualizador",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "Suave",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(6.dp))
+            Switch(
+                checked = reduceMotion,
+                onCheckedChange = { reduceMotion = it; prefs.setReduceVisualizerMotion(it) },
+                modifier = Modifier.height(40.dp).semantics { contentDescription = "Reducir movimiento" },
+            )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.Center,
+        ) {
             VisualizerStyle.entries.forEach { mode ->
-                FilterChip(selected = style == mode,
+                FilterChip(
+                    selected = style == mode,
                     onClick = { style = mode; prefs.setVisualizerStyle(mode.name) },
-                    label = { Text(mode.label) }, colors = mobileChipColors(), modifier = Modifier.padding(horizontal = 4.dp))
+                    label = { Text(mode.label, maxLines = 1) },
+                    colors = mobileChipColors(),
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
             }
         }
-        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp))
-            .background(Brush.radialGradient(listOf(palette.background, Color(0xFF101012)))), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize().padding(24.dp)) {
+        Box(
+            Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp))
+                .background(Brush.radialGradient(listOf(palette.background, Color(0xFF101012)))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.fillMaxSize().padding(20.dp)) {
                 val visible = if (playing) 1f else .35f
                 when (style) {
                     VisualizerStyle.SPECTRUM -> {
@@ -101,8 +130,12 @@ fun MobileVisualizerScreen(song: Song, onClose: () -> Unit) {
                         val brush = Brush.verticalGradient(listOf(accent.copy(alpha = visible), accent.copy(alpha = visible * .25f)))
                         levels.forEachIndexed { index, level ->
                             val height = max(2.dp.toPx(), level * size.height * if (reduceMotion) .45f else .85f)
-                            drawRoundRect(brush, topLeft = Offset(index * slot + slot * .15f, (size.height - height) / 2),
-                                size = Size(slot * .7f, height), cornerRadius = CornerRadius(slot * .3f))
+                            drawRoundRect(
+                                brush,
+                                topLeft = Offset(index * slot + slot * .15f, (size.height - height) / 2),
+                                size = Size(slot * .7f, height),
+                                cornerRadius = CornerRadius(slot * .3f),
+                            )
                         }
                     }
                     VisualizerStyle.WAVE -> {
@@ -121,33 +154,53 @@ fun MobileVisualizerScreen(song: Song, onClose: () -> Unit) {
                         val base = size.minDimension * (.22f + energy * .5f)
                         listOf(.3f, .5f, .7f).forEachIndexed { index, x ->
                             val center = Offset(size.width * x, size.height * if (index % 2 == 0) .45f else .6f)
-                            drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = visible * (.35f + energy)), Color.Transparent), center, base * 1.5f),
-                                radius = base * 1.5f, center = center)
+                            drawCircle(
+                                Brush.radialGradient(listOf(accent.copy(alpha = visible * (.35f + energy)), Color.Transparent), center, base * 1.5f),
+                                radius = base * 1.5f,
+                                center = center,
+                            )
                         }
                     }
                 }
             }
-            Text(if (loading) "Cargando audio…" else if (!playing) "En pausa" else if (frame == null) "Esperando audio…" else "",
+            Text(
+                if (loading) "Cargando audio…" else if (!playing) "En pausa" else if (frame == null) "Esperando audio…" else "",
                 modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+            )
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(song.thumbnailUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)))
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            AsyncImage(
+                song.thumbnailUrl,
+                null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)),
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(song.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(onClick = AndroidPlayerEngine::skipPrevious) { Icon(Icons.Rounded.SkipPrevious, "Anterior", tint = Color.White) }
-            Spacer(Modifier.width(12.dp))
-            FilledIconButton(onClick = AndroidPlayerEngine::togglePlayPause,
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
+            IconButton(onClick = AndroidPlayerEngine::skipPrevious, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.SkipPrevious, "Anterior", tint = Color.White)
+            }
+            FilledIconButton(
+                onClick = AndroidPlayerEngine::togglePlayPause,
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black),
+            ) {
                 Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pausar" else "Reproducir")
             }
-            Spacer(Modifier.width(12.dp))
-            IconButton(onClick = AndroidPlayerEngine::skipNext) { Icon(Icons.Rounded.SkipNext, "Siguiente", tint = Color.White) }
+            IconButton(onClick = AndroidPlayerEngine::skipNext, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.SkipNext, "Siguiente", tint = Color.White)
+            }
         }
-        Slider(value = seek ?: if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
-            onValueChange = { seek = it }, onValueChangeFinished = { seek?.let(AndroidPlayerEngine::seekFraction); seek = null }, enabled = duration > 0,
-            modifier = Modifier.fillMaxWidth().height(24.dp))
+        Slider(
+            value = seek ?: if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
+            onValueChange = { seek = it },
+            onValueChangeFinished = { seek?.let(AndroidPlayerEngine::seekFraction); seek = null },
+            enabled = duration > 0,
+            modifier = Modifier.fillMaxWidth().height(24.dp),
+        )
     }
 }

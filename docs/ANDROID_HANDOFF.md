@@ -118,3 +118,52 @@ Inicio usa las dos búsquedas recientes guardadas (máximo 12 temas por consulta
 Controles superiores y del visualizador más separados; el icono de personas se oculta en Android mediante una capacidad del host que permanece habilitada por defecto en escritorio. Sin nuevas dependencias.
 
 Validación: 35 pruebas Android y 42 de desktopUi aprobadas; compilación desktopApp comprobada. En la tablet se verificaron resultados de playlists para Bad Bunny, apertura de una lista con canciones y playlists de la sección Calma. Se actualiza únicamente review.
+
+## Bloques 1, 2 y 3 (v2 sobre `codex/android-v2`)
+
+Fecha: 24 de noviembre de 2026.
+Rama: `codex/android-v2` (base `2be51492`). `main` permanece limpio en `v1.8.54` (`954a3cc8`) sin tags ni publicaciones nuevas.
+
+### Bloque 1: Motor de audio, MediaSession, cola editable y resiliencia
+- `audio/AndroidPlaybackRecovery.kt`: recuperación acotada ante fallos de red (2 reintentos con espera de 1 s y 3 s, rearmada tras 30 s de progreso estable; omitida en archivos locales) y normalización de volumen hacia `-14 LUFS` (`AndroidLoudnessNormalizer`, atenuación lineal en ExoPlayer y `LoudnessEnhancer` acotado a `+9 dB`).
+- `audio/AndroidQueueOrder.kt`: `hasNext`, `hasPrevious`, `insertAfterCurrent`, `removeAt` y `syncAfterMove` coherentes en orden lineal y aleatorio.
+- `audio/AndroidPlayerEngine.kt`: `playNext`, `addToQueue`, `removeFromQueue`, `moveInQueue`, `clearQueue`, `setVolumeNormalization`, `selectLyricsProvider`, estados por proveedor de letras (`lyricsProviderStates`), lectura de formato de audio real (`audioFormat`), historial local (`playHistory`) y aplicación de recuperación/normalización.
+- `service/PlaybackService.kt`: envuelve `ExoPlayer` en `ForwardingPlayer` para que `MediaSession` (pantalla de bloqueo, Bluetooth, Android Auto y notificación) exponga y ejecute `seekToNext`, `seekToPrevious`, `play` y `pause` delegando a `AndroidPlayerEngine`.
+- `MainActivity.kt`, `ui/AppModals.kt`: cableado completo de `NowPlayingScreen` (`onRemoveFromQueue`, `onMoveInQueue`, `onClearQueue`, `onOpenAlbum`, `onOpenArtist`, `lyricsProviderStates`, `onSelectLyricsProvider`, `signedIn`/`accountName`, desfase de letra persistido), botones superiores ocultos cuando Queue/Lyrics están activos para evitar solapamientos, acciones de cola en `TrackActionsModal` y menú desplegable por fila en `SongRowItem`, además de interruptor de normalización en `SettingsModal`.
+
+### Bloque 2: Sesión YouTube Music, Inicio real y paridad de hosts
+- `data/AndroidYouTubeAuth.kt` y `ui/YouTubeSignInModal.kt`: inicio de sesión opcional con YouTube Music mediante `WebView` + `CookieManager`, validando cookies de firma (`SAPISID` / `__Secure-3PAPISID` / `__Secure-1PAPISID`), aplicando `Innertube.cookie` + `StreamResolver.onSessionChanged()`, mostrando el nombre de cuenta y permitiendo cerrar sesión limpiando cookies.
+- `ui/MobileHomeView.kt` y `ui/MobileCollections.kt`: Inicio fija `Recientes` arriba (combinando historial local y `YtMusicRepository.homeRecentlyPlayed()`), añade tarjetas rápidas de `Iniciar radio`, estanterías reales de `YtMusicRepository.home()` con apertura de colecciones (`ALBUM`, `PLAYLIST`, `ARTIST` vía `artistPage`) y banner opcional para iniciar sesión. `MobileHomeState` mantiene retrocompatibilidad con sus constructores previos en pruebas.
+- `host/AndroidAppHost.kt`: `downloadedIds()` reactivo sobre `OfflineDownloadManager.downloadedSongs`.
+- `host/AndroidPlayerHost.kt`: traducción y romanización real mediante `LyricsTranslation` (con `cacheDir` inicializado en `MainActivity.onCreate`), detección de dispositivos de salida reales mediante `AudioManager.getDevices(GET_DEVICES_OUTPUTS)`, `outputFormat` conectado al formato real de ExoPlayer y persistencia de `lyricsOffsetMs`.
+
+### Bloque 3: Descargas en WorkManager, icono real, pulido móvil y remoto nativo
+- `androidApp/build.gradle.kts`: `versionName = "1.8.54"`, `versionCode = 2` y dependencia `androidx.work:work-runtime-ktx:2.9.1`.
+- `data/DownloadAudioWorker.kt` y `data/OfflineDownloadManager.kt`: descargas encoladas mediante trabajos únicos de `WorkManager` (`ExistingWorkPolicy.KEEP`) con notificación de progreso de baja prioridad y limpieza de `.tmp` al cancelar o fallar, conservando respaldo por coroutines cuando WorkManager no está inicializado en pruebas JVM.
+- `androidApp/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher*.png` y `AndroidManifest.xml`: iconos reales de MaviMusic generados desde `desktopApp/src/main/composeResources/drawable/app_logo.png`.
+- `data/DesktopRemoteClient.kt` y `ui/AppModals.kt`: cliente nativo OkHttp HTTP (`POST /api/pair`) + WebSocket (`/ws?token=...`) compatible con `DesktopRemoteServer`, con panel de control integrado (carátula, Play/Pausa, Anterior/Siguiente, barra de progreso, volumen, aleatorio, repetición, Me gusta y selector de salida) más acceso secundario al navegador.
+- Pulido responsivo en `MainActivity.kt`, `MobileVisualizerScreen.kt`, `MobileHomeView.kt` y `AppModals.kt`: objetivos táctiles de 44–48 dp, `imePadding()` en búsqueda, diálogos con scroll vertical y fila de acciones compacta con `MoreVert`.
+
+### Compilación y pruebas automáticas
+```bash
+JAVA_HOME=/Users/emersonsmm/.jdks/temurin-21/Contents/Home ./gradlew :androidApp:testDebugUnitTest :androidApp:assembleReview
+JAVA_HOME=/Users/emersonsmm/.jdks/temurin-21/Contents/Home ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test
+```
+- **Android (`:androidApp:testDebugUnitTest`)**: **45 pruebas aprobadas** (incluye nuevas pruebas en `AndroidPlaybackRecoveryTest`, `AndroidYouTubeAuthTest`, `DesktopRemoteClientTest`, `AndroidQueueOrderTest` ampliado y `MobileHomeStateTest` ampliado).
+- **APK (`:androidApp:assembleReview`)**: generado correctamente (`androidApp/build/outputs/apk/review/androidApp-review.apk`, versión `1.8.54-review`).
+- **No-regresión Desktop/compartidos (`:shared:jvmTest :desktopUi:jvmTest :desktopApp:test`)**: **BUILD SUCCESSFUL** sin regresiones.
+
+### Validación real en dispositivo físico (ADB)
+Dispositivo: **Samsung Galaxy Tab A9 (`SM-X110`)**, Android 16 (API 36), `800×1340` (`213 dpi`), variante aislada `com.music.mavimusic.android.review` (sin tocar ninguna instalación de producción). Nota: la tablet estaba sin Wi-Fi activo (`Active default network: none`), lo cual permitió verificar el comportamiento sin conexión.
+- Arranque en frío sin fallos (`TotalTime ~2.4 s`, cero excepciones en `logcat`).
+- Reproducción real de las 5 pistas descargadas sin conexión desde Biblioteca (`Lovers in Japan`, `No Debiste Volver`, etc.).
+- **`MediaSession` / `ForwardingPlayer`**: verificado con `dumpsys media_session` (`state=PLAYING`, `actions=7340031`) y evento de hardware `KEYCODE_MEDIA_NEXT`, que avanzó correctamente a la siguiente pista de la cola.
+- **Visualizador nativo**: verificado modo Onda animándose con señal real del audio en reproducción.
+- **Cola en `NowPlayingScreen`**: se detectó y corrigió en caliente el solapamiento de los botones superiores sobre la cabecera compacta de Cola/Letras; re-verificado sin solapamiento tras recompilar y reinstalar.
+- **Inicio (`Recientes` e `Iniciar radio`)**, menú contextual por pista (`MoreVert`), **Ajustes** (cuenta YouTube Music, normalización `-14 LUFS`, herramientas rápidas, versión `1.8.54-review`) y **Control remoto nativo** verificados visualmente mediante capturas reales.
+
+### Pendientes de validación con red / otro hardware
+1. Probar inicio de sesión real de YouTube Music y carga en vivo de estanterías de `YtMusicRepository.home()` con Wi-Fi activo.
+2. Probar emparejamiento en vivo del Control remoto nativo contra una instancia activa de MaviMusic Desktop en la misma red LAN.
+3. Probar descarga real vía `WorkManager` mandando la app a segundo plano o matando el proceso con red activa.
+4. Validación visual en un teléfono estrecho (`360–411 dp`) y con teclado virtual abierto en Buscar.

@@ -1,30 +1,36 @@
 package com.music.mavimusic.android.data
 
 import android.content.Context
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.music.mavimusic.data.innertube.StreamResolver
 import com.music.mavimusic.data.model.Song
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 
 object OfflineDownloadManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var appContext: Context? = null
     private var downloadDir: File? = null
 
     private val okHttpClient = OkHttpClient.Builder()
@@ -35,6 +41,7 @@ object OfflineDownloadManager {
 
     private val lock = Any()
     private val jobs = mutableMapOf<String, Job>()
+    private val activeWorkIds = mutableSetOf<String>()
     private val downloadSlots = Semaphore(2)
     private var clearing = false
     private val deleting = mutableSetOf<String>()
@@ -51,10 +58,12 @@ object OfflineDownloadManager {
     val downloadingIds = _downloadingIds.asStateFlow()
 
     fun init(context: Context) {
-        val root = context.getExternalFilesDir(null) ?: context.filesDir
+        val app = context.applicationContext
+        val root = app.getExternalFilesDir(null) ?: app.filesDir
         val dir = File(root, "downloads")
         if (!dir.exists()) dir.mkdirs()
         synchronized(lock) {
+            appContext = app
             if (downloadDir == dir) return
             downloadDir = dir
             dir.listFiles { file -> file.name.endsWith(".tmp") }?.forEach { it.delete() }
@@ -84,13 +93,17 @@ object OfflineDownloadManager {
         val active = synchronized(lock) {
             if (clearing) return
             clearing = true
+            activeWorkIds.clear()
             jobs.values.toList().also { list -> list.forEach { it.cancel() } }
         }
+        cancelAllWorkManagerDownloads()
         scope.launch {
             try {
                 active.joinAll()
                 downloadDir?.listFiles()?.forEach { it.delete() }
                 _errors.value = emptyMap()
+                _progress.value = emptyMap()
+                _downloadingIds.value = emptySet()
                 refreshDownloadedSongs()
             } finally { synchronized(lock) { clearing = false } }
         }
@@ -124,75 +137,124 @@ object OfflineDownloadManager {
     }
 
     fun downloadSong(song: Song) {
-        val dir = downloadDir ?: return
-        if (!song.localPath.isNullOrBlank()) return
+        if (downloadDir == null || !song.localPath.isNullOrBlank()) return
         synchronized(lock) {
-            if (clearing || song.videoId in deleting || jobs.containsKey(song.videoId) || isDownloaded(song.videoId)) return
+            if (clearing || song.videoId in deleting || jobs.containsKey(song.videoId) || song.videoId in activeWorkIds || isDownloaded(song.videoId)) return
             _errors.update { it - song.videoId }
             _progress.update { it + (song.videoId to 0f) }
+
+            val enqueued = enqueueWorkManagerDownload(song)
+            if (enqueued) {
+                activeWorkIds.add(song.videoId)
+                _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
+                return
+            }
+
             val job = scope.launch(start = CoroutineStart.LAZY) {
-                val temp = File(dir, "${song.videoId}.audio.tmp")
-                val metadataTemp = File(dir, "${song.videoId}.json.tmp")
-                val audio = File(dir, "${song.videoId}.audio")
-                var promoted = false
                 try {
-                    downloadSlots.withPermit {
-                        val url = StreamResolver.resolve(song.videoId)
-                        val headers = StreamResolver.mediaHeadersFor(url)
-                        downloader.download(url, headers, temp) { fraction ->
-                            _progress.update { it + (song.videoId to fraction) }
-                        }
-                        coroutineContext.ensureActive()
-                        val metadata = JSONObject().apply {
-                            put("videoId", song.videoId)
-                            put("title", song.title)
-                            put("artist", song.artist)
-                            put("thumbnailUrl", song.thumbnailUrl ?: "")
-                            put("durationText", song.durationText ?: "")
-                            put("albumName", song.albumName ?: "")
-                            put("sizeBytes", temp.length())
-                        }
-                        metadataTemp.writeText(metadata.toString())
-                        synchronized(lock) {
-                            coroutineContext.ensureActive()
-                            check(temp.renameTo(audio)) { "No se pudo guardar el audio" }
-                            promoted = true
-                            check(metadataTemp.renameTo(File(dir, "${song.videoId}.json"))) { "No se pudieron guardar los metadatos" }
-                        }
-                        refreshDownloadedSongs()
-                    }
-                } catch (cancelled: CancellationException) {
-                    if (promoted) audio.delete()
-                    throw cancelled
-                } catch (_: Exception) {
-                    if (promoted) audio.delete()
-                    _errors.update { it + (song.videoId to "No se pudo completar la descarga. Toca descargar para reintentar.") }
+                    performDownload(song)
                 } finally {
-                    temp.delete()
-                    metadataTemp.delete()
                     synchronized(lock) {
                         jobs.remove(song.videoId)
-                        _downloadingIds.value = jobs.keys.toSet()
-                        _progress.update { it - song.videoId }
+                        _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
                     }
                 }
             }
             jobs[song.videoId] = job
-            _downloadingIds.value = jobs.keys.toSet()
+            _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
             job.start()
         }
     }
 
+    /**
+     * Executes the actual verified download and atomic file promotion.
+     * Invoked by [DownloadAudioWorker] (WorkManager) or fallback coroutine.
+     */
+    internal suspend fun performDownload(
+        song: Song,
+        onProgress: ((Float) -> Unit)? = null,
+    ): Boolean {
+        val dir = downloadDir ?: return false
+        synchronized(lock) {
+            if (clearing || song.videoId in deleting) return false
+            if (isDownloaded(song.videoId)) return true
+            activeWorkIds.add(song.videoId)
+            _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
+            _errors.update { it - song.videoId }
+            _progress.update { it + (song.videoId to 0f) }
+        }
+        val temp = File(dir, "${song.videoId}.audio.tmp")
+        val metadataTemp = File(dir, "${song.videoId}.json.tmp")
+        val audio = File(dir, "${song.videoId}.audio")
+        var promoted = false
+        return try {
+            downloadSlots.withPermit {
+                val url = StreamResolver.resolve(song.videoId)
+                val headers = StreamResolver.mediaHeadersFor(url)
+                downloader.download(url, headers, temp) { fraction ->
+                    _progress.update { it + (song.videoId to fraction) }
+                    onProgress?.invoke(fraction)
+                }
+                coroutineContext.ensureActive()
+                val metadata = JSONObject().apply {
+                    put("videoId", song.videoId)
+                    put("title", song.title)
+                    put("artist", song.artist)
+                    put("thumbnailUrl", song.thumbnailUrl ?: "")
+                    put("durationText", song.durationText ?: "")
+                    put("albumName", song.albumName ?: "")
+                    put("sizeBytes", temp.length())
+                }
+                metadataTemp.writeText(metadata.toString())
+                synchronized(lock) {
+                    coroutineContext.ensureActive()
+                    if (clearing || song.videoId in deleting) {
+                        throw CancellationException("Download cleared or deleted")
+                    }
+                    check(temp.renameTo(audio)) { "No se pudo guardar el audio" }
+                    promoted = true
+                    check(metadataTemp.renameTo(File(dir, "${song.videoId}.json"))) { "No se pudieron guardar los metadatos" }
+                }
+                refreshDownloadedSongs()
+                true
+            }
+        } catch (cancelled: CancellationException) {
+            if (promoted) audio.delete()
+            throw cancelled
+        } catch (_: Exception) {
+            if (promoted) audio.delete()
+            _errors.update { it + (song.videoId to "No se pudo completar la descarga. Toca descargar para reintentar.") }
+            false
+        } finally {
+            temp.delete()
+            metadataTemp.delete()
+            synchronized(lock) {
+                activeWorkIds.remove(song.videoId)
+                _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
+                _progress.update { it - song.videoId }
+            }
+        }
+    }
+
     fun cancelDownload(videoId: String) {
-        synchronized(lock) { jobs[videoId]?.cancel() }
+        synchronized(lock) {
+            jobs[videoId]?.cancel()
+            activeWorkIds.remove(videoId)
+            _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
+            _progress.update { it - videoId }
+        }
+        cancelWorkManagerDownload(videoId)
     }
 
     fun deleteDownload(videoId: String) {
         val dir = downloadDir ?: return
         val active = synchronized(lock) {
             if (!deleting.add(videoId)) return
+            activeWorkIds.remove(videoId)
+            _downloadingIds.value = (jobs.keys + activeWorkIds).toSet()
             jobs[videoId]?.also { it.cancel() }
         }
+        cancelWorkManagerDownload(videoId)
         scope.launch {
             try {
                 active?.join()
@@ -201,6 +263,43 @@ object OfflineDownloadManager {
                 _errors.update { it - videoId }
                 refreshDownloadedSongs()
             } finally { synchronized(lock) { deleting.remove(videoId) } }
+        }
+    }
+
+    private fun enqueueWorkManagerDownload(song: Song): Boolean {
+        val ctx = appContext ?: return false
+        return runCatching {
+            val workManager = WorkManager.getInstance(ctx)
+            val request = OneTimeWorkRequestBuilder<DownloadAudioWorker>()
+                .setInputData(DownloadAudioWorker.inputDataFor(song))
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                )
+                .addTag(DownloadAudioWorker.WORK_TAG)
+                .addTag(DownloadAudioWorker.uniqueWorkName(song.videoId))
+                .build()
+            workManager.enqueueUniqueWork(
+                DownloadAudioWorker.uniqueWorkName(song.videoId),
+                ExistingWorkPolicy.KEEP,
+                request,
+            )
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun cancelWorkManagerDownload(videoId: String) {
+        val ctx = appContext ?: return
+        runCatching {
+            WorkManager.getInstance(ctx).cancelUniqueWork(DownloadAudioWorker.uniqueWorkName(videoId))
+        }
+    }
+
+    private fun cancelAllWorkManagerDownloads() {
+        val ctx = appContext ?: return
+        runCatching {
+            WorkManager.getInstance(ctx).cancelAllWorkByTag(DownloadAudioWorker.WORK_TAG)
         }
     }
 }

@@ -19,19 +19,31 @@ import com.music.mavimusic.android.SongRowItem
 import com.music.mavimusic.android.audio.AndroidPlayerEngine
 import com.music.mavimusic.data.YtMusicRepository
 import com.music.mavimusic.data.model.BrowseItem
+import com.music.mavimusic.data.model.BrowseType
 import com.music.mavimusic.data.model.Song
 import kotlinx.coroutines.launch
 
 @Composable
 fun CollectionRow(item: BrowseItem, onOpen: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onOpen).padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        AsyncImage(item.thumbnailUrl, null, contentScale = ContentScale.Crop,
-            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)))
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onOpen).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            item.thumbnailUrl,
+            null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)),
+        )
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                item.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -41,41 +53,100 @@ fun CollectionRow(item: BrowseItem, onOpen: () -> Unit) {
 fun CollectionSheet(item: BrowseItem, onDismiss: () -> Unit, onAdd: (Song) -> Unit, onRadio: (Song) -> Unit) {
     var songs by remember(item.browseId) { mutableStateOf<List<Song>>(emptyList()) }
     var continuation by remember(item.browseId) { mutableStateOf<String?>(null) }
+    var moreSongsBrowseId by remember(item.browseId) { mutableStateOf<String?>(null) }
+    var headerTitle by remember(item.browseId) { mutableStateOf(item.title) }
     var loading by remember(item.browseId) { mutableStateOf(true) }
     var error by remember(item.browseId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
     fun load(more: Boolean = false) {
         scope.launch {
             loading = true
             error = false
             try {
-                val response = if (more && continuation != null) YtMusicRepository.moreSongs(continuation!!)
-                    else YtMusicRepository.browseSongs(item.browseId)
-                response.onSuccess {
-                    songs = ((if (more) songs else emptyList()) + it.songs).distinctBy { track -> track.videoId }
-                    continuation = it.continuation
-                }.onFailure { error = true }
-            } finally { loading = false }
+                if (!more && item.type == BrowseType.ARTIST) {
+                    YtMusicRepository.artistPage(item.browseId).onSuccess { artistPage ->
+                        if (!artistPage.name.isNullOrBlank()) headerTitle = artistPage.name!!
+                        songs = artistPage.songs.distinctBy { it.videoId }
+                        moreSongsBrowseId = artistPage.moreSongsBrowseId
+                        continuation = null
+                    }.onFailure { error = true }
+                } else if (more && moreSongsBrowseId != null && continuation == null) {
+                    val target = moreSongsBrowseId!!
+                    moreSongsBrowseId = null
+                    YtMusicRepository.browseSongs(target).onSuccess {
+                        songs = (songs + it.songs).distinctBy { track -> track.videoId }
+                        continuation = it.continuation
+                    }.onFailure { error = true }
+                } else {
+                    val response = if (more && continuation != null) YtMusicRepository.moreSongs(continuation!!)
+                        else YtMusicRepository.browseSongs(item.browseId)
+                    response.onSuccess {
+                        songs = ((if (more) songs else emptyList()) + it.songs).distinctBy { track -> track.videoId }
+                        continuation = it.continuation
+                    }.onFailure { error = true }
+                }
+            } finally {
+                loading = false
+            }
         }
     }
+
     LaunchedEffect(item.browseId) { load() }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.9f).padding(horizontal = 20.dp)) {
-            Text(item.title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(.9f)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp)
+        ) {
+            Text(
+                headerTitle,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.subtitle.isNotBlank()) {
+                Text(
+                    item.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(12.dp))
-            if (songs.isNotEmpty()) Button(onClick = { AndroidPlayerEngine.playQueue(songs); onDismiss() }) { Text("Reproducir") }
+            if (songs.isNotEmpty()) {
+                Button(onClick = { AndroidPlayerEngine.playQueue(songs); onDismiss() }) {
+                    Text("Reproducir (${songs.size})")
+                }
+            }
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
                 itemsIndexed(songs, key = { _, song -> song.videoId }) { index, song ->
-                    SongRowItem(song, onClick = { AndroidPlayerEngine.playQueue(songs, index); onDismiss() },
-                        onAddToPlaylist = { onAdd(song) }, onStartRadio = { onRadio(song) })
+                    SongRowItem(
+                        song,
+                        onClick = { AndroidPlayerEngine.playQueue(songs, index); onDismiss() },
+                        onAddToPlaylist = { onAdd(song) },
+                        onStartRadio = { onRadio(song) },
+                    )
                 }
                 item {
                     when {
                         loading -> CircularProgressIndicator(Modifier.padding(16.dp))
                         error -> TextButton(onClick = { load(songs.isNotEmpty()) }) { Text("No se pudo cargar. Reintentar") }
-                        continuation != null -> TextButton(onClick = { load(more = true) }) { Text("Cargar más canciones") }
-                        songs.isEmpty() -> Text("No hay canciones disponibles", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        continuation != null || moreSongsBrowseId != null -> TextButton(onClick = { load(more = true) }) {
+                            Text("Cargar más canciones")
+                        }
+                        songs.isEmpty() -> Text(
+                            "No hay canciones disponibles",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

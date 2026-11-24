@@ -96,8 +96,9 @@ En Android, el audio no puede ejecutarse en un hilo simple de JVM como en escrit
 - [x] **Diseño Adaptativo para Tablet:** En pantallas anchas (`>= 720dp`), activación automática de `NavigationRail` lateral izquierdo dejando libre la pantalla para cuadrículas y mini-player estilizado.
 - [x] **Temporizador de apagado (Sleep Timer):** Modal con tiempos (15, 30, 45, 60 min o al terminar canción), cuenta regresiva y pausa del reproductor.
 - [x] **Escáner de archivos locales (`MediaStore`):** Detección y reproducción de archivos MP3/FLAC del almacenamiento de la tablet.
-- [ ] **Sincronización nativa con Escritorio:** Faltan el enlace y la sincronización de favoritos/playlists dentro de la app Android. El acceso web al control remoto se describe por separado.
-- [x] **Acceso al control remoto de Escritorio:** Abre en el navegador el control remoto existente del PC/Mac; usa el puerto 8765 por defecto y el PIN se introduce en la web del equipo. Es independiente de la sincronización nativa de biblioteca pendiente.
+- [ ] **Sincronización nativa con Escritorio:** Faltan el enlace y la sincronización de favoritos/playlists dentro de la app Android. El control remoto nativo se describe aparte.
+- [x] **Control remoto de Escritorio nativo (y acceso web):** Cliente nativo HTTP (`POST /api/pair`) + WebSocket (`/ws?token=...`) integrado en `DesktopRemoteModal` con emparejamiento por PIN, estado en tiempo real, controles de reproducción, volumen y selector de salida de audio, conservando acceso secundario en navegador.
+- [x] **Mejoras v2 (Bloques 1–3):** `ForwardingPlayer` en `MediaSession`, cola editable (`playNext`, `addToQueue`, reordenar/quitar/limpiar), recuperación acotada de red, normalización `-14 LUFS`, sesión opcional de YouTube Music, Inicio con `Recientes` + `Iniciar radio` + `YtMusicRepository.home()`, traducción/romanización de letras, detección de salidas de audio, descargas persistentes con `WorkManager` e iconos reales de MaviMusic. Ver detalles y validaciones en `ANDROID_HANDOFF.md`.
 
 ---
 

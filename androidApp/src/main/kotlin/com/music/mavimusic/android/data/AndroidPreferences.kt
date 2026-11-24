@@ -15,8 +15,25 @@ class AndroidPreferences(context: Context) {
     fun setReduceVisualizerMotion(value: Boolean) { prefs.edit().putBoolean("visualizer_reduce_motion", value).apply() }
     fun getDataSaver(): Boolean = prefs.getBoolean("audio_data_saver", false)
     fun setDataSaver(value: Boolean) { prefs.edit().putBoolean("audio_data_saver", value).apply() }
+    fun getVolumeNormalization(): Boolean = prefs.getBoolean("volume_normalization", true)
+    fun setVolumeNormalization(value: Boolean) { prefs.edit().putBoolean("volume_normalization", value).apply() }
+    fun getLyricsOffsetMs(): Int = prefs.getInt("lyrics_offset_ms", 0).coerceIn(-10_000, 10_000)
+    fun setLyricsOffsetMs(value: Int) { prefs.edit().putInt("lyrics_offset_ms", value.coerceIn(-10_000, 10_000)).apply() }
     fun getDesktopRemoteAddress(): String = prefs.getString("desktop_remote_address", "") ?: ""
     fun setDesktopRemoteAddress(value: String) { prefs.edit().putString("desktop_remote_address", value).apply() }
+    fun getDesktopRemoteToken(): String = prefs.getString("desktop_remote_token", "") ?: ""
+    fun setDesktopRemoteToken(value: String) { prefs.edit().putString("desktop_remote_token", value).apply() }
+    fun getYouTubeCookie(): String? = prefs.getString("yt_cookie", null)?.takeIf { it.isNotBlank() }
+    fun getYouTubeAccountName(): String? = prefs.getString("yt_account_name", null)?.takeIf { it.isNotBlank() }
+    fun saveYouTubeSession(cookie: String, accountName: String?) {
+        prefs.edit()
+            .putString("yt_cookie", cookie.trim())
+            .putString("yt_account_name", accountName?.trim().orEmpty())
+            .apply()
+    }
+    fun clearYouTubeSession() {
+        prefs.edit().remove("yt_cookie").remove("yt_account_name").apply()
+    }
     fun getShuffle(): Boolean = prefs.getBoolean("shuffle", false)
     fun getRepeatMode(): Int = prefs.getInt("repeat_mode", 0).coerceIn(0, 2)
     fun getAutoplay(): Boolean = prefs.getBoolean("autoplay", true)
@@ -221,6 +238,29 @@ class AndroidPreferences(context: Context) {
         savePlaylists(current)
     }
 
+    // --- PLAYBACK HISTORY (RECENTS) ---
+
+    fun getPlayHistory(): List<Song> {
+        val str = prefs.getString(KEY_PLAY_HISTORY, null) ?: return emptyList()
+        return try {
+            val array = JSONArray(str)
+            val list = mutableListOf<Song>()
+            for (i in 0 until array.length()) {
+                jsonToSong(array.getJSONObject(i))?.let { list.add(it) }
+            }
+            list
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun recordPlay(song: Song) {
+        val updated = (listOf(song) + getPlayHistory().filterNot { it.videoId == song.videoId }).take(30)
+        val array = JSONArray()
+        updated.forEach { array.put(songToJson(it)) }
+        prefs.edit().putString(KEY_PLAY_HISTORY, array.toString()).apply()
+    }
+
     // --- JSON SERIALIZATION HELPERS ---
 
     private fun songToJson(song: Song): JSONObject {
@@ -230,6 +270,8 @@ class AndroidPreferences(context: Context) {
             put("artist", song.artist)
             put("thumbnailUrl", song.thumbnailUrl ?: "")
             put("durationText", song.durationText ?: "")
+            put("artistId", song.artistId ?: "")
+            put("albumId", song.albumId ?: "")
             put("albumName", song.albumName ?: "")
             put("localPath", song.localPath ?: "")
         }
@@ -243,6 +285,8 @@ class AndroidPreferences(context: Context) {
                 artist = json.getString("artist"),
                 thumbnailUrl = json.optString("thumbnailUrl").takeIf { it.isNotBlank() },
                 durationText = json.optString("durationText").takeIf { it.isNotBlank() },
+                artistId = json.optString("artistId").takeIf { it.isNotBlank() },
+                albumId = json.optString("albumId").takeIf { it.isNotBlank() },
                 albumName = json.optString("albumName").takeIf { it.isNotBlank() },
                 localPath = json.optString("localPath").takeIf { it.isNotBlank() }
             )
@@ -258,6 +302,7 @@ class AndroidPreferences(context: Context) {
         private const val KEY_SEARCH_HISTORY = "search_history_v1"
         private const val KEY_FAVORITES = "user_favorites_v1"
         private const val KEY_PLAYLISTS = "user_playlists_v1"
+        private const val KEY_PLAY_HISTORY = "play_history_v1"
 
         val defaultSearchHistory = listOf("Dua Lipa", "Coldplay", "Bad Bunny", "Queen", "The Weeknd")
     }
