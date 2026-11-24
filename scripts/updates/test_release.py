@@ -66,23 +66,29 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'feed URL'):
             release.inspect_assets(self.root, self.version, 'owner/repo')
 
-    def hub(self, corrupt=False, public=False, competing=False):
+    def hub(self, corrupt=False, public=False, competing=False, tag_present=True):
         test = self
         class Hub:
             repo = 'owner/repo'
             def __init__(self):
                 self.commands = []
                 self.draft = not public
+                self.has_tag = tag_present
             def run(self, *args):
                 self.commands.append(args)
                 if args[:2] == ('release', 'edit'):
                     self.draft = False
+                    self.has_tag = True
             def api(self, endpoint, missing=False):
                 if endpoint == 'releases/latest':
                     if competing and any(c[:2] == ('release', 'upload') for c in self.commands):
                         return {'tag_name': 'v1.8.51'}
                     return None
                 if endpoint.startswith('git/ref'):
+                    if not self.has_tag:
+                        if missing:
+                            return None
+                        raise RuntimeError('gh: Not Found (HTTP 404)')
                     return {'object': {'type': 'commit', 'sha': test.commit}}
                 if endpoint.startswith('releases/tags/'):
                     raise AssertionError('Drafts cannot be queried by tag')
@@ -133,6 +139,13 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'different commit'):
             release.publish(hub, self.root, self.version, 'b' * 40, Path('notes'))
         self.assertEqual([], hub.commands)
+
+    def test_draft_without_remote_tag_publishes_cleanly(self):
+        hub = self.hub(tag_present=False)
+        release.publish(hub, self.root, self.version, self.commit, Path('notes'))
+        self.assertEqual(['create', 'upload', 'edit'], [c[1] for c in hub.commands])
+        self.assertFalse(hub.draft)
+        self.assertTrue(hub.has_tag)
 
 
 if __name__ == '__main__':

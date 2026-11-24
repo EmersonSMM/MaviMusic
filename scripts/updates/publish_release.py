@@ -146,7 +146,7 @@ def publish(hub, directory, version, commit, notes):
     if not existing:
         hub.run('release', 'create', tag, '--repo', hub.repo, '--draft', '--target', commit,
                 '--title', f'MaviMusic {version}', '--notes-file', str(notes))
-    check_tag(hub, version, commit)
+    check_tag(hub, version, commit, missing=True)
     hub.run('release', 'upload', tag, '--repo', hub.repo, '--clobber',
             *(str(directory / name) for name in sorted(expected)))
     uploaded = find_release(hub, tag)
@@ -160,6 +160,7 @@ def publish(hub, directory, version, commit, notes):
     released = hub.api(release_endpoint)
     if released['draft']:
         raise RuntimeError('GitHub did not publish the verified draft')
+    check_tag(hub, version, commit)
     print(f'Published complete release: {released["html_url"]}')
 
 
