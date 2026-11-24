@@ -49,9 +49,14 @@ Petición del usuario: pulir vídeo, switch Audio/Vídeo, sugerencias, recuperac
 
 Resultado final r2: 103 pruebas shared + 42 desktopUi + 527 desktopApp; 670 aprobadas, 2 omitidas (llavero y ventana Windows), sin fallos. En esta ejecución estaban habilitadas las pruebas de red, escenas y perfil de medios. DMG Apple Silicon y firma local verificados; validación interactiva por el usuario y Windows real pendientes.
 
-## Tercera revisión: suspensión en macOS, orden de Inicio y vídeo (23 de noviembre de 2026)
+## Tercera revisión: suspensión en macOS, orden de Inicio y vídeo (23–24 de noviembre de 2026)
 
-Consolidación en la rama `codex/android-stability-stage-1` sobre `8d4929d6` (commit local sin push ni publicación).
+Consolidado y publicado en la rama `codex/android-stability-stage-1` (sobre `8d4929d6`, commit `7eec953d` en `origin/codex/android-stability-stage-1`, sin tags ni publicación de release).
+
+- Confirmaciones de diseño cerradas con el usuario (24 de noviembre de 2026):
+  - `Música sugerida`, `Álbumes para ti` e `Iniciar radio` permanecen justo debajo de `Recents` y encima del feed general de YouTube.
+  - `buildStartRadioShelf` conserva el orden estable por ranking de escucha y `FEmusic_new_releases` permanece visible en el feed.
+  - `DesktopQueue.withoutDuplicates` conserva su comportamiento actual (mantiene remixes en `BROWSE` y evita repetir el mismo `videoId` o pares audio/videoclip).
 
 - `DesktopWindowVisibility.kt` / `DesktopWindowVisibilityTest.kt`: suspensión de `_renderActive` al minimizar u ocultar también en macOS (`attachWindow` unificado para todas las plataformas, `startHidden()`, `show()`, `onCloseRequest()` y soporte `AppHiddenListener` para ocultar app con `⌘H`), deteniendo visualizadores y videoclip cuando la ventana no es visible.
 - `DesktopHomeRecommendations.kt` / `DesktopApp.kt` / `DesktopHomeRecommendationsTest.kt`: `Recents` queda fijado en el índice `0` con `Música sugerida`, `Álbumes para ti` e `Iniciar radio` inmediatamente debajo; «Escuchar de nuevo» (`Listen again`) permanece en el feed inferior; las cargas prepended de `Recents` reemplazan alias previos (`Recently played`, `Recientes`); exclusión de «No me interesa» antes de `rotate().take(4)` y respaldo `localRecentsShelf()` desde historial local.
